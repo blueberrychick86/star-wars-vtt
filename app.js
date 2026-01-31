@@ -774,6 +774,8 @@ const face = document.createElement("div");
 face.className = "cardFace";
 face.style.backgroundImage = `url('${OBIWAN.img}')`;
 card.appendChild(face);
+updateCardFaceRotation(card);
+
 
 // initial placement (design coords)
 card.style.left = `${DESIGN_W * 0.42}px`;
