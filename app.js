@@ -702,6 +702,11 @@ function applyRotationSize(cardEl) {
     cardEl.style.width = `${CARD_H}px`;
     cardEl.style.height = `${CARD_W}px`;
   }
+
+  // ✅ make the image rotate with the card
+  updateCardFaceRotation(cardEl);
+}
+
 }
 
 function toggleRotate(cardEl) {
