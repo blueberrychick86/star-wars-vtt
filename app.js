@@ -1,4 +1,4 @@
-console.log("VTT: camera pan/zoom + card drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE drops into captured slots");
+console.log("VTT: camera pan/zoom + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill into captured slots");
 
 //
 // ---------- base page ----------
@@ -367,8 +367,9 @@ window.addEventListener("keydown", (e) => {
 const CARD_W = 86;
 const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
 
-const BASE_W = CARD_H; // horizontal base width
-const BASE_H = CARD_W; // horizontal base height
+// Base cards are horizontal: width = CARD_H, height = CARD_W
+const BASE_W = CARD_H;
+const BASE_H = CARD_W;
 
 const GAP = 18;
 const BIG_GAP = 28;
@@ -394,9 +395,11 @@ let forceSlotCenters = [];
 let forceMarker = null;
 
 //
-// ---------- captured base slot centers (for snapping bases) ----------
+// ---------- captured base slots + occupancy ----------
 //
-const capSlotCenters = { p1: [], p2: [] };
+const capSlotCenters = { p1: [], p2: [] };                  // design-space centers
+const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) }; // baseId strings or null
+let zonesCache = null;
 
 //
 // ---------- zone math (design-space) ----------
@@ -799,10 +802,9 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 }
 
 //
-// ---------- captured bases: 7 stepped slots (AND centers for snapping) ----------
+// ---------- captured bases: 7 stepped slots + centers + AUTOFILL logic ----------
 //
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  // clear existing for this side
   stage.querySelectorAll(`.capSlot[data-cap-side="${sideLabel}"]`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
 
@@ -813,7 +815,6 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     const y = capRect.y + i * CAP_OVERLAP;
     const x = capRect.x;
 
-    // visual slot
     const slot = document.createElement("div");
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
@@ -823,7 +824,6 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.style.height = `${slotH}px`;
     stage.appendChild(slot);
 
-    // center for snapping (design coords)
     capSlotCenters[sideLabel].push({
       x: x + slotW / 2,
       y: y + slotH / 2
@@ -831,39 +831,66 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
   }
 }
 
-// snap BASE card to nearest captured slot (top or bottom)
-function snapBaseToCapturedSlot(baseEl) {
+function pointInRect(px, py, r) {
+  return (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h);
+}
+
+function clearCapturedAssignment(baseEl) {
+  const side = baseEl.dataset.capSide;
+  const idxStr = baseEl.dataset.capIndex;
+  if (!side || idxStr == null) return;
+
+  const idx = Number(idxStr);
+  if (!Number.isFinite(idx)) return;
+
+  const id = baseEl.dataset.cardId || null;
+  if (capOccupied[side] && capOccupied[side][idx] === id) {
+    capOccupied[side][idx] = null;
+  }
+
+  delete baseEl.dataset.capSide;
+  delete baseEl.dataset.capIndex;
+}
+
+function assignBaseToCapturedSlot(baseEl, side, idx) {
+  const centers = capSlotCenters[side];
+  if (!centers || !centers[idx]) return;
+
   const w = parseFloat(baseEl.style.width);
   const h = parseFloat(baseEl.style.height);
+  const s = centers[idx];
 
+  baseEl.style.left = `${s.x - w / 2}px`;
+  baseEl.style.top  = `${s.y - h / 2}px`;
+
+  baseEl.dataset.capSide = side;
+  baseEl.dataset.capIndex = String(idx);
+  capOccupied[side][idx] = baseEl.dataset.cardId || "__base__";
+}
+
+function snapBaseAutoFill(baseEl) {
+  if (!zonesCache) return;
+
+  // base center in design coords
+  const w = parseFloat(baseEl.style.width);
+  const h = parseFloat(baseEl.style.height);
   const left = parseFloat(baseEl.style.left || "0");
   const top  = parseFloat(baseEl.style.top  || "0");
   const cx = left + w / 2;
   const cy = top + h / 2;
 
-  let best = null;
-  let bestDist = Infinity;
+  // determine which captured zone you dropped into
+  const inP2 = pointInRect(cx, cy, zonesCache.p2_captured_bases);
+  const inP1 = pointInRect(cx, cy, zonesCache.p1_captured_bases);
 
-  function consider(side) {
-    for (let i = 0; i < capSlotCenters[side].length; i++) {
-      const s = capSlotCenters[side][i];
-      const d = Math.hypot(cx - s.x, cy - s.y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = { side, idx: i, x: s.x, y: s.y };
-      }
-    }
-  }
+  const side = inP2 ? "p2" : (inP1 ? "p1" : null);
+  if (!side) return; // not dropped in a captured pile, do nothing
 
-  consider("p2");
-  consider("p1");
+  // find first empty slot (auto-fill)
+  let idx = capOccupied[side].findIndex(v => v == null);
+  if (idx === -1) idx = CAP_SLOTS - 1; // full → last slot
 
-  // threshold: must be reasonably near the captured area
-  const threshold = Math.max(w, h) * 1.2;
-  if (!best || bestDist > threshold) return;
-
-  baseEl.style.left = `${best.x - w / 2}px`;
-  baseEl.style.top  = `${best.y - h / 2}px`;
+  assignBaseToCapturedSlot(baseEl, side, idx);
 }
 
 //
@@ -884,10 +911,9 @@ const OBIWAN = {
   reward: "Gain 3 Resources and 3 Force.",
 };
 
-// Test base (use any image you have; swap path later)
 const TEST_BASE = {
   id: "base_test",
-  img: "./cards/test/base.jpg", // <-- put any base image here (or reuse obiwan.jpg if you want)
+  img: "./cards/test/base.jpg", // change if needed
   name: "Test Base",
   type: "Base",
   subtype: "Location",
@@ -895,7 +921,7 @@ const TEST_BASE = {
   attack: "—",
   resources: "—",
   force: "—",
-  effect: "This is a test base card for captured-base slot snapping.",
+  effect: "Test base card for captured-base auto-fill.",
   reward: "—",
 };
 
@@ -962,8 +988,6 @@ function toggleRotate(cardEl) {
 //
 // ---------- build stage ----------
 //
-let zonesCache = null;
-
 function build() {
   stage.innerHTML = "";
 
@@ -984,11 +1008,9 @@ function build() {
     stage.appendChild(el);
   }
 
-  // force slots + marker
   buildForceTrackSlots(zones.force_track);
   ensureForceMarker(FORCE_NEUTRAL_INDEX);
 
-  // captured base slots + centers for snapping
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
@@ -1009,28 +1031,23 @@ function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
   el.dataset.kind = kind;
-  el.dataset.cardId = cardData.id;
+  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`; // unique instance id
 
-  // face
   const face = document.createElement("div");
   face.className = "cardFace";
   face.style.backgroundImage = `url('${cardData.img}')`;
   el.appendChild(face);
 
-  // size rules
   if (kind === "unit") {
     el.dataset.rot = "0";
     applyRotationSize(el);
     updateCardFaceRotation(el);
   } else if (kind === "base") {
-    // Bases are horizontal: 3.5" wide x 2.5" tall (BASE_W x BASE_H)
     el.style.width = `${BASE_W}px`;
     el.style.height = `${BASE_H}px`;
-    // no rotation transforms on base face
     face.style.transform = "none";
   }
 
-  // preview: right click (PC)
   el.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     togglePreview(cardData);
@@ -1073,7 +1090,6 @@ function attachDragHandlers(el, cardData, kind) {
     }, 380);
   }
 
-  // Double-tap to rotate ONLY for units
   let lastTap = 0;
 
   el.addEventListener("pointerdown", (e) => {
@@ -1093,6 +1109,9 @@ function attachDragHandlers(el, cardData, kind) {
       lastTap = now;
     }
 
+    // If it's a base currently in a captured slot, free the slot when we pick it up
+    if (kind === "base") clearCapturedAssignment(el);
+
     startLongPress(e);
 
     dragging = true;
@@ -1105,8 +1124,7 @@ function attachDragHandlers(el, cardData, kind) {
     offsetX = px - left;
     offsetY = py - top;
 
-    // bring to front as you drag more cards later
-    el.style.zIndex = String(9000 + Math.floor(Math.random() * 1000));
+    el.style.zIndex = String(9000 + Math.floor(Math.random() * 2000));
   });
 
   el.addEventListener("pointermove", (e) => {
@@ -1135,12 +1153,10 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
-    // DROP BEHAVIOR
     if (kind === "base") {
-      // Bases drop into captured-base slots
-      snapBaseToCapturedSlot(el);
+      // ✅ autofill captured slot only if dropped inside the captured zone
+      snapBaseAutoFill(el);
     } else {
-      // Normal cards use normal snapping
       snapCardToNearestZone(el);
     }
   });
@@ -1150,14 +1166,6 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
   });
 }
-
-// Keyboard rotate (PC) — rotates ONLY the unit test card we create below
-window.addEventListener("keydown", (e) => {
-  if (e.key === "r" || e.key === "R") {
-    const unit = stage.querySelector('.card[data-kind="unit"]');
-    if (unit) toggleRotate(unit);
-  }
-});
 
 //
 // ---------- spawn test cards ----------
@@ -1169,15 +1177,19 @@ unitCard.style.zIndex = "9999";
 stage.appendChild(unitCard);
 
 // spawn multiple test base cards
-const BASE_TEST_COUNT = 5; // 🔹 change this number anytime
+const BASE_TEST_COUNT = 6; // change this number anytime
 
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
   const baseCard = makeCardEl(TEST_BASE, "base");
-
-  baseCard.style.left = `${DESIGN_W * (0.16 + i * 0.03)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.18 + i * 0.02)}px`;
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
   baseCard.style.zIndex = String(9000 + i);
-
   stage.appendChild(baseCard);
 }
 
+// Keyboard rotate (PC) — rotates only the unit test card
+window.addEventListener("keydown", (e) => {
+  if (e.key === "r" || e.key === "R") {
+    toggleRotate(unitCard);
+  }
+});
