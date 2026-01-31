@@ -437,9 +437,10 @@ const OBIWAN = {
   cost: "6",
 
   // From your image: left strip shows "4+" and "2"
-  attack: "4+",
-  resources: "2",
-  force: "—",
+    attack: "4",
+  resources: "—",
+  force: "2",
+  reward: "Gain 3 Resources and 3 Force.",
 
   effect:
     "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
