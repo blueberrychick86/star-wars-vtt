@@ -1,4 +1,4 @@
-console.log("PREVIEW2 + CAMERA2 + FORCE(7) + CAPTURED(7): board pan/zoom + cards drag/snap + preview + force marker + captured base slots");
+console.log("VTT: camera pan/zoom + card drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE drops into captured slots");
 
 //
 // ---------- base page ----------
@@ -95,12 +95,10 @@ style.textContent = `
     background: rgba(255,255,255,0.02);
     pointer-events: none;
   }
-
   .forceSlot.neutral {
     border: 1px dashed rgba(255,255,255,0.35);
     background: rgba(255,255,255,0.06);
   }
-
   .forceMarker {
     position: absolute;
     width: 28px;
@@ -314,7 +312,6 @@ function hidePreview() {
   previewBackdrop.style.display = "none";
   previewOpen = false;
 }
-
 function showPreview(cardData) {
   const imgEl = previewBackdrop.querySelector("#previewImg");
   const titleEl = previewBackdrop.querySelector("#previewTitle");
@@ -326,14 +323,14 @@ function showPreview(cardData) {
 
   imgEl.style.backgroundImage = `url('${cardData.img}')`;
   titleEl.textContent = cardData.name;
-  subEl.textContent = `${cardData.type} • ${cardData.subtype}`;
+  subEl.textContent = `${cardData.type}${cardData.subtype ? " • " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
   const pills = [
-    `Cost: ${cardData.cost}`,
-    `Attack: ${cardData.attack}`,
-    `Resources: ${cardData.resources}`,
-    `Force: ${cardData.force}`,
+    `Cost: ${cardData.cost ?? "—"}`,
+    `Attack: ${cardData.attack ?? "—"}`,
+    `Resources: ${cardData.resources ?? "—"}`,
+    `Force: ${cardData.force ?? "—"}`,
   ];
   for (const p of pills) {
     const d = document.createElement("div");
@@ -342,28 +339,24 @@ function showPreview(cardData) {
     pillsEl.appendChild(d);
   }
 
-  effEl.textContent = cardData.effect;
-  rewEl.textContent = cardData.reward;
+  effEl.textContent = cardData.effect ?? "—";
+  rewEl.textContent = cardData.reward ?? "—";
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
   scrollEl.scrollTop = 0;
 }
-
 function togglePreview(cardData) {
   if (previewOpen) hidePreview();
   else showPreview(cardData);
 }
-
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => {
   e.preventDefault();
   hidePreview();
 });
-
 previewBackdrop.addEventListener("pointerdown", (e) => {
   if (e.target === previewBackdrop) hidePreview();
 });
-
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && previewOpen) hidePreview();
 });
@@ -373,8 +366,9 @@ window.addEventListener("keydown", (e) => {
 //
 const CARD_W = 86;
 const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
-const BASE_W = CARD_H;
-const BASE_H = CARD_W;
+
+const BASE_W = CARD_H; // horizontal base width
+const BASE_H = CARD_W; // horizontal base height
 
 const GAP = 18;
 const BIG_GAP = 28;
@@ -392,12 +386,17 @@ function rect(x, y, w, h) { return { x, y, w, h }; }
 //
 // ---------- force track constants ----------
 //
-const FORCE_SLOTS = 7;                 // ✅ your force track is 7
-const FORCE_NEUTRAL_INDEX = 3;         // ✅ middle slot = neutral
+const FORCE_SLOTS = 7;
+const FORCE_NEUTRAL_INDEX = 3;
 const FORCE_MARKER_SIZE = 28;
 
 let forceSlotCenters = [];
 let forceMarker = null;
+
+//
+// ---------- captured base slot centers (for snapping bases) ----------
+//
+const capSlotCenters = { p1: [], p2: [] };
 
 //
 // ---------- zone math (design-space) ----------
@@ -500,11 +499,9 @@ function viewportSize() {
   const vv = window.visualViewport;
   return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
-
 function applyCamera() {
   stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
 }
-
 function fitToScreen() {
   const { w, h } = viewportSize();
   const margin = 16;
@@ -518,7 +515,6 @@ function fitToScreen() {
   applyCamera();
   refreshSnapRects();
 }
-
 fitBtn.addEventListener("click", (e) => {
   e.preventDefault();
   fitToScreen();
@@ -536,7 +532,6 @@ function viewportToDesign(vx, vy){
     y: (vy - camera.ty) / camera.scale
   };
 }
-
 function setScaleAround(newScale, vx, vy){
   const clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
   const world = viewportToDesign(vx, vy);
@@ -548,13 +543,8 @@ function setScaleAround(newScale, vx, vy){
   applyCamera();
   refreshSnapRects();
 }
-
-function dist(a,b){
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-}
-function mid(a,b){
-  return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
-}
+function dist(a,b){ return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function mid(a,b){ return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 }; }
 
 //
 // Board gesture listeners (drag empty space to pan, pinch/wheel to zoom)
@@ -616,7 +606,6 @@ function endBoardPointer(e){
     boardLast = { x: p.clientX, y: p.clientY };
   }
 }
-
 table.addEventListener("pointerup", endBoardPointer);
 table.addEventListener("pointercancel", () => boardPointers.clear());
 
@@ -632,7 +621,7 @@ table.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 //
-// ---------- snapping (cards only, captured bases excluded by design) ----------
+// ---------- snapping for non-base cards ----------
 //
 const SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
@@ -690,7 +679,7 @@ function snapCardToNearestZone(cardEl) {
 }
 
 //
-// ---------- force track: 7 slots + marker (neutral in the middle) ----------
+// ---------- force track: 7 slots + marker ----------
 //
 function buildForceTrackSlots(forceRect) {
   stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
@@ -810,11 +799,12 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 }
 
 //
-// ---------- captured bases: 7 stepped slots (visual + ready for logic) ----------
+// ---------- captured bases: 7 stepped slots (AND centers for snapping) ----------
 //
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  // remove existing for this side
+  // clear existing for this side
   stage.querySelectorAll(`.capSlot[data-cap-side="${sideLabel}"]`).forEach(el => el.remove());
+  capSlotCenters[sideLabel] = [];
 
   const slotW = capRect.w;
   const slotH = BASE_H;
@@ -823,6 +813,7 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     const y = capRect.y + i * CAP_OVERLAP;
     const x = capRect.x;
 
+    // visual slot
     const slot = document.createElement("div");
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
@@ -831,11 +822,52 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.style.width = `${slotW}px`;
     slot.style.height = `${slotH}px`;
     stage.appendChild(slot);
+
+    // center for snapping (design coords)
+    capSlotCenters[sideLabel].push({
+      x: x + slotW / 2,
+      y: y + slotH / 2
+    });
   }
 }
 
+// snap BASE card to nearest captured slot (top or bottom)
+function snapBaseToCapturedSlot(baseEl) {
+  const w = parseFloat(baseEl.style.width);
+  const h = parseFloat(baseEl.style.height);
+
+  const left = parseFloat(baseEl.style.left || "0");
+  const top  = parseFloat(baseEl.style.top  || "0");
+  const cx = left + w / 2;
+  const cy = top + h / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  function consider(side) {
+    for (let i = 0; i < capSlotCenters[side].length; i++) {
+      const s = capSlotCenters[side][i];
+      const d = Math.hypot(cx - s.x, cy - s.y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { side, idx: i, x: s.x, y: s.y };
+      }
+    }
+  }
+
+  consider("p2");
+  consider("p1");
+
+  // threshold: must be reasonably near the captured area
+  const threshold = Math.max(w, h) * 1.2;
+  if (!best || bestDist > threshold) return;
+
+  baseEl.style.left = `${best.x - w / 2}px`;
+  baseEl.style.top  = `${best.y - h / 2}px`;
+}
+
 //
-// ---------- card data (Obi-Wan test) ----------
+// ---------- test card data ----------
 //
 const OBIWAN = {
   id: "obiwan_test",
@@ -852,8 +884,23 @@ const OBIWAN = {
   reward: "Gain 3 Resources and 3 Force.",
 };
 
+// Test base (use any image you have; swap path later)
+const TEST_BASE = {
+  id: "base_test",
+  img: "./cards/test/base.jpg", // <-- put any base image here (or reuse obiwan.jpg if you want)
+  name: "Test Base",
+  type: "Base",
+  subtype: "Location",
+  cost: "—",
+  attack: "—",
+  resources: "—",
+  force: "—",
+  effect: "This is a test base card for captured-base slot snapping.",
+  reward: "—",
+};
+
 //
-// rotate image when card rotates
+// ---------- unit rotation (swap size + rotate image) ----------
 //
 function updateCardFaceRotation(cardEl) {
   const faceEl = cardEl.querySelector(".cardFace");
@@ -915,10 +962,14 @@ function toggleRotate(cardEl) {
 //
 // ---------- build stage ----------
 //
+let zonesCache = null;
+
 function build() {
   stage.innerHTML = "";
 
   const zones = computeZones();
+  zonesCache = zones;
+
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
@@ -937,7 +988,7 @@ function build() {
   buildForceTrackSlots(zones.force_track);
   ensureForceMarker(FORCE_NEUTRAL_INDEX);
 
-  // captured base slots (7)
+  // captured base slots + centers for snapping
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
@@ -952,125 +1003,173 @@ window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
 //
-// ---------- Obi-Wan test card ----------
+// ---------- helper: create a card element ----------
 //
-const card = document.createElement("div");
-card.className = "card";
-card.dataset.rot = "0";
-applyRotationSize(card);
+function makeCardEl(cardData, kind) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.dataset.kind = kind;
+  el.dataset.cardId = cardData.id;
 
-const face = document.createElement("div");
-face.className = "cardFace";
-face.style.backgroundImage = `url('${OBIWAN.img}')`;
-card.appendChild(face);
+  // face
+  const face = document.createElement("div");
+  face.className = "cardFace";
+  face.style.backgroundImage = `url('${cardData.img}')`;
+  el.appendChild(face);
 
-updateCardFaceRotation(card);
-
-card.style.left = `${DESIGN_W * 0.42}px`;
-card.style.top  = `${DESIGN_H * 0.12}px`;
-card.style.zIndex = "9999";
-stage.appendChild(card);
-
-card.addEventListener("contextmenu", (e) => {
-  e.preventDefault();
-  togglePreview(OBIWAN);
-});
-
-//
-// ---------- drag + mobile long-press preview + rotate ----------
-//
-let dragging = false;
-let offsetX = 0;
-let offsetY = 0;
-
-let pressTimer = null;
-let longPressFired = false;
-let downX = 0;
-let downY = 0;
-
-function clearPressTimer() {
-  if (pressTimer) {
-    clearTimeout(pressTimer);
-    pressTimer = null;
+  // size rules
+  if (kind === "unit") {
+    el.dataset.rot = "0";
+    applyRotationSize(el);
+    updateCardFaceRotation(el);
+  } else if (kind === "base") {
+    // Bases are horizontal: 3.5" wide x 2.5" tall (BASE_W x BASE_H)
+    el.style.width = `${BASE_W}px`;
+    el.style.height = `${BASE_H}px`;
+    // no rotation transforms on base face
+    face.style.transform = "none";
   }
+
+  // preview: right click (PC)
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    togglePreview(cardData);
+  });
+
+  attachDragHandlers(el, cardData, kind);
+
+  return el;
 }
 
-function startLongPress(e) {
-  clearPressTimer();
-  longPressFired = false;
-  downX = e.clientX;
-  downY = e.clientY;
+//
+// ---------- drag + long-press preview + (unit) rotate ----------
+//
+function attachDragHandlers(el, cardData, kind) {
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
 
-  pressTimer = setTimeout(() => {
-    longPressFired = true;
-    showPreview(OBIWAN);
-  }, 380);
-}
+  let pressTimer = null;
+  let longPressFired = false;
+  let downX = 0;
+  let downY = 0;
 
-let lastTap = 0;
+  function clearPressTimer() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }
 
-card.addEventListener("pointerdown", (e) => {
-  if (previewOpen) return;
-
-  card.setPointerCapture(e.pointerId);
-
-  const now = Date.now();
-  if (now - lastTap < 280) {
-    toggleRotate(card);
-    lastTap = 0;
+  function startLongPress(e) {
     clearPressTimer();
     longPressFired = false;
-    return;
-  }
-  lastTap = now;
+    downX = e.clientX;
+    downY = e.clientY;
 
-  startLongPress(e);
-
-  dragging = true;
-  const stageRect = stage.getBoundingClientRect();
-  const px = (e.clientX - stageRect.left) / camera.scale;
-  const py = (e.clientY - stageRect.top) / camera.scale;
-
-  const left = parseFloat(card.style.left || "0");
-  const top = parseFloat(card.style.top || "0");
-  offsetX = px - left;
-  offsetY = py - top;
-});
-
-card.addEventListener("pointermove", (e) => {
-  if (!dragging) return;
-
-  const dx = e.clientX - downX;
-  const dy = e.clientY - downY;
-  if (!longPressFired && Math.hypot(dx, dy) > 8) clearPressTimer();
-  if (longPressFired) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const px = (e.clientX - stageRect.left) / camera.scale;
-  const py = (e.clientY - stageRect.top) / camera.scale;
-
-  card.style.left = `${px - offsetX}px`;
-  card.style.top  = `${py - offsetY}px`;
-});
-
-card.addEventListener("pointerup", (e) => {
-  dragging = false;
-  clearPressTimer();
-  try { card.releasePointerCapture(e.pointerId); } catch {}
-
-  if (longPressFired) {
-    longPressFired = false;
-    return;
+    pressTimer = setTimeout(() => {
+      longPressFired = true;
+      showPreview(cardData);
+    }, 380);
   }
 
-  snapCardToNearestZone(card);
-});
+  // Double-tap to rotate ONLY for units
+  let lastTap = 0;
 
-card.addEventListener("pointercancel", () => {
-  dragging = false;
-  clearPressTimer();
-});
+  el.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
 
+    el.setPointerCapture(e.pointerId);
+
+    if (kind === "unit") {
+      const now = Date.now();
+      if (now - lastTap < 280) {
+        toggleRotate(el);
+        lastTap = 0;
+        clearPressTimer();
+        longPressFired = false;
+        return;
+      }
+      lastTap = now;
+    }
+
+    startLongPress(e);
+
+    dragging = true;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    // bring to front as you drag more cards later
+    el.style.zIndex = String(9000 + Math.floor(Math.random() * 1000));
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (!longPressFired && Math.hypot(dx, dy) > 8) clearPressTimer();
+    if (longPressFired) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offsetX}px`;
+    el.style.top  = `${py - offsetY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    dragging = false;
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    // DROP BEHAVIOR
+    if (kind === "base") {
+      // Bases drop into captured-base slots
+      snapBaseToCapturedSlot(el);
+    } else {
+      // Normal cards use normal snapping
+      snapCardToNearestZone(el);
+    }
+  });
+
+  el.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearPressTimer();
+  });
+}
+
+// Keyboard rotate (PC) — rotates ONLY the unit test card we create below
 window.addEventListener("keydown", (e) => {
-  if (e.key === "r" || e.key === "R") toggleRotate(card);
+  if (e.key === "r" || e.key === "R") {
+    const unit = stage.querySelector('.card[data-kind="unit"]');
+    if (unit) toggleRotate(unit);
+  }
 });
+
+//
+// ---------- spawn test cards ----------
+//
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "9999";
+stage.appendChild(unitCard);
+
+const baseCard = makeCardEl(TEST_BASE, "base");
+baseCard.style.left = `${DESIGN_W * 0.18}px`;
+baseCard.style.top  = `${DESIGN_H * 0.18}px`;
+baseCard.style.zIndex = "9998";
+stage.appendChild(baseCard);
