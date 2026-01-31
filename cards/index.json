@@ -20,7 +20,7 @@
     "set": "og",
     "faction": "Empire",
     "color": "Blue",
-    "front": "cards/og/front/og_test_001.webp"
+    "front": "cards/og/front/og_test_001.png"
   },
   {
     "id": "og_test_002",
@@ -28,7 +28,7 @@
     "set": "og",
     "faction": "Rebels",
     "color": "Red",
-    "front": "cards/og/front/og_test_002.webp"
+    "front": "cards/og/front/og_test_002.png"
   },
   {
     "id": "cw_test_001",
@@ -36,7 +36,7 @@
     "set": "clone_wars",
     "faction": "Republic",
     "color": "Blue",
-    "front": "cards/clone_wars/front/cw_test_001.webp"
+    "front": "cards/clone_wars/front/cw_test_001.png"
   }
 ]
 
