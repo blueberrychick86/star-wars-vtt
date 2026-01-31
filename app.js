@@ -1,6 +1,6 @@
-console.log("Baseline: 2 cards");
+console.log("Baseline locked");
 
-// Page styling (owned by JS)
+// Own the page
 document.body.style.margin = "0";
 document.body.style.background = "#0b0d12";
 document.body.style.height = "100vh";
@@ -9,16 +9,16 @@ document.body.style.alignItems = "center";
 document.body.style.justifyContent = "center";
 document.body.style.color = "white";
 
-// Clear app
+// App container
 const app = document.getElementById("app");
-app.innerHTML = "";
+app.textContent = ""; // removes "Starting..." immediately
 
-// Holder to place multiple cards side-by-side
+// Row container
 const row = document.createElement("div");
 row.style.display = "flex";
-row.style.gap = "24px";          // spacing between cards
-row.style.alignItems = "center";
+row.style.gap = "24px";
 
+// Card factory
 function makeCard(label) {
   const card = document.createElement("div");
   card.textContent = label;
@@ -29,10 +29,10 @@ function makeCard(label) {
   card.style.alignItems = "center";
   card.style.justifyContent = "center";
   card.style.fontSize = "1.5rem";
-  card.style.userSelect = "none";
   return card;
 }
 
+// Two cards
 row.appendChild(makeCard("CARD A"));
 row.appendChild(makeCard("CARD B"));
 
