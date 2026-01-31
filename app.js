@@ -1,4 +1,4 @@
-console.log("LAYOUT1: offline zones only");
+console.log("LAYOUT2: zones + 1 draggable test card");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -12,11 +12,28 @@ document.body.style.fontFamily = "Arial, sans-serif";
 const app = document.getElementById("app");
 app.innerHTML = "";
 
-// ---------- inject CSS (so zones look identical) ----------
+// ---------- inject CSS ----------
 const style = document.createElement("style");
 style.textContent = `
   #table { position: relative; width: 100vw; height: 100vh; background: #f6f6f6; }
   .zone { position: absolute; border: 2px solid rgba(0,0,0,0.35); border-radius: 10px; box-sizing: border-box; background: transparent; }
+
+  /* test card */
+  .card {
+    position: absolute;
+    border: 2px solid #111;
+    border-radius: 10px;
+    background: #ffffff;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none;
+    cursor: grab;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
 `;
 document.head.appendChild(style);
 
@@ -149,24 +166,14 @@ function getTransform() {
   return { s, ox, oy };
 }
 
-function build() {
-  table.innerHTML = "";
+// ---------- draggable test card ----------
+let testCard = null;
 
-  const zones = computeZones();
-  const { s, ox, oy } = getTransform();
+function ensureTestCard(s, ox, oy) {
+  if (!testCard) {
+    testCard = document.createElement("div");
+    testCard.className = "card";
+    testCard.textContent = "TEST CARD";
+    testCard.style.zIndex = "9999";
 
-  for (const [id, r] of Object.entries(zones)) {
-    const el = document.createElement("div");
-    el.className = "zone";
-    el.dataset.zoneId = id;
-    el.style.left = (ox + r.x * s) + "px";
-    el.style.top = (oy + r.y * s) + "px";
-    el.style.width = (r.w * s) + "px";
-    el.style.height = (r.h * s) + "px";
-    table.appendChild(el);
-  }
-}
-
-window.addEventListener("resize", build);
-build();
 
