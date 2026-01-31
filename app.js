@@ -611,6 +611,9 @@ function assignBaseToCapturedSlot(baseEl, side, idx) {
   baseEl.dataset.capSide = side;
   baseEl.dataset.capIndex = String(idx);
   capOccupied[side][idx] = baseEl.dataset.cardId || "__base__";
+  
+  baseEl.style.zIndex = String(20000 + idx); // ✅ consistent stacking
+
 }
 
 function normalizeCapturedStacks(side) {
@@ -623,10 +626,19 @@ function normalizeCapturedStacks(side) {
   // group by index
   const byIndex = new Map();
   for (const b of bases) {
-    const idx = Number(b.dataset.capIndex);
-    if (!Number.isFinite(idx)) continue;
-    if (!byIndex.has(idx)) byIndex.set(idx, []);
-    byIndex.get(idx).push(b);
+  const idx = Number(b.dataset.capIndex);
+  if (!Number.isFinite(idx) || !centers[idx]) continue;
+
+  const w = parseFloat(b.style.width);
+  const h = parseFloat(b.style.height);
+  const s = centers[idx];
+
+  b.style.left = `${s.x - w / 2}px`;
+  b.style.top  = `${s.y - h / 2}px`;
+
+  b.style.zIndex = String(20000 + idx); // ✅ ADD THIS
+}
+
   }
 
   // if multiple bases claim same slot, keep one in place, reassign extras to next open slots
@@ -972,3 +984,4 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
 });
++ +
