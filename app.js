@@ -667,7 +667,32 @@ const OBIWAN = {
 
 //
 // ---------- rotation (swap size, no transform) ----------
-//
+//function updateCardFaceRotation(cardEl) {
+  const face = cardEl.querySelector(".cardFace");
+  if (!face) return;
+
+  const rot = Number(cardEl.dataset.rot || "0");
+
+  if (rot === 0) {
+    // normal upright
+    face.style.left = "0";
+    face.style.top = "0";
+    face.style.width = "100%";
+    face.style.height = "100%";
+    face.style.transform = "none";
+  } else {
+    // rotate image 90° and swap face box so it fits the swapped card dimensions
+    const w = parseFloat(cardEl.style.width);
+    const h = parseFloat(cardEl.style.height);
+
+    face.style.left = "50%";
+    face.style.top = "50%";
+    face.style.width = `${h}px`;   // swapped
+    face.style.height = `${w}px`;  // swapped
+    face.style.transform = "translate(-50%, -50%) rotate(90deg)";
+  }
+}
+
 function applyRotationSize(cardEl) {
   const rot = Number(cardEl.dataset.rot || "0");
   if (rot === 0) {
