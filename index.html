@@ -1,12 +1,335 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Star Wars Deckbuilding VTT</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Card Preview - Pinch Zoom</title>
+
+<style>
+  body{
+    margin:0;
+    background:#0b0e14;
+    color:#fff;
+    font-family: Arial, sans-serif;
+  }
+
+  /* Demo board */
+  #table{
+    display:flex;
+    gap:16px;
+    padding:20px;
+  }
+  .card{
+    width:120px;
+    height:168px;
+    background:#1e2330;
+    border:2px solid #555;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action: manipulation;
+  }
+
+  /* Overlay */
+  #previewOverlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.88);
+    display:none;
+    z-index:1000;
+  }
+
+  /* Preview window fits screen */
+  #previewWindow{
+    position:absolute;
+    inset:12px;
+    background:#0f121a;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  }
+
+  /* Close button */
+  #closePreview{
+    position:absolute;
+    top:10px;
+    right:10px;
+    width:40px;
+    height:40px;
+    border-radius:999px;
+    border:none;
+    background:rgba(20,20,24,0.85);
+    color:#fff;
+    font-size:18px;
+    cursor:pointer;
+    z-index:10;
+  }
+  #closePreview:active{ transform: scale(0.98); }
+
+  /* The zoom surface */
+  #zoomViewport{
+    position:absolute;
+    inset:0;
+    /* IMPORTANT: we handle gestures ourselves */
+    touch-action: none;
+    background:#0b0e14;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  /* The thing we transform (image) */
+  #zoomContent{
+    will-change: transform;
+    transform-origin: 0 0;
+  }
+
+  #previewImage{
+    display:block;
+    max-width:100%;
+    height:auto;
+    border-radius:10px;
+    pointer-events:none; /* keep gestures on viewport */
+    user-drag: none;
+    -webkit-user-drag: none;
+  }
+
+  /* Optional hint (top-left) */
+  #hint{
+    position:absolute;
+    top:12px;
+    left:12px;
+    font-size:12px;
+    opacity:0.8;
+    background:rgba(20,20,24,0.65);
+    padding:6px 8px;
+    border-radius:10px;
+    z-index:10;
+  }
+</style>
 </head>
+
 <body>
-  <div id="app"></div>
-  <script src="./app.js?v=LAYOUT1"></script>
+  <div id="table">
+    <div class="card" data-image="https://placehold.co/600x840?text=Card+A">Card A</div>
+    <div class="card" data-image="https://placehold.co/600x840?text=Card+B">Card B</div>
+  </div>
+
+  <div id="previewOverlay">
+    <div id="previewWindow">
+      <div id="hint">Pinch to zoom • Drag to pan • Double-tap to zoom</div>
+      <button id="closePreview" aria-label="Close preview">✕</button>
+
+      <div id="zoomViewport">
+        <div id="zoomContent">
+          <img id="previewImage" src="" alt="Card Preview" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const overlay = document.getElementById("previewOverlay");
+  const closeBtn = document.getElementById("closePreview");
+  const previewImage = document.getElementById("previewImage");
+  const zoomViewport = document.getElementById("zoomViewport");
+  const zoomContent = document.getElementById("zoomContent");
+
+  // Transform state
+  let scale = 1;
+  let minScale = 1;
+  let maxScale = 4;
+
+  let offsetX = 0;
+  let offsetY = 0;
+
+  // Pointer tracking
+  const pointers = new Map();
+  let lastPanX = 0;
+  let lastPanY = 0;
+
+  // Pinch tracking
+  let pinchStartDist = 0;
+  let pinchStartScale = 1;
+  let pinchStartMid = { x: 0, y: 0 };
+  let pinchStartOffset = { x: 0, y: 0 };
+
+  // Double-tap
+  let lastTapTime = 0;
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function applyTransform(){
+    zoomContent.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  }
+
+  function resetTransform(){
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+    applyTransform();
+  }
+
+  function openPreview(src){
+    previewImage.src = src;
+    overlay.style.display = "block";
+    resetTransform();
+  }
+
+  function closePreview(){
+    overlay.style.display = "none";
+    previewImage.src = "";
+    pointers.clear();
+  }
+
+  // Open behavior: right-click (PC) + click/tap
+  document.querySelectorAll(".card").forEach(card => {
+    card.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openPreview(card.dataset.image);
+    });
+    card.addEventListener("click", () => openPreview(card.dataset.image));
+  });
+
+  closeBtn.addEventListener("click", closePreview);
+  overlay.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  // Prevent accidental page scroll while preview is open
+  overlay.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+  overlay.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+
+  function getDistance(a, b){
+    const dx = a.clientX - b.clientX;
+    const dy = a.clientY - b.clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  function getMidpoint(a, b){
+    return { x: (a.clientX + b.clientX)/2, y: (a.clientY + b.clientY)/2 };
+  }
+
+  function viewportPointToContentPoint(vx, vy){
+    // Convert viewport coords to content coords (in "world" space)
+    // contentPoint = (viewportPoint - offset) / scale
+    return {
+      x: (vx - offsetX) / scale,
+      y: (vy - offsetY) / scale
+    };
+  }
+
+  function setScaleAroundViewportPoint(newScale, vx, vy){
+    newScale = clamp(newScale, minScale, maxScale);
+
+    // Keep the content point under (vx, vy) stationary while scaling
+    const contentPt = viewportPointToContentPoint(vx, vy);
+
+    scale = newScale;
+
+    offsetX = vx - contentPt.x * scale;
+    offsetY = vy - contentPt.y * scale;
+
+    applyTransform();
+  }
+
+  zoomViewport.addEventListener("pointerdown", (e) => {
+    // Only act when preview is open
+    if (overlay.style.display !== "block") return;
+
+    zoomViewport.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, e);
+
+    // Double-tap detection (mobile)
+    const now = Date.now();
+    if (now - lastTapTime < 280 && pointers.size === 1) {
+      // Toggle zoom 1x <-> 2.5x around tap point
+      const rect = zoomViewport.getBoundingClientRect();
+      const vx = e.clientX - rect.left;
+      const vy = e.clientY - rect.top;
+
+      if (scale === 1) setScaleAroundViewportPoint(2.5, vx, vy);
+      else resetTransform();
+
+      lastTapTime = 0;
+      return;
+    }
+    lastTapTime = now;
+
+    // Start pan
+    lastPanX = e.clientX;
+    lastPanY = e.clientY;
+
+    // If two pointers, start pinch
+    if (pointers.size === 2) {
+      const pts = Array.from(pointers.values());
+      pinchStartDist = getDistance(pts[0], pts[1]);
+      pinchStartScale = scale;
+
+      const rect = zoomViewport.getBoundingClientRect();
+      const mid = getMidpoint(pts[0], pts[1]);
+      pinchStartMid = { x: mid.x - rect.left, y: mid.y - rect.top };
+
+      pinchStartOffset = { x: offsetX, y: offsetY };
+    }
+  });
+
+  zoomViewport.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, e);
+
+    // PAN (one pointer)
+    if (pointers.size === 1) {
+      // Only allow panning when zoomed, otherwise keep it centered
+      if (scale <= 1) return;
+
+      const dx = e.clientX - lastPanX;
+      const dy = e.clientY - lastPanY;
+
+      offsetX += dx;
+      offsetY += dy;
+
+      lastPanX = e.clientX;
+      lastPanY = e.clientY;
+
+      applyTransform();
+      return;
+    }
+
+    // PINCH (two pointers)
+    if (pointers.size === 2) {
+      const pts = Array.from(pointers.values());
+      const dist = getDistance(pts[0], pts[1]);
+
+      // New scale
+      const scaleFactor = dist / pinchStartDist;
+      const newScale = pinchStartScale * scaleFactor;
+
+      // Scale around the pinch midpoint (in viewport coords)
+      const vx = pinchStartMid.x;
+      const vy = pinchStartMid.y;
+
+      // Use helper to keep point stable
+      setScaleAroundViewportPoint(newScale, vx, vy);
+    }
+  });
+
+  function endPointer(e){
+    if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+
+    // When dropping from 2 pointers to 1, re-init pan anchors
+    if (pointers.size === 1) {
+      const remaining = Array.from(pointers.values())[0];
+      lastPanX = remaining.clientX;
+      lastPanY = remaining.clientY;
+    }
+  }
+
+  zoomViewport.addEventListener("pointerup", endPointer);
+  zoomViewport.addEventListener("pointercancel", endPointer);
+  zoomViewport.addEventListener("pointerleave", endPointer);
+</script>
 </body>
 </html>
