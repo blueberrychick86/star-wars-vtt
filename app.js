@@ -1,4 +1,4 @@
-console.log("LAYOUT2: zones + 1 draggable test card");
+console.log("LAYOUT2-FIX: zones + draggable BLACK test card");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -16,26 +16,32 @@ app.innerHTML = "";
 const style = document.createElement("style");
 style.textContent = `
   #table { position: relative; width: 100vw; height: 100vh; background: #f6f6f6; }
-  .zone { position: absolute; border: 2px solid rgba(0,0,0,0.35); border-radius: 10px; box-sizing: border-box; background: transparent; }
+
+  .zone {
+    position: absolute;
+    border: 2px solid rgba(0,0,0,0.35);
+    border-radius: 10px;
+    box-sizing: border-box;
+    background: transparent;
+  }
 
   /* test card */
-.card {
-  position: absolute;
-  border: 2px solid #gba(255,255,255,0.8);
-  border-radius: 10px;
-  background: #000000;     /* BLACK card */
-  color: #ffffff;          /* white text */
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  touch-action: none;
-  cursor: grab;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
+  .card {
+    position: absolute;
+    border: 2px solid rgba(255,255,255,0.85); /* FIXED */
+    border-radius: 10px;
+    background: #000;           /* BLACK card */
+    color: #fff;                /* white text */
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none;
+    cursor: grab;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
 `;
 document.head.appendChild(style);
 
@@ -120,7 +126,6 @@ function computeZones() {
       CARD_H
     ),
 
-    // Galaxy row 2x6
     ...(() => {
       const out = {};
       for (let c = 0; c < 6; c++) {
@@ -177,5 +182,76 @@ function ensureTestCard(s, ox, oy) {
     testCard.className = "card";
     testCard.textContent = "TEST CARD";
     testCard.style.zIndex = "9999";
+    table.appendChild(testCard);
 
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
 
+    testCard.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      testCard.setPointerCapture(e.pointerId);
+      testCard.style.cursor = "grabbing";
+
+      const r = testCard.getBoundingClientRect();
+      offsetX = e.clientX - r.left;
+      offsetY = e.clientY - r.top;
+    });
+
+    testCard.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+
+      const tableRect = table.getBoundingClientRect();
+      const x = e.clientX - tableRect.left - offsetX;
+      const y = e.clientY - tableRect.top - offsetY;
+
+      testCard.style.left = `${x}px`;
+      testCard.style.top = `${y}px`;
+    });
+
+    testCard.addEventListener("pointerup", (e) => {
+      dragging = false;
+      testCard.style.cursor = "grab";
+      try { testCard.releasePointerCapture(e.pointerId); } catch {}
+    });
+  }
+
+  const w = Math.round(CARD_W * s);
+  const h = Math.round(CARD_H * s);
+  testCard.style.width = `${w}px`;
+  testCard.style.height = `${h}px`;
+  testCard.style.fontSize = `${Math.max(12, Math.round(14 * s))}px`;
+
+  if (!testCard.dataset.placed) {
+    const x = ox + (DESIGN_W * s) * 0.5 - w / 2;
+    const y = oy + (DESIGN_H * s) * 0.12 - h / 2;
+    testCard.style.left = `${Math.round(x)}px`;
+    testCard.style.top = `${Math.round(y)}px`;
+    testCard.dataset.placed = "1";
+  }
+}
+
+// ---------- build ----------
+function build() {
+  table.innerHTML = "";
+
+  const zones = computeZones();
+  const { s, ox, oy } = getTransform();
+
+  for (const [id, r] of Object.entries(zones)) {
+    const el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = (ox + r.x * s) + "px";
+    el.style.top = (oy + r.y * s) + "px";
+    el.style.width = (r.w * s) + "px";
+    el.style.height = (r.h * s) + "px";
+    table.appendChild(el);
+  }
+
+  testCard = null; // re-create after clearing
+  ensureTestCard(s, ox, oy);
+}
+
+window.addEventListener("resize", build);
+build();
