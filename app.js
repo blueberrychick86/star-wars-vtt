@@ -1,4 +1,4 @@
-console.log("PREVIEW1: obiwan test card image + preview overlay (pc hover + mobile long-press)");
+console.log("PREVIEW2: right-click toggle (PC) + long-press (mobile) + mobile-safe preview modal");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -80,38 +80,86 @@ style.textContent = `
     background-position: center;
   }
 
-  /* ---------- preview overlay ---------- */
+  /* ---------- preview overlay (mobile-safe) ---------- */
   #previewBackdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.55);
+    background: rgba(0,0,0,0.62);
     z-index: 200000;
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: 12px;
   }
 
   #previewCard {
-    width: min(92vw, 420px);
+    width: min(96vw, 520px);
+    max-height: 92vh;
     border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.25);
-    background: rgba(15,15,18,0.96);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.65);
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(15,15,18,0.98);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
     overflow: hidden;
     color: white;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #previewHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+  }
+
+  #previewHeaderLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  #previewTitle {
+    font-size: 18px;
+    font-weight: 900;
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  #previewSub {
+    opacity: 0.9;
+    font-size: 13px;
+    margin: 0;
+  }
+
+  #closePreviewBtn {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: white;
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-weight: 900;
+    font-size: 14px;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* Scrollable content area so nothing gets cut off */
+  #previewScroll {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
   }
 
   #previewTop {
     display: grid;
-    grid-template-columns: 120px 1fr;
+    grid-template-columns: 110px 1fr;
     gap: 12px;
-    padding: 14px;
     align-items: start;
   }
 
   #previewImg {
-    width: 120px;
+    width: 110px;
     aspect-ratio: 2.5 / 3.5;
     border-radius: 10px;
     border: 1px solid rgba(255,255,255,0.18);
@@ -120,23 +168,11 @@ style.textContent = `
     background-position: center;
   }
 
-  #previewTitle {
-    font-size: 18px;
-    font-weight: 900;
-    margin: 0 0 6px 0;
-    line-height: 1.15;
-  }
-
-  #previewSub {
-    opacity: 0.9;
-    font-size: 13px;
-    margin: 0 0 10px 0;
-  }
-
   .pillRow {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    margin-top: 8px;
   }
 
   .pill {
@@ -145,16 +181,13 @@ style.textContent = `
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.06);
-  }
-
-  #previewBody {
-    padding: 0 14px 14px 14px;
+    white-space: nowrap;
   }
 
   .sectionLabel {
     font-size: 12px;
     opacity: 0.8;
-    margin: 10px 0 6px 0;
+    margin: 12px 0 6px 0;
     letter-spacing: 0.3px;
     text-transform: uppercase;
   }
@@ -166,6 +199,13 @@ style.textContent = `
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.15);
     background: rgba(255,255,255,0.06);
+  }
+
+  /* Small screen tweaks */
+  @media (max-width: 380px) {
+    #previewTop { grid-template-columns: 96px 1fr; }
+    #previewImg { width: 96px; }
+    #previewTitle { font-size: 16px; }
   }
 `;
 document.head.appendChild(style);
@@ -188,22 +228,30 @@ const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
 
-// ---------- preview overlay (ONE reusable UI) ----------
+// ---------- preview overlay ----------
 const previewBackdrop = document.createElement("div");
 previewBackdrop.id = "previewBackdrop";
 previewBackdrop.innerHTML = `
   <div id="previewCard" role="dialog" aria-modal="true">
-    <div id="previewTop">
-      <div id="previewImg"></div>
-      <div>
+    <div id="previewHeader">
+      <div id="previewHeaderLeft">
         <p id="previewTitle"></p>
         <p id="previewSub"></p>
-        <div class="pillRow" id="previewPills"></div>
       </div>
+      <button id="closePreviewBtn" type="button">✕</button>
     </div>
-    <div id="previewBody">
+
+    <div id="previewScroll">
+      <div id="previewTop">
+        <div id="previewImg"></div>
+        <div>
+          <div class="pillRow" id="previewPills"></div>
+        </div>
+      </div>
+
       <div class="sectionLabel">Effect</div>
       <div class="textBox" id="previewEffect"></div>
+
       <div class="sectionLabel">Reward</div>
       <div class="textBox" id="previewReward"></div>
     </div>
@@ -211,12 +259,67 @@ previewBackdrop.innerHTML = `
 `;
 table.appendChild(previewBackdrop);
 
+let previewOpen = false;
+
 function hidePreview() {
   previewBackdrop.style.display = "none";
+  previewOpen = false;
 }
+
+function showPreview(cardData) {
+  const imgEl = previewBackdrop.querySelector("#previewImg");
+  const titleEl = previewBackdrop.querySelector("#previewTitle");
+  const subEl = previewBackdrop.querySelector("#previewSub");
+  const pillsEl = previewBackdrop.querySelector("#previewPills");
+  const effEl = previewBackdrop.querySelector("#previewEffect");
+  const rewEl = previewBackdrop.querySelector("#previewReward");
+  const scrollEl = previewBackdrop.querySelector("#previewScroll");
+
+  imgEl.style.backgroundImage = `url('${cardData.img}')`;
+  titleEl.textContent = cardData.name;
+  subEl.textContent = `${cardData.type} • ${cardData.subtype}`;
+
+  pillsEl.innerHTML = "";
+  const pills = [
+    `Cost: ${cardData.cost}`,
+    `Attack: ${cardData.attack}`,
+    `Resources: ${cardData.resources}`,
+    `Force: ${cardData.force}`,
+  ];
+  for (const p of pills) {
+    const d = document.createElement("div");
+    d.className = "pill";
+    d.textContent = p;
+    pillsEl.appendChild(d);
+  }
+
+  effEl.textContent = cardData.effect;
+  rewEl.textContent = cardData.reward;
+
+  previewBackdrop.style.display = "flex";
+  previewOpen = true;
+
+  // reset scroll to top every open
+  scrollEl.scrollTop = 0;
+}
+
+function togglePreview(cardData) {
+  if (previewOpen) hidePreview();
+  else showPreview(cardData);
+}
+
+// close controls
+previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => {
+  e.preventDefault();
+  hidePreview();
+});
 
 previewBackdrop.addEventListener("pointerdown", (e) => {
   if (e.target === previewBackdrop) hidePreview();
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && previewOpen) hidePreview();
 });
 
 // ---------- constants from offline ----------
@@ -434,39 +537,6 @@ const OBIWAN = {
   reward: "Gain 3 Resources and 3 Force.",
 };
 
-// ---------- preview rendering ----------
-function showPreview(cardData) {
-  const imgEl = previewBackdrop.querySelector("#previewImg");
-  const titleEl = previewBackdrop.querySelector("#previewTitle");
-  const subEl = previewBackdrop.querySelector("#previewSub");
-  const pillsEl = previewBackdrop.querySelector("#previewPills");
-  const effEl = previewBackdrop.querySelector("#previewEffect");
-  const rewEl = previewBackdrop.querySelector("#previewReward");
-
-  imgEl.style.backgroundImage = `url('${cardData.img}')`;
-  titleEl.textContent = cardData.name;
-  subEl.textContent = `${cardData.type} • ${cardData.subtype}`;
-
-  pillsEl.innerHTML = "";
-  const pills = [
-    `Cost: ${cardData.cost}`,
-    `Attack: ${cardData.attack}`,
-    `Resources: ${cardData.resources}`,
-    `Force: ${cardData.force}`,
-  ];
-  for (const p of pills) {
-    const d = document.createElement("div");
-    d.className = "pill";
-    d.textContent = p;
-    pillsEl.appendChild(d);
-  }
-
-  effEl.textContent = cardData.effect;
-  rewEl.textContent = cardData.reward;
-
-  previewBackdrop.style.display = "flex";
-}
-
 // ---------- rotation (swap size, no transform) ----------
 function applyRotationSize(cardEl) {
   const rot = Number(cardEl.dataset.rot || "0");
@@ -546,7 +616,13 @@ card.style.top  = `${DESIGN_H * 0.12}px`;
 card.style.zIndex = "9999";
 stage.appendChild(card);
 
-// ---------- drag + mobile long-press preview + pc hover preview ----------
+// Prevent browser context menu on the card (PC)
+card.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  togglePreview(OBIWAN);
+});
+
+// ---------- drag + mobile long-press preview + rotate ----------
 let dragging = false;
 let offsetX = 0;
 let offsetY = 0;
@@ -569,39 +645,31 @@ function startLongPress(e) {
   downX = e.clientX;
   downY = e.clientY;
 
+  // long-press opens preview (mobile)
   pressTimer = setTimeout(() => {
     longPressFired = true;
     showPreview(OBIWAN);
-  }, 350);
+  }, 380);
 }
 
-// PC hover preview
-card.addEventListener("pointerenter", () => {
-  if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
-    showPreview(OBIWAN);
-  }
-});
-card.addEventListener("pointerleave", () => {
-  if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
-    hidePreview();
-  }
-});
+// Double-tap to rotate (mobile + PC pointer)
+let lastTap = 0;
 
 card.addEventListener("pointerdown", (e) => {
+  // If preview is open, don't start dragging behind it
+  if (previewOpen) return;
+
   card.setPointerCapture(e.pointerId);
 
-  // double-tap rotate detector
   const now = Date.now();
-  if (!card._lastTap) card._lastTap = 0;
-  if (now - card._lastTap < 280) {
+  if (now - lastTap < 280) {
     toggleRotate(card);
-    card._lastTap = 0;
+    lastTap = 0;
     clearPressTimer();
-    hidePreview();
     longPressFired = false;
     return;
   }
-  card._lastTap = now;
+  lastTap = now;
 
   startLongPress(e);
 
@@ -625,6 +693,7 @@ card.addEventListener("pointermove", (e) => {
     clearPressTimer();
   }
 
+  // if long-press preview fired, do not drag
   if (longPressFired) return;
 
   const stageRect = stage.getBoundingClientRect();
@@ -640,8 +709,8 @@ card.addEventListener("pointerup", (e) => {
   clearPressTimer();
   try { card.releasePointerCapture(e.pointerId); } catch {}
 
+  // If preview opened via long-press, just stop here (user closes via X or backdrop tap)
   if (longPressFired) {
-    hidePreview();
     longPressFired = false;
     return;
   }
@@ -652,7 +721,6 @@ card.addEventListener("pointerup", (e) => {
 card.addEventListener("pointercancel", () => {
   dragging = false;
   clearPressTimer();
-  hidePreview();
 });
 
 // Keyboard rotate (PC)
