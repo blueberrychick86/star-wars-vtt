@@ -1,0 +1,17 @@
+{
+  "sets": {
+    "og": {
+      "name": "Original Trilogy",
+      "factions": ["Empire", "Rebels"]
+    },
+    "clone_wars": {
+      "name": "Clone Wars",
+      "factions": ["Republic", "Separatists"]
+    },
+    "mandalorian": {
+      "name": "Mandalorian",
+      "factions": ["Neutral"]
+    }
+  },
+  "cards": []
+}
