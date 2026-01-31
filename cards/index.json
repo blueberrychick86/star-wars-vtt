@@ -13,5 +13,31 @@
       "factions": ["Neutral"]
     }
   },
-  "cards": []
+  "cards": [
+  {
+    "id": "og_test_001",
+    "name": "Test Card (Blue)",
+    "set": "og",
+    "faction": "Empire",
+    "color": "Blue",
+    "front": "cards/og/front/og_test_001.webp"
+  },
+  {
+    "id": "og_test_002",
+    "name": "Test Card (Red)",
+    "set": "og",
+    "faction": "Rebels",
+    "color": "Red",
+    "front": "cards/og/front/og_test_002.webp"
+  },
+  {
+    "id": "cw_test_001",
+    "name": "Test Card (Blue CW)",
+    "set": "clone_wars",
+    "faction": "Republic",
+    "color": "Blue",
+    "front": "cards/clone_wars/front/cw_test_001.webp"
+  }
+]
+
 }
