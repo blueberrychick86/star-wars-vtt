@@ -2,15 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Star Wars VTT</title>
+  <title>Star Wars Deckbuilding VTT</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      background: #0b0d12;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
 </head>
 <body>
+  <div id="app">Starting...</div>
 
-  <div id="app">HTML LOADED</div>
-
-  <!-- cache-busting script -->
-  <script src="./app.js?v=1"></script>
-
+  <!-- cache-bust so it always loads the newest JS -->
+  <script src="./app.js?v=2"></script>
 </body>
 </html>
