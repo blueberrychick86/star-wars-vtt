@@ -19,21 +19,23 @@ style.textContent = `
   .zone { position: absolute; border: 2px solid rgba(0,0,0,0.35); border-radius: 10px; box-sizing: border-box; background: transparent; }
 
   /* test card */
-  .card {
-    position: absolute;
-    border: 2px solid #111;
-    border-radius: 10px;
-    background: #ffffff;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    touch-action: none;
-    cursor: grab;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-  }
+.card {
+  position: absolute;
+  border: 2px solid #gba(255,255,255,0.8);
+  border-radius: 10px;
+  background: #000000;     /* BLACK card */
+  color: #ffffff;          /* white text */
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
 `;
 document.head.appendChild(style);
 
