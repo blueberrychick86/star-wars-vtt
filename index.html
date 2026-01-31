@@ -2,25 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
   <title>Star Wars Deckbuilding VTT</title>
 </head>
 <body>
   <div id="app"></div>
 
-  <!-- your app code -->
   <script src="./app.js?v=LAYOUT1"></script>
 
-  <!-- small inline fixes that run after app.js loads -->
+  <!-- Prevent iOS Safari "double-tap to zoom page" from wrecking the board -->
   <script>
-    // --- Mobile: prevent Safari double-tap page zoom on the board ---
     (function preventBoardDoubleTapZoom(){
       let lastTouchEnd = 0;
 
       document.addEventListener('touchend', (e) => {
-        // block double-tap zoom only when the user taps the game surface
-        const onBoard = e.target.closest('#app, #table, #board, .slot, .card, .cardSlot, .token');
-        if (!onBoard) return;
+        // only block double-tap when user taps inside the game
+        const onGame = e.target.closest('#app');
+        if (!onGame) return;
 
         const now = Date.now();
         if (now - lastTouchEnd <= 300) e.preventDefault();
@@ -28,12 +29,11 @@
       }, { passive: false });
 
       document.addEventListener('dblclick', (e) => {
-        const onBoard = e.target.closest('#app, #table, #board, .slot, .card, .cardSlot, .token');
-        if (!onBoard) return;
+        const onGame = e.target.closest('#app');
+        if (!onGame) return;
         e.preventDefault();
       }, { passive: false });
     })();
   </script>
 </body>
-
 </html>
