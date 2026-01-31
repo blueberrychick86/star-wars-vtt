@@ -1,4 +1,4 @@
-console.log("MOBILE-FIX: camera fit + full zones + black test card + snap + rotate");
+console.log("PREVIEW1: obiwan test card image + preview overlay (pc hover + mobile long-press)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -65,16 +65,111 @@ style.textContent = `
     position: absolute;
     border: 2px solid rgba(255,255,255,0.85);
     border-radius: 10px;
-    background: #000;
+    background: #111;
     color: #fff;
     box-sizing: border-box;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     user-select: none;
     touch-action: none;
     cursor: grab;
     font-weight: 700;
+    overflow: hidden;
+  }
+
+  .cardFace {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* ---------- preview overlay ---------- */
+  #previewBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 200000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  #previewCard {
+    width: min(92vw, 420px);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(15,15,18,0.96);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.65);
+    overflow: hidden;
+  }
+
+  #previewTop {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    padding: 14px;
+    align-items: start;
+  }
+
+  #previewImg {
+    width: 120px;
+    aspect-ratio: 2.5 / 3.5;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: #000;
+    background-size: cover;
+    background-position: center;
+  }
+
+  #previewTitle {
+    font-size: 18px;
+    font-weight: 900;
+    margin: 0 0 6px 0;
+    line-height: 1.15;
+  }
+
+  #previewSub {
+    opacity: 0.9;
+    font-size: 13px;
+    margin: 0 0 10px 0;
+  }
+
+  .pillRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06);
+  }
+
+  #previewBody {
+    padding: 0 14px 14px 14px;
+  }
+
+  .sectionLabel {
+    font-size: 12px;
+    opacity: 0.8;
+    margin: 10px 0 6px 0;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .textBox {
+    font-size: 14px;
+    line-height: 1.3;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
   }
 `;
 document.head.appendChild(style);
@@ -96,6 +191,38 @@ hud.appendChild(fitBtn);
 const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
+
+// ---------- preview overlay (ONE reusable UI) ----------
+const previewBackdrop = document.createElement("div");
+previewBackdrop.id = "previewBackdrop";
+previewBackdrop.innerHTML = `
+  <div id="previewCard" role="dialog" aria-modal="true">
+    <div id="previewTop">
+      <div id="previewImg"></div>
+      <div>
+        <p id="previewTitle"></p>
+        <p id="previewSub"></p>
+        <div class="pillRow" id="previewPills"></div>
+      </div>
+    </div>
+    <div id="previewBody">
+      <div class="sectionLabel">Effect</div>
+      <div class="textBox" id="previewEffect"></div>
+      <div class="sectionLabel">Reward</div>
+      <div class="textBox" id="previewReward"></div>
+    </div>
+  </div>
+`;
+table.appendChild(previewBackdrop);
+
+function hidePreview() {
+  previewBackdrop.style.display = "none";
+}
+
+previewBackdrop.addEventListener("pointerdown", (e) => {
+  // tap outside closes
+  if (e.target === previewBackdrop) hidePreview();
+});
 
 // ---------- constants from offline ----------
 const CARD_W = 86;
@@ -209,7 +336,6 @@ function computeZones() {
 const camera = { scale: 1, tx: 0, ty: 0 };
 
 function viewportSize() {
-  // visualViewport is best on iOS Safari (accounts for address bar)
   const vv = window.visualViewport;
   return {
     w: vv ? vv.width : window.innerWidth,
@@ -232,7 +358,7 @@ function fitToScreen() {
   camera.ty = Math.round((h - DESIGN_H * s) / 2);
 
   applyCamera();
-  refreshSnapRects(); // after transform changes
+  refreshSnapRects();
 }
 
 fitBtn.addEventListener("click", (e) => {
@@ -250,7 +376,7 @@ const SNAP_ZONE_IDS = new Set([
   "p2_base_stack","p1_base_stack",
 ]);
 
-let zonesMeta = []; // viewport rects
+let zonesMeta = [];
 
 function refreshSnapRects() {
   zonesMeta = [];
@@ -289,7 +415,6 @@ function snapCardToNearestZone(cardEl) {
 
   if (!best || bestDist > threshold) return;
 
-  // Convert viewport target to stage coords
   const stageRect = stage.getBoundingClientRect();
   const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
@@ -299,6 +424,61 @@ function snapCardToNearestZone(cardEl) {
 
   cardEl.style.left = `${targetCenterX - w / 2}px`;
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
+}
+
+// ---------- card data (Obi-Wan test) ----------
+const OBIWAN = {
+  id: "obiwan_test",
+  img: "./cards/test/obiwan.jpg",
+
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: "6",
+
+  // From your image: left strip shows "4+" and "2"
+  attack: "4+",
+  resources: "2",
+  force: "—",
+
+  effect:
+    "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
+
+  // Icons were too tiny to confirm perfectly; easy to edit later.
+  reward: "Gain 3 Force and 3 Resources.",
+};
+
+// ---------- preview rendering ----------
+function showPreview(cardData) {
+  const imgEl = previewBackdrop.querySelector("#previewImg");
+  const titleEl = previewBackdrop.querySelector("#previewTitle");
+  const subEl = previewBackdrop.querySelector("#previewSub");
+  const pillsEl = previewBackdrop.querySelector("#previewPills");
+  const effEl = previewBackdrop.querySelector("#previewEffect");
+  const rewEl = previewBackdrop.querySelector("#previewReward");
+
+  imgEl.style.backgroundImage = `url('${cardData.img}')`;
+  titleEl.textContent = cardData.name;
+  subEl.textContent = `${cardData.type} • ${cardData.subtype}`;
+
+  pillsEl.innerHTML = "";
+  const pills = [
+    `Cost: ${cardData.cost}`,
+    `Attack: ${cardData.attack}`,
+    `Resources: ${cardData.resources}`,
+    `Force: ${cardData.force}`,
+  ];
+  for (const p of pills) {
+    const d = document.createElement("div");
+    d.className = "pill";
+    d.textContent = p;
+    pillsEl.appendChild(d);
+  }
+
+  effEl.textContent = cardData.effect;
+  rewEl.textContent = cardData.reward;
+
+  previewBackdrop.style.display = "flex";
 }
 
 // ---------- rotation (swap size, no transform) ----------
@@ -326,7 +506,6 @@ function toggleRotate(cardEl) {
   const afterW = parseFloat(cardEl.style.width);
   const afterH = parseFloat(cardEl.style.height);
 
-  // Keep same visual center in stage coords
   const left = parseFloat(cardEl.style.left || "0");
   const top = parseFloat(cardEl.style.top || "0");
   cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
@@ -335,73 +514,9 @@ function toggleRotate(cardEl) {
   refreshSnapRects();
 }
 
-// ---------- test card (in stage coords) ----------
-const testCard = document.createElement("div");
-testCard.className = "card";
-testCard.textContent = "TEST CARD";
-testCard.dataset.rot = "0";
-applyRotationSize(testCard);
-testCard.style.left = `${DESIGN_W * 0.42}px`;
-testCard.style.top  = `${DESIGN_H * 0.12}px`;
-testCard.style.zIndex = "9999";
-stage.appendChild(testCard);
-
-// Drag in stage coords (mobile-friendly)
-let dragging = false;
-let offsetX = 0;
-let offsetY = 0;
-let lastTapMs = 0;
-
-testCard.addEventListener("pointerdown", (e) => {
-  const now = Date.now();
-  if (now - lastTapMs < 300) {
-    toggleRotate(testCard);
-    lastTapMs = 0;
-    return;
-  }
-  lastTapMs = now;
-
-  dragging = true;
-  testCard.setPointerCapture(e.pointerId);
-  testCard.style.cursor = "grabbing";
-
-  const stageRect = stage.getBoundingClientRect();
-  const px = (e.clientX - stageRect.left) / camera.scale;
-  const py = (e.clientY - stageRect.top) / camera.scale;
-
-  const left = parseFloat(testCard.style.left || "0");
-  const top = parseFloat(testCard.style.top || "0");
-  offsetX = px - left;
-  offsetY = py - top;
-});
-
-testCard.addEventListener("pointermove", (e) => {
-  if (!dragging) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const px = (e.clientX - stageRect.left) / camera.scale;
-  const py = (e.clientY - stageRect.top) / camera.scale;
-
-  testCard.style.left = `${px - offsetX}px`;
-  testCard.style.top  = `${py - offsetY}px`;
-});
-
-testCard.addEventListener("pointerup", (e) => {
-  dragging = false;
-  testCard.style.cursor = "grab";
-  try { testCard.releasePointerCapture(e.pointerId); } catch {}
-  snapCardToNearestZone(testCard);
-});
-
-// Keyboard rotate (PC)
-window.addEventListener("keydown", (e) => {
-  if (e.key === "r" || e.key === "R") toggleRotate(testCard);
-});
-
-// ---------- build zones ----------
+// ---------- build stage ----------
 function build() {
   stage.innerHTML = "";
-  stage.appendChild(testCard);
 
   const zones = computeZones();
   stage.style.width = `${DESIGN_W}px`;
@@ -424,7 +539,148 @@ function build() {
 }
 
 build();
-
-// keep fit stable on iOS resize/address-bar changes
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
+
+// ---------- Obi-Wan test card ----------
+const card = document.createElement("div");
+card.className = "card";
+card.dataset.rot = "0";
+applyRotationSize(card);
+
+// card image face
+const face = document.createElement("div");
+face.className = "cardFace";
+face.style.backgroundImage = `url('${OBIWAN.img}')`;
+card.appendChild(face);
+
+// initial placement (design coords)
+card.style.left = `${DESIGN_W * 0.42}px`;
+card.style.top  = `${DESIGN_H * 0.12}px`;
+card.style.zIndex = "9999";
+stage.appendChild(card);
+
+// ---------- drag + mobile long-press preview + pc hover preview ----------
+let dragging = false;
+let offsetX = 0;
+let offsetY = 0;
+
+let pressTimer = null;
+let longPressFired = false;
+let downX = 0;
+let downY = 0;
+
+function clearPressTimer() {
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+}
+
+function startLongPress(e) {
+  clearPressTimer();
+  longPressFired = false;
+
+  // record starting point in viewport coords
+  downX = e.clientX;
+  downY = e.clientY;
+
+  // long press opens preview (mobile-friendly)
+  pressTimer = setTimeout(() => {
+    longPressFired = true;
+    showPreview(OBIWAN);
+  }, 350);
+}
+
+// PC hover opens preview
+card.addEventListener("pointerenter", () => {
+  // Only do hover-preview if it looks like a mouse
+  // (touch devices sometimes emulate hover weirdly)
+  if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
+    showPreview(OBIWAN);
+  }
+});
+card.addEventListener("pointerleave", () => {
+  if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
+    hidePreview();
+  }
+});
+
+card.addEventListener("pointerdown", (e) => {
+  card.setPointerCapture(e.pointerId);
+  startLongPress(e);
+
+  dragging = true;
+  const stageRect = stage.getBoundingClientRect();
+  const px = (e.clientX - stageRect.left) / camera.scale;
+  const py = (e.clientY - stageRect.top) / camera.scale;
+
+  const left = parseFloat(card.style.left || "0");
+  const top = parseFloat(card.style.top || "0");
+  offsetX = px - left;
+  offsetY = py - top;
+});
+
+card.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+
+  // cancel long-press if finger/mouse moves more than a tiny threshold
+  const dx = e.clientX - downX;
+  const dy = e.clientY - downY;
+  if (!longPressFired && Math.hypot(dx, dy) > 8) {
+    clearPressTimer();
+  }
+
+  // if preview is open because of long press, don't drag while preview open
+  if (longPressFired) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const px = (e.clientX - stageRect.left) / camera.scale;
+  const py = (e.clientY - stageRect.top) / camera.scale;
+
+  card.style.left = `${px - offsetX}px`;
+  card.style.top  = `${py - offsetY}px`;
+});
+
+card.addEventListener("pointerup", (e) => {
+  dragging = false;
+  clearPressTimer();
+  try { card.releasePointerCapture(e.pointerId); } catch {}
+
+  // if preview is open from long press, release closes it (mobile feels natural)
+  if (longPressFired) {
+    hidePreview();
+    longPressFired = false;
+    return;
+  }
+
+  snapCardToNearestZone(card);
+});
+
+card.addEventListener("pointercancel", () => {
+  dragging = false;
+  clearPressTimer();
+  hidePreview();
+});
+
+// Double-tap to rotate (mobile + PC)
+let lastTap = 0;
+card.addEventListener("pointerdown", (e) => {
+  const now = Date.now();
+  if (now - lastTap < 280) {
+    // rotate on double tap
+    toggleRotate(card);
+    lastTap = 0;
+    // prevent immediate drag weirdness
+    clearPressTimer();
+    hidePreview();
+    longPressFired = false;
+    return;
+  }
+  lastTap = now;
+});
+
+// Keyboard rotate for PC
+window.addEventListener("keydown", (e) => {
+  if (e.key === "r" || e.key === "R") toggleRotate(card);
+});
