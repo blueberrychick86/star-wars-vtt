@@ -1,46 +1,36 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
   <title>Star Wars Deckbuilding VTT</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <style>
     body {
-      margin: 0;
-      padding: 24px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #0b0d12;
-      color: #e6e6e6;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: #ffffff;
+      margin: 0;
+      padding: 0;
     }
-    .card {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 20px;
-      border-radius: 12px;
-      background: #141824;
-      border: 1px solid #2a2f3a;
-    }
-    h1 { margin: 0 0 10px; }
-    #status { font-weight: 700; margin: 0 0 10px; }
-    #details p { margin: 6px 0; }
-    pre {
-      background: #1e2330;
-      padding: 12px;
-      border-radius: 8px;
-      overflow-x: auto;
-      border: 1px solid #2a2f3a;
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Star Wars Deckbuilding VTT</h1>
-    <p id="status">Starting…</p>
-    <div id="details"></div>
+
+  <div id="app">
+    <div id="status">Starting...</div>
   </div>
 
-  <!-- IMPORTANT: script is at the bottom so elements exist first -->
-  
- <script src="./app.js"></script>
+  <!-- JS MUST BE LAST -->
+  <script src="./app.js"></script>
+
 </body>
 </html>
