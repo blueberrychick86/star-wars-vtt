@@ -1,4 +1,4 @@
-console.log("PREVIEW2 + CAMERA2: board pan/zoom (PC+mobile) + cards drag/snap + preview modal");
+console.log("PREVIEW2 + CAMERA2 + FORCE TRACK: board pan/zoom (PC+mobile) + cards drag/snap + preview modal + force marker snap");
 
 //
 // ---------- base page ----------
@@ -85,6 +85,30 @@ style.textContent = `
     background-size: cover;
     background-position: center;
     will-change: transform;
+  }
+
+  /* ---------- force track (slots + marker) ---------- */
+  .forceSlot {
+    position: absolute;
+    border-radius: 10px;
+    box-sizing: border-box;
+    border: 1px dashed rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.02);
+    pointer-events: none;
+  }
+
+  .forceMarker {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 2px solid rgba(255,255,255,0.9);
+    background: rgba(120,180,255,0.22);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    box-sizing: border-box;
+    z-index: 99999;
+    touch-action: none;
+    cursor: grab;
   }
 
   /* ---------- preview overlay (mobile-safe) ---------- */
@@ -353,6 +377,15 @@ let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
 //
+// ---------- force track constants ----------
+//
+const FORCE_SLOTS = 11;
+const FORCE_MARKER_SIZE = 28;
+
+let forceSlotCenters = [];
+let forceMarker = null;
+
+//
 // ---------- zone math (design-space) ----------
 //
 function computeZones() {
@@ -511,7 +544,7 @@ function mid(a,b){
 
 //
 // Board gesture listeners (drag empty space to pan, pinch/wheel to zoom)
-// IMPORTANT: ignore gestures if you start on a card, HUD, or preview.
+// IMPORTANT: ignore gestures if you start on a card, HUD, preview, or force marker.
 //
 const boardPointers = new Map();
 let boardLast = { x: 0, y: 0 };
@@ -522,6 +555,7 @@ let pinchMid = { x: 0, y: 0 };
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
   if (e.target.closest(".card")) return;
+  if (e.target.closest(".forceMarker")) return;
   if (e.target.closest("#hud")) return;
   if (e.target.closest("#previewBackdrop")) return;
 
@@ -642,6 +676,126 @@ function snapCardToNearestZone(cardEl) {
 }
 
 //
+// ---------- force track: slots + marker ----------
+//
+function buildForceTrackSlots(forceRect) {
+  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
+  forceSlotCenters = [];
+
+  const pad = 10;
+  const usableH = forceRect.h - pad * 2;
+
+  for (let i = 0; i < FORCE_SLOTS; i++) {
+    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
+    const cy = forceRect.y + pad + t * usableH;
+    const cx = forceRect.x + forceRect.w / 2;
+
+    forceSlotCenters.push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "forceSlot";
+    slot.style.left = `${forceRect.x}px`;
+    slot.style.top = `${Math.round(cy - 16)}px`;
+    slot.style.width = `${forceRect.w}px`;
+    slot.style.height = `32px`;
+    stage.appendChild(slot);
+  }
+}
+
+function ensureForceMarker(initialIndex = Math.floor(FORCE_SLOTS / 2)) {
+  if (forceMarker) return;
+
+  forceMarker = document.createElement("div");
+  forceMarker.className = "forceMarker";
+  stage.appendChild(forceMarker);
+
+  let draggingMarker = false;
+  let markerOffX = 0;
+  let markerOffY = 0;
+
+  function snapMarkerToNearestSlot() {
+    if (!forceSlotCenters.length) return;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    const cx = left + FORCE_MARKER_SIZE / 2;
+    const cy = top + FORCE_MARKER_SIZE / 2;
+
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < forceSlotCenters.length; i++) {
+      const s = forceSlotCenters[i];
+      const d = Math.hypot(cx - s.x, cy - s.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+
+    const target = forceSlotCenters[best];
+    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+
+  forceMarker.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+
+    forceMarker.setPointerCapture(e.pointerId);
+    draggingMarker = true;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    markerOffX = px - left;
+    markerOffY = py - top;
+  });
+
+  forceMarker.addEventListener("pointermove", (e) => {
+    if (!draggingMarker) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    forceMarker.style.left = `${px - markerOffX}px`;
+    forceMarker.style.top  = `${py - markerOffY}px`;
+  });
+
+  forceMarker.addEventListener("pointerup", (e) => {
+    draggingMarker = false;
+    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
+    snapMarkerToNearestSlot();
+  });
+
+  forceMarker.addEventListener("pointercancel", () => {
+    draggingMarker = false;
+  });
+
+  // Tap/click inside force track to jump marker to nearest slot
+  stage.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    const z = e.target.closest(".zone");
+    if (!z || z.dataset.zoneId !== "force_track") return;
+    if (!forceSlotCenters.length) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    forceMarker.style.left = `${px - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${py - FORCE_MARKER_SIZE / 2}px`;
+    snapMarkerToNearestSlot();
+  });
+
+  // Initial placement
+  if (forceSlotCenters[initialIndex]) {
+    const s = forceSlotCenters[initialIndex];
+    forceMarker.style.left = `${s.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${s.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+}
+
+//
 // ---------- card data (Obi-Wan test) ----------
 //
 const OBIWAN = {
@@ -664,7 +818,7 @@ const OBIWAN = {
 };
 
 //
-// ✅ NEW: rotate the image (cardFace) when card rotates
+// ✅ rotate the image (cardFace) when card rotates
 //
 function updateCardFaceRotation(cardEl) {
   const faceEl = cardEl.querySelector(".cardFace");
@@ -749,6 +903,10 @@ function build() {
     el.style.height = `${r.h}px`;
     stage.appendChild(el);
   }
+
+  // ✅ Force Track: create slots + marker
+  buildForceTrackSlots(zones.force_track);
+  ensureForceMarker();
 
   applyCamera();
   refreshSnapRects();
