@@ -1,77 +1,172 @@
-console.log("Cards + Slots v1");
+console.log("LAYOUT1: offline zones only");
 
-// Own the page (JS-only styling)
+// ---------- base page ----------
 document.body.style.margin = "0";
-document.body.style.background = "#0b0d12";
+document.body.style.padding = "0";
 document.body.style.height = "100vh";
-document.body.style.display = "flex";
-document.body.style.alignItems = "center";
-document.body.style.justifyContent = "center";
-document.body.style.color = "white";
-document.body.style.fontFamily = "system-ui, -apple-system, Segoe UI, sans-serif";
+document.body.style.background = "#1b1b1b";
+document.body.style.overflow = "hidden";
+document.body.style.touchAction = "none";
+document.body.style.fontFamily = "Arial, sans-serif";
 
-// App container
 const app = document.getElementById("app");
-app.textContent = "";
+app.innerHTML = "";
 
-// Layout wrapper (stack rows)
-const wrap = document.createElement("div");
-wrap.style.display = "flex";
-wrap.style.flexDirection = "column";
-wrap.style.gap = "24px";
-wrap.style.alignItems = "center";
-app.appendChild(wrap);
+// ---------- inject CSS (so zones look identical) ----------
+const style = document.createElement("style");
+style.textContent = `
+  #table { position: relative; width: 100vw; height: 100vh; background: #f6f6f6; }
+  .zone { position: absolute; border: 2px solid rgba(0,0,0,0.35); border-radius: 10px; box-sizing: border-box; background: transparent; }
+`;
+document.head.appendChild(style);
 
-// Row containers
-function makeRow() {
-  const row = document.createElement("div");
-  row.style.display = "flex";
-  row.style.gap = "24px";
-  row.style.alignItems = "center";
-  return row;
+// ---------- table surface ----------
+const table = document.createElement("div");
+table.id = "table";
+app.appendChild(table);
+
+// ---------- constants from offline ----------
+const CARD_W = 86;
+const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
+const BASE_W = CARD_H;
+const BASE_H = CARD_W;
+
+const CAP_W = BASE_W;
+const CAP_OVERLAP = Math.round(BASE_H * 0.45);
+const CAP_H = BASE_H + (7 - 1) * CAP_OVERLAP;
+
+const GAP = 18;
+const BIG_GAP = 28;
+
+let DESIGN_W = 1;
+let DESIGN_H = 1;
+
+const LEFT_MARGIN = 18;
+const TOP_MARGIN = 18;
+
+function rect(x, y, w, h) { return { x, y, w, h }; }
+
+function computeZones() {
+  const xPiles = 240;
+  const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
+
+  const xRowStart = xGalaxyDeck + CARD_W + BIG_GAP;
+  const rowSlotGap = GAP;
+  const rowWidth = (CARD_W * 6) + (rowSlotGap * 5);
+
+  const xOuterRim = xRowStart + rowWidth + BIG_GAP;
+  const xForce = xOuterRim + CARD_W + GAP;
+  const xGalaxyDiscard = xForce + 52 + GAP;
+  const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
+
+  const yTopBase = 20;
+  const yTopPiles = 90;
+
+  const yRow1 = 220;
+  const yRow2 = yRow1 + CARD_H + GAP;
+
+  const yForceTrack = yRow1;
+  const forceTrackW = 52;
+  const forceTrackH = (CARD_H * 2) + GAP;
+
+  const yTopExile = yRow1 - (CARD_H + BIG_GAP);
+  const yBotExile = yRow2 + CARD_H + BIG_GAP;
+
+  const yBottomPiles = yRow2 + CARD_H + 110;
+  const yBottomBase = yBottomPiles + CARD_H + 30;
+
+  const yCapTop = 45;
+  const yCapBottom = yRow2 + CARD_H + 35;
+
+  DESIGN_W = xCaptured + CAP_W + LEFT_MARGIN;
+  DESIGN_H = Math.max(
+    yBottomBase + BASE_H + TOP_MARGIN,
+    yCapBottom + CAP_H + TOP_MARGIN
+  );
+
+  const zones = {
+    p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
+    p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
+    p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
+
+    p2_exile_draw: rect(xOuterRim, yTopExile, CARD_W, CARD_H),
+    p2_exile_perm: rect(xOuterRim + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
+
+    p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
+
+    galaxy_deck: rect(
+      xGalaxyDeck,
+      yRow1 + Math.round((CARD_H + GAP) / 2) - Math.round(CARD_H / 2),
+      CARD_W,
+      CARD_H
+    ),
+
+    // Galaxy row 2x6
+    ...(() => {
+      const out = {};
+      for (let c = 0; c < 6; c++) {
+        out[`g1${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
+        out[`g2${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
+      }
+      return out;
+    })(),
+
+    outer_rim: rect(
+      xOuterRim,
+      yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
+      CARD_W,
+      CARD_H
+    ),
+    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
+    galaxy_discard: rect(
+      xGalaxyDiscard,
+      yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
+      CARD_W,
+      CARD_H
+    ),
+
+    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
+
+    p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
+    p1_exile_perm: rect(xOuterRim + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
+
+    p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
+  };
+
+  return zones;
 }
 
-const topRow = makeRow();
-const bottomRow = makeRow();
-wrap.appendChild(topRow);
-wrap.appendChild(bottomRow);
-
-// Card factory
-function makeCard(label) {
-  const card = document.createElement("div");
-  card.textContent = label;
-  card.style.width = "250px";
-  card.style.height = "350px";
-  card.style.border = "2px solid white";
-  card.style.borderRadius = "12px";
-  card.style.display = "flex";
-  card.style.alignItems = "center";
-  card.style.justifyContent = "center";
-  card.style.fontSize = "1.5rem";
-  card.style.userSelect = "none";
-  return card;
+function getTransform() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const usableW = Math.max(200, w - LEFT_MARGIN * 2);
+  const usableH = Math.max(200, h - TOP_MARGIN * 2);
+  const s = Math.min(usableW / DESIGN_W, usableH / DESIGN_H);
+  const ox = LEFT_MARGIN;
+  const oy = (h - DESIGN_H * s) / 2;
+  return { s, ox, oy };
 }
 
-// Slot factory
-function makeSlot(label) {
-  const slot = document.createElement("div");
-  slot.textContent = label;
-  slot.style.width = "250px";
-  slot.style.height = "350px";
-  slot.style.border = "2px dashed #777";
-  slot.style.borderRadius = "12px";
-  slot.style.display = "flex";
-  slot.style.alignItems = "center";
-  slot.style.justifyContent = "center";
-  slot.style.fontSize = "1.1rem";
-  slot.style.color = "#777";
-  slot.style.userSelect = "none";
-  return slot;
+function build() {
+  table.innerHTML = "";
+
+  const zones = computeZones();
+  const { s, ox, oy } = getTransform();
+
+  for (const [id, r] of Object.entries(zones)) {
+    const el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = (ox + r.x * s) + "px";
+    el.style.top = (oy + r.y * s) + "px";
+    el.style.width = (r.w * s) + "px";
+    el.style.height = (r.h * s) + "px";
+    table.appendChild(el);
+  }
 }
 
-// Build UI
-topRow.appendChild(makeCard("CARD A"));
-topRow.appendChild(makeCard("CARD B"));
+window.addEventListener("resize", build);
+build();
 
-bottomRow.appendChild(makeSlot("SLOT A"));
-bottomRow.appendChild(makeSlot("SLOT B"));
