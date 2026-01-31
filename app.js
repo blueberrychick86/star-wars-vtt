@@ -1,4 +1,4 @@
-console.log("LAYOUT4: full zones + black test card + snap + rotate");
+console.log("LAYOUT5: full zones + black test card + snap + rotate(size swap)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -39,7 +39,6 @@ style.textContent = `
     touch-action: none;
     cursor: grab;
     font-weight: 700;
-    transform-origin: center center;
   }
 `;
 document.head.appendChild(style);
@@ -70,7 +69,7 @@ const TOP_MARGIN = 18;
 
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
-// ---------- FULL zone math (restored) ----------
+// ---------- FULL zone math ----------
 function computeZones() {
   const xPiles = 240;
   const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
@@ -119,10 +118,10 @@ function computeZones() {
     p2_exile_draw: rect(xOuterRim, yTopExile, CARD_W, CARD_H),
     p2_exile_perm: rect(xOuterRim + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
 
-    // P2 captured (NOT snappable yet)
+    // P2 captured (not snappable yet)
     p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
 
-    // Galaxy deck (centered between row1/row2)
+    // Galaxy deck (centered between rows)
     galaxy_deck: rect(
       xGalaxyDeck,
       yRow1 + Math.round((CARD_H + GAP) / 2) - Math.round(CARD_H / 2),
@@ -147,7 +146,7 @@ function computeZones() {
       CARD_W,
       CARD_H
     ),
-    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH), // NOT snappable yet
+    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH), // not snappable yet
     galaxy_discard: rect(
       xGalaxyDiscard,
       yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
@@ -164,7 +163,7 @@ function computeZones() {
     p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
     p1_exile_perm: rect(xOuterRim + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
 
-    // P1 captured (NOT snappable yet)
+    // P1 captured (not snappable yet)
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
   };
 
@@ -193,9 +192,8 @@ const SNAP_ZONE_IDS = new Set([
   "g11","g12","g13","g14","g15","g16",
   "g21","g22","g23","g24","g25","g26",
 
-  // BASE STACKS (horizontal zones)
-  "p2_base_stack",
-  "p1_base_stack",
+  // base stacks (horizontal)
+  "p2_base_stack","p1_base_stack",
 ]);
 
 let zonesMeta = []; // { id, left, top, width, height } viewport coords
@@ -220,7 +218,6 @@ function snapCardToNearestZone(cardEl) {
     }
   }
 
-  // Threshold based on BOTH card + zone size (helps larger horizontal base zones)
   const cardDiag = Math.hypot(cardRect.width, cardRect.height);
   const zoneDiag = best ? Math.hypot(best.width, best.height) : cardDiag;
   const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
@@ -235,25 +232,57 @@ function snapCardToNearestZone(cardEl) {
   cardEl.style.top  = `${targetTop}px`;
 }
 
-// ---------- rotation ----------
-function toggleRotate(cardEl) {
+// ---------- rotation (swap size, no transform) ----------
+function applyRotationSize(cardEl, s) {
+  const rot = Number(cardEl.dataset.rot || "0");
+  const wV = Math.round(CARD_W * s);
+  const hV = Math.round(CARD_H * s);
+
+  if (rot === 0) {
+    cardEl.style.width = `${wV}px`;
+    cardEl.style.height = `${hV}px`;
+  } else {
+    // horizontal = swap
+    cardEl.style.width = `${hV}px`;
+    cardEl.style.height = `${wV}px`;
+  }
+}
+
+function toggleRotate(cardEl, s) {
   const cur = Number(cardEl.dataset.rot || "0");
   const next = cur === 0 ? 90 : 0;
   cardEl.dataset.rot = String(next);
-  cardEl.style.transform = `rotate(${next}deg)`;
+
+  // keep the card visually centered where it is when swapping size
+  const before = cardEl.getBoundingClientRect();
+  applyRotationSize(cardEl, s);
+  const after = cardEl.getBoundingClientRect();
+
+  const tableRect = table.getBoundingClientRect();
+  const left = parseFloat(cardEl.style.left || "0");
+  const top = parseFloat(cardEl.style.top || "0");
+
+  // adjust left/top by half the delta in bbox
+  const dx = (before.width - after.width) / 2;
+  const dy = (before.height - after.height) / 2;
+
+  cardEl.style.left = `${left + dx}px`;
+  cardEl.style.top  = `${top + dy}px`;
 }
 
 // ---------- test card ----------
 let testCard = null;
+let lastScale = 1;
 
 function ensureTestCard(s, ox, oy) {
+  lastScale = s;
+
   if (!testCard) {
     testCard = document.createElement("div");
     testCard.className = "card";
     testCard.textContent = "TEST CARD";
     testCard.style.zIndex = "9999";
     testCard.dataset.rot = "0";
-    testCard.style.transform = "rotate(0deg)";
     table.appendChild(testCard);
 
     let dragging = false;
@@ -262,12 +291,11 @@ function ensureTestCard(s, ox, oy) {
     let lastTapMs = 0;
 
     testCard.addEventListener("pointerdown", (e) => {
-      // double-tap / double-click to rotate
+      // double-tap / double-click rotate (works on mobile + PC)
       const now = Date.now();
       if (now - lastTapMs < 300) {
-        toggleRotate(testCard);
+        toggleRotate(testCard, lastScale);
         lastTapMs = 0;
-        // don’t start a drag on the second tap
         return;
       }
       lastTapMs = now;
@@ -289,38 +317,33 @@ function ensureTestCard(s, ox, oy) {
       const y = e.clientY - tableRect.top - offsetY;
 
       testCard.style.left = `${x}px`;
-      testCard.style.top = `${y}px`;
+      testCard.style.top  = `${y}px`;
     });
 
     testCard.addEventListener("pointerup", (e) => {
       dragging = false;
       testCard.style.cursor = "grab";
       try { testCard.releasePointerCapture(e.pointerId); } catch {}
-
       snapCardToNearestZone(testCard);
     });
   }
 
-  // IMPORTANT: keep the element's "base" size as vertical card size.
-  // Rotation changes the bounding box automatically, which makes it fit base zones when rotated.
-  const w = Math.round(CARD_W * s);
-  const h = Math.round(CARD_H * s);
-  testCard.style.width = `${w}px`;
-  testCard.style.height = `${h}px`;
+  applyRotationSize(testCard, s);
 
   if (!testCard.dataset.placed) {
-    const startLeft = ox + (DESIGN_W * s) * 0.45 - w / 2;
-    const startTop  = oy + (DESIGN_H * s) * 0.12 - h / 2;
+    const r = testCard.getBoundingClientRect();
+    const startLeft = ox + (DESIGN_W * s) * 0.45 - r.width / 2;
+    const startTop  = oy + (DESIGN_H * s) * 0.12 - r.height / 2;
     testCard.style.left = `${Math.round(startLeft)}px`;
     testCard.style.top  = `${Math.round(startTop)}px`;
     testCard.dataset.placed = "1";
   }
 }
 
-// Keyboard rotate: press R
+// Keyboard rotate: press R (PC)
 window.addEventListener("keydown", (e) => {
   if (!testCard) return;
-  if (e.key === "r" || e.key === "R") toggleRotate(testCard);
+  if (e.key === "r" || e.key === "R") toggleRotate(testCard, lastScale);
 });
 
 // ---------- build ----------
@@ -347,7 +370,7 @@ function build() {
     }
   }
 
-  testCard = null;
+  testCard = null; // re-create after clearing
   ensureTestCard(s, ox, oy);
 }
 
