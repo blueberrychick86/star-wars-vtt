@@ -1,4 +1,4 @@
-console.log("LAYOUT3: zones + draggable test card + snap");
+console.log("LAYOUT3-RESTORE: full zones + black test card + snap");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -48,10 +48,18 @@ const table = document.createElement("div");
 table.id = "table";
 app.appendChild(table);
 
-// ---------- constants ----------
+// ---------- constants from offline ----------
 const CARD_W = 86;
 const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
+const BASE_W = CARD_H;
+const BASE_H = CARD_W;
+
+const CAP_W = BASE_W;
+const CAP_OVERLAP = Math.round(BASE_H * 0.45);
+const CAP_H = BASE_H + (7 - 1) * CAP_OVERLAP;
+
 const GAP = 18;
+const BIG_GAP = 28;
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -61,27 +69,103 @@ const TOP_MARGIN = 18;
 
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
-// ---------- zone math (unchanged) ----------
+// ---------- FULL zone math (restored) ----------
 function computeZones() {
   const xPiles = 240;
-  const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + 28;
+  const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
 
-  const xRowStart = xGalaxyDeck + CARD_W + 28;
+  const xRowStart = xGalaxyDeck + CARD_W + BIG_GAP;
   const rowSlotGap = GAP;
+  const rowWidth = (CARD_W * 6) + (rowSlotGap * 5);
+
+  const xOuterRim = xRowStart + rowWidth + BIG_GAP;
+  const xForce = xOuterRim + CARD_W + GAP;
+  const xGalaxyDiscard = xForce + 52 + GAP;
+  const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
+
+  const yTopBase = 20;
+  const yTopPiles = 90;
 
   const yRow1 = 220;
   const yRow2 = yRow1 + CARD_H + GAP;
 
-  const zones = {};
+  const yForceTrack = yRow1;
+  const forceTrackW = 52;
+  const forceTrackH = (CARD_H * 2) + GAP;
 
-  // galaxy row (2x6)
-  for (let c = 0; c < 6; c++) {
-    zones[`g1${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
-    zones[`g2${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
-  }
+  const yTopExile = yRow1 - (CARD_H + BIG_GAP);
+  const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
-  DESIGN_W = xRowStart + (CARD_W + GAP) * 6 + LEFT_MARGIN;
-  DESIGN_H = yRow2 + CARD_H + TOP_MARGIN;
+  const yBottomPiles = yRow2 + CARD_H + 110;
+  const yBottomBase = yBottomPiles + CARD_H + 30;
+
+  const yCapTop = 45;
+  const yCapBottom = yRow2 + CARD_H + 35;
+
+  DESIGN_W = xCaptured + CAP_W + LEFT_MARGIN;
+  DESIGN_H = Math.max(
+    yBottomBase + BASE_H + TOP_MARGIN,
+    yCapBottom + CAP_H + TOP_MARGIN
+  );
+
+  const zones = {
+    // P2 piles + base
+    p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
+    p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
+    p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
+
+    // P2 exile
+    p2_exile_draw: rect(xOuterRim, yTopExile, CARD_W, CARD_H),
+    p2_exile_perm: rect(xOuterRim + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
+
+    // P2 captured
+    p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
+
+    // Galaxy deck (centered between row1/row2)
+    galaxy_deck: rect(
+      xGalaxyDeck,
+      yRow1 + Math.round((CARD_H + GAP) / 2) - Math.round(CARD_H / 2),
+      CARD_W,
+      CARD_H
+    ),
+
+    // Galaxy row 2x6
+    ...(() => {
+      const out = {};
+      for (let c = 0; c < 6; c++) {
+        out[`g1${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
+        out[`g2${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
+      }
+      return out;
+    })(),
+
+    // Outer rim + force + galaxy discard
+    outer_rim: rect(
+      xOuterRim,
+      yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
+      CARD_W,
+      CARD_H
+    ),
+    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
+    galaxy_discard: rect(
+      xGalaxyDiscard,
+      yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
+      CARD_W,
+      CARD_H
+    ),
+
+    // P1 piles + base
+    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
+
+    // P1 exile
+    p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
+    p1_exile_perm: rect(xOuterRim + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
+
+    // P1 captured
+    p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
+  };
 
   return zones;
 }
@@ -97,9 +181,51 @@ function getTransform() {
   return { s, ox, oy };
 }
 
+// ---------- snapping helpers ----------
+const CARD_SIZED_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26"
+]);
+
+let zonesMeta = []; // { id, left, top, width, height } in viewport coords
+
+function snapCardToNearestZone(cardEl) {
+  if (!zonesMeta.length) return;
+
+  const cardRect = cardEl.getBoundingClientRect();
+  const cx = cardRect.left + cardRect.width / 2;
+  const cy = cardRect.top + cardRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) {
+      bestDist = d;
+      best = z;
+    }
+  }
+
+  // threshold: 60% of card diagonal
+  const threshold = Math.hypot(cardRect.width, cardRect.height) * 0.6;
+  if (!best || bestDist > threshold) return;
+
+  const tableRect = table.getBoundingClientRect();
+  const targetLeft = best.left - tableRect.left + (best.width - cardRect.width) / 2;
+  const targetTop  = best.top  - tableRect.top  + (best.height - cardRect.height) / 2;
+
+  cardEl.style.left = `${targetLeft}px`;
+  cardEl.style.top = `${targetTop}px`;
+}
+
 // ---------- test card ----------
 let testCard = null;
-let zonesScaled = [];
 
 function ensureTestCard(s, ox, oy) {
   if (!testCard) {
@@ -125,9 +251,13 @@ function ensureTestCard(s, ox, oy) {
 
     testCard.addEventListener("pointermove", (e) => {
       if (!dragging) return;
+
       const tableRect = table.getBoundingClientRect();
-      testCard.style.left = `${e.clientX - tableRect.left - offsetX}px`;
-      testCard.style.top = `${e.clientY - tableRect.top - offsetY}px`;
+      const x = e.clientX - tableRect.left - offsetX;
+      const y = e.clientY - tableRect.top - offsetY;
+
+      testCard.style.left = `${x}px`;
+      testCard.style.top = `${y}px`;
     });
 
     testCard.addEventListener("pointerup", (e) => {
@@ -135,7 +265,8 @@ function ensureTestCard(s, ox, oy) {
       testCard.style.cursor = "grab";
       try { testCard.releasePointerCapture(e.pointerId); } catch {}
 
-      snapToNearestZone();
+      // snap on release
+      snapCardToNearestZone(testCard);
     });
   }
 
@@ -145,62 +276,41 @@ function ensureTestCard(s, ox, oy) {
   testCard.style.height = `${h}px`;
 
   if (!testCard.dataset.placed) {
-    testCard.style.left = `${ox + 40}px`;
-    testCard.style.top = `${oy + 40}px`;
+    // start near center-ish
+    const startLeft = ox + (DESIGN_W * s) * 0.45 - w / 2;
+    const startTop  = oy + (DESIGN_H * s) * 0.12 - h / 2;
+    testCard.style.left = `${Math.round(startLeft)}px`;
+    testCard.style.top  = `${Math.round(startTop)}px`;
     testCard.dataset.placed = "1";
   }
-}
-
-// ---------- snapping ----------
-function snapToNearestZone() {
-  if (!zonesScaled.length) return;
-
-  const cardRect = testCard.getBoundingClientRect();
-  const cx = cardRect.left + cardRect.width / 2;
-  const cy = cardRect.top + cardRect.height / 2;
-
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const z of zonesScaled) {
-    const zx = z.left + z.width / 2;
-    const zy = z.top + z.height / 2;
-    const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) {
-      bestDist = d;
-      best = z;
-    }
-  }
-
-  // snap threshold = half a card diagonal
-  const snapThreshold = Math.hypot(cardRect.width, cardRect.height) * 0.6;
-  if (!best || bestDist > snapThreshold) return;
-
-  const tableRect = table.getBoundingClientRect();
-  testCard.style.left = `${best.left - tableRect.left + (best.width - cardRect.width) / 2}px`;
-  testCard.style.top = `${best.top - tableRect.top + (best.height - cardRect.height) / 2}px`;
 }
 
 // ---------- build ----------
 function build() {
   table.innerHTML = "";
-  zonesScaled = [];
+  zonesMeta = [];
 
   const zones = computeZones();
   const { s, ox, oy } = getTransform();
 
-  for (const r of Object.values(zones)) {
+  for (const [id, r] of Object.entries(zones)) {
     const el = document.createElement("div");
     el.className = "zone";
-    el.style.left = `${ox + r.x * s}px`;
-    el.style.top = `${oy + r.y * s}px`;
-    el.style.width = `${r.w * s}px`;
-    el.style.height = `${r.h * s}px`;
+    el.dataset.zoneId = id;
+    el.style.left = (ox + r.x * s) + "px";
+    el.style.top = (oy + r.y * s) + "px";
+    el.style.width = (r.w * s) + "px";
+    el.style.height = (r.h * s) + "px";
     table.appendChild(el);
-    zonesScaled.push(el.getBoundingClientRect());
+
+    // after it’s in the DOM, capture its viewport rect if snap-eligible
+    if (CARD_SIZED_ZONE_IDS.has(id)) {
+      const b = el.getBoundingClientRect();
+      zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
+    }
   }
 
-  testCard = null;
+  testCard = null; // re-create after clearing
   ensureTestCard(s, ox, oy);
 }
 
