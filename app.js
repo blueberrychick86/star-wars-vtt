@@ -66,15 +66,10 @@ style.textContent = `
     border: 2px solid rgba(255,255,255,0.85);
     border-radius: 10px;
     background: #111;
-    color: #fff;
     box-sizing: border-box;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
     user-select: none;
     touch-action: none;
     cursor: grab;
-    font-weight: 700;
     overflow: hidden;
   }
 
@@ -104,6 +99,7 @@ style.textContent = `
     background: rgba(15,15,18,0.96);
     box-shadow: 0 12px 40px rgba(0,0,0,0.65);
     overflow: hidden;
+    color: white;
   }
 
   #previewTop {
@@ -220,7 +216,6 @@ function hidePreview() {
 }
 
 previewBackdrop.addEventListener("pointerdown", (e) => {
-  // tap outside closes
   if (e.target === previewBackdrop) hidePreview();
 });
 
@@ -337,10 +332,7 @@ const camera = { scale: 1, tx: 0, ty: 0 };
 
 function viewportSize() {
   const vv = window.visualViewport;
-  return {
-    w: vv ? vv.width : window.innerWidth,
-    h: vv ? vv.height : window.innerHeight,
-  };
+  return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
 
 function applyCamera() {
@@ -380,8 +372,7 @@ let zonesMeta = [];
 
 function refreshSnapRects() {
   zonesMeta = [];
-  const els = stage.querySelectorAll(".zone");
-  els.forEach((el) => {
+  stage.querySelectorAll(".zone").forEach((el) => {
     const id = el.dataset.zoneId;
     if (!SNAP_ZONE_IDS.has(id)) return;
     const b = el.getBoundingClientRect();
@@ -403,10 +394,7 @@ function snapCardToNearestZone(cardEl) {
     const zx = z.left + z.width / 2;
     const zy = z.top + z.height / 2;
     const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) {
-      bestDist = d;
-      best = z;
-    }
+    if (d < bestDist) { bestDist = d; best = z; }
   }
 
   const cardDiag = Math.hypot(cardRect.width, cardRect.height);
@@ -436,17 +424,14 @@ const OBIWAN = {
   subtype: "Jedi",
   cost: "6",
 
-  // From your image: left strip shows "4+" and "2"
-    attack: "4",
+  attack: "4",
   resources: "—",
   force: "2",
-  reward: "Gain 3 Resources and 3 Force.",
 
   effect:
     "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
 
-  // Icons were too tiny to confirm perfectly; easy to edit later.
-  reward: "Gain 3 Force and 3 Resources.",
+  reward: "Gain 3 Resources and 3 Force.",
 };
 
 // ---------- preview rendering ----------
@@ -581,22 +566,17 @@ function clearPressTimer() {
 function startLongPress(e) {
   clearPressTimer();
   longPressFired = false;
-
-  // record starting point in viewport coords
   downX = e.clientX;
   downY = e.clientY;
 
-  // long press opens preview (mobile-friendly)
   pressTimer = setTimeout(() => {
     longPressFired = true;
     showPreview(OBIWAN);
   }, 350);
 }
 
-// PC hover opens preview
+// PC hover preview
 card.addEventListener("pointerenter", () => {
-  // Only do hover-preview if it looks like a mouse
-  // (touch devices sometimes emulate hover weirdly)
   if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
     showPreview(OBIWAN);
   }
@@ -609,6 +589,20 @@ card.addEventListener("pointerleave", () => {
 
 card.addEventListener("pointerdown", (e) => {
   card.setPointerCapture(e.pointerId);
+
+  // double-tap rotate detector
+  const now = Date.now();
+  if (!card._lastTap) card._lastTap = 0;
+  if (now - card._lastTap < 280) {
+    toggleRotate(card);
+    card._lastTap = 0;
+    clearPressTimer();
+    hidePreview();
+    longPressFired = false;
+    return;
+  }
+  card._lastTap = now;
+
   startLongPress(e);
 
   dragging = true;
@@ -625,14 +619,12 @@ card.addEventListener("pointerdown", (e) => {
 card.addEventListener("pointermove", (e) => {
   if (!dragging) return;
 
-  // cancel long-press if finger/mouse moves more than a tiny threshold
   const dx = e.clientX - downX;
   const dy = e.clientY - downY;
   if (!longPressFired && Math.hypot(dx, dy) > 8) {
     clearPressTimer();
   }
 
-  // if preview is open because of long press, don't drag while preview open
   if (longPressFired) return;
 
   const stageRect = stage.getBoundingClientRect();
@@ -648,7 +640,6 @@ card.addEventListener("pointerup", (e) => {
   clearPressTimer();
   try { card.releasePointerCapture(e.pointerId); } catch {}
 
-  // if preview is open from long press, release closes it (mobile feels natural)
   if (longPressFired) {
     hidePreview();
     longPressFired = false;
@@ -664,24 +655,7 @@ card.addEventListener("pointercancel", () => {
   hidePreview();
 });
 
-// Double-tap to rotate (mobile + PC)
-let lastTap = 0;
-card.addEventListener("pointerdown", (e) => {
-  const now = Date.now();
-  if (now - lastTap < 280) {
-    // rotate on double tap
-    toggleRotate(card);
-    lastTap = 0;
-    // prevent immediate drag weirdness
-    clearPressTimer();
-    hidePreview();
-    longPressFired = false;
-    return;
-  }
-  lastTap = now;
-});
-
-// Keyboard rotate for PC
+// Keyboard rotate (PC)
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(card);
 });
