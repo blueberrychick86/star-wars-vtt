@@ -1,4 +1,4 @@
-console.log("PREVIEW2 + CAMERA2 + FORCE TRACK: board pan/zoom (PC+mobile) + cards drag/snap + preview modal + force marker snap");
+console.log("PREVIEW2 + CAMERA2 + FORCE(7) + CAPTURED(7): board pan/zoom + cards drag/snap + preview + force marker + captured base slots");
 
 //
 // ---------- base page ----------
@@ -24,7 +24,7 @@ style.textContent = `
     inset: 0;
     background: #000;
     overflow: hidden;
-    touch-action: none; /* we manage gestures */
+    touch-action: none;
   }
 
   #hud {
@@ -50,7 +50,6 @@ style.textContent = `
     cursor: pointer;
   }
 
-  /* stage is transformed by our camera */
   #stage {
     position: absolute;
     left: 0;
@@ -74,7 +73,7 @@ style.textContent = `
     background: #111;
     box-sizing: border-box;
     user-select: none;
-    touch-action: none; /* card handles its own drag */
+    touch-action: none;
     cursor: grab;
     overflow: hidden;
   }
@@ -87,7 +86,7 @@ style.textContent = `
     will-change: transform;
   }
 
-  /* ---------- force track (slots + marker) ---------- */
+  /* ---------- force track (7 slots + marker) ---------- */
   .forceSlot {
     position: absolute;
     border-radius: 10px;
@@ -95,6 +94,11 @@ style.textContent = `
     border: 1px dashed rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.02);
     pointer-events: none;
+  }
+
+  .forceSlot.neutral {
+    border: 1px dashed rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.06);
   }
 
   .forceMarker {
@@ -111,7 +115,17 @@ style.textContent = `
     cursor: grab;
   }
 
-  /* ---------- preview overlay (mobile-safe) ---------- */
+  /* ---------- captured bases (7 stepped slots) ---------- */
+  .capSlot {
+    position: absolute;
+    border-radius: 10px;
+    box-sizing: border-box;
+    border: 1px dashed rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.01);
+    pointer-events: none;
+  }
+
+  /* ---------- preview overlay ---------- */
   #previewBackdrop {
     position: fixed;
     inset: 0;
@@ -177,7 +191,6 @@ style.textContent = `
     cursor: pointer;
   }
 
-  /* Scrollable content area so nothing gets cut off */
   #previewScroll {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
@@ -334,7 +347,6 @@ function showPreview(cardData) {
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
-
   scrollEl.scrollTop = 0;
 }
 
@@ -364,12 +376,13 @@ const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
 const BASE_W = CARD_H;
 const BASE_H = CARD_W;
 
-const CAP_W = BASE_W;
-const CAP_OVERLAP = Math.round(BASE_H * 0.45);
-const CAP_H = BASE_H + (7 - 1) * CAP_OVERLAP;
-
 const GAP = 18;
 const BIG_GAP = 28;
+
+const CAP_SLOTS = 7;
+const CAP_OVERLAP = Math.round(BASE_H * 0.45);
+const CAP_W = BASE_W;
+const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -379,7 +392,8 @@ function rect(x, y, w, h) { return { x, y, w, h }; }
 //
 // ---------- force track constants ----------
 //
-const FORCE_SLOTS = 11;
+const FORCE_SLOTS = 7;                 // ✅ your force track is 7
+const FORCE_NEUTRAL_INDEX = 3;         // ✅ middle slot = neutral
 const FORCE_MARKER_SIZE = 28;
 
 let forceSlotCenters = [];
@@ -618,7 +632,7 @@ table.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 //
-// ---------- snapping ----------
+// ---------- snapping (cards only, captured bases excluded by design) ----------
 //
 const SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
@@ -676,7 +690,7 @@ function snapCardToNearestZone(cardEl) {
 }
 
 //
-// ---------- force track: slots + marker ----------
+// ---------- force track: 7 slots + marker (neutral in the middle) ----------
 //
 function buildForceTrackSlots(forceRect) {
   stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
@@ -693,7 +707,7 @@ function buildForceTrackSlots(forceRect) {
     forceSlotCenters.push({ x: cx, y: cy });
 
     const slot = document.createElement("div");
-    slot.className = "forceSlot";
+    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
     slot.style.left = `${forceRect.x}px`;
     slot.style.top = `${Math.round(cy - 16)}px`;
     slot.style.width = `${forceRect.w}px`;
@@ -702,7 +716,7 @@ function buildForceTrackSlots(forceRect) {
   }
 }
 
-function ensureForceMarker(initialIndex = Math.floor(FORCE_SLOTS / 2)) {
+function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
   if (forceMarker) return;
 
   forceMarker = document.createElement("div");
@@ -771,7 +785,7 @@ function ensureForceMarker(initialIndex = Math.floor(FORCE_SLOTS / 2)) {
     draggingMarker = false;
   });
 
-  // Tap/click inside force track to jump marker to nearest slot
+  // Tap/click inside force track to jump marker
   stage.addEventListener("pointerdown", (e) => {
     if (previewOpen) return;
     const z = e.target.closest(".zone");
@@ -787,11 +801,36 @@ function ensureForceMarker(initialIndex = Math.floor(FORCE_SLOTS / 2)) {
     snapMarkerToNearestSlot();
   });
 
-  // Initial placement
+  // initial placement (neutral)
   if (forceSlotCenters[initialIndex]) {
     const s = forceSlotCenters[initialIndex];
     forceMarker.style.left = `${s.x - FORCE_MARKER_SIZE / 2}px`;
     forceMarker.style.top  = `${s.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+}
+
+//
+// ---------- captured bases: 7 stepped slots (visual + ready for logic) ----------
+//
+function buildCapturedBaseSlots(capRect, sideLabel) {
+  // remove existing for this side
+  stage.querySelectorAll(`.capSlot[data-cap-side="${sideLabel}"]`).forEach(el => el.remove());
+
+  const slotW = capRect.w;
+  const slotH = BASE_H;
+
+  for (let i = 0; i < CAP_SLOTS; i++) {
+    const y = capRect.y + i * CAP_OVERLAP;
+    const x = capRect.x;
+
+    const slot = document.createElement("div");
+    slot.className = "capSlot";
+    slot.dataset.capSide = sideLabel;
+    slot.style.left = `${x}px`;
+    slot.style.top = `${y}px`;
+    slot.style.width = `${slotW}px`;
+    slot.style.height = `${slotH}px`;
+    stage.appendChild(slot);
   }
 }
 
@@ -801,24 +840,20 @@ function ensureForceMarker(initialIndex = Math.floor(FORCE_SLOTS / 2)) {
 const OBIWAN = {
   id: "obiwan_test",
   img: "./cards/test/obiwan.jpg",
-
   name: "Obi-Wan Kenobi",
   type: "Unit",
   subtype: "Jedi",
   cost: "6",
-
   attack: "4",
   resources: "—",
   force: "2",
-
   effect:
     "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
-
   reward: "Gain 3 Resources and 3 Force.",
 };
 
 //
-// ✅ rotate the image (cardFace) when card rotates
+// rotate image when card rotates
 //
 function updateCardFaceRotation(cardEl) {
   const faceEl = cardEl.querySelector(".cardFace");
@@ -833,21 +868,17 @@ function updateCardFaceRotation(cardEl) {
     faceEl.style.height = "100%";
     faceEl.style.transform = "none";
   } else {
-    // cardEl has swapped width/height already; rotate the image and fit it
     const w = parseFloat(cardEl.style.width);
     const h = parseFloat(cardEl.style.height);
 
     faceEl.style.left = "50%";
     faceEl.style.top = "50%";
-    faceEl.style.width = `${h}px`;   // swapped
-    faceEl.style.height = `${w}px`;  // swapped
+    faceEl.style.width = `${h}px`;
+    faceEl.style.height = `${w}px`;
     faceEl.style.transform = "translate(-50%, -50%) rotate(90deg)";
   }
 }
 
-//
-// ---------- rotation (swap size + rotate image) ----------
-//
 function applyRotationSize(cardEl) {
   const rot = Number(cardEl.dataset.rot || "0");
   if (rot === 0) {
@@ -857,8 +888,6 @@ function applyRotationSize(cardEl) {
     cardEl.style.width = `${CARD_H}px`;
     cardEl.style.height = `${CARD_W}px`;
   }
-
-  // ✅ ensure the image matches the rotation
   updateCardFaceRotation(cardEl);
 }
 
@@ -904,9 +933,13 @@ function build() {
     stage.appendChild(el);
   }
 
-  // ✅ Force Track: create slots + marker
+  // force slots + marker
   buildForceTrackSlots(zones.force_track);
-  ensureForceMarker();
+  ensureForceMarker(FORCE_NEUTRAL_INDEX);
+
+  // captured base slots (7)
+  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
+  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
   applyCamera();
   refreshSnapRects();
@@ -926,22 +959,18 @@ card.className = "card";
 card.dataset.rot = "0";
 applyRotationSize(card);
 
-// card image face
 const face = document.createElement("div");
 face.className = "cardFace";
 face.style.backgroundImage = `url('${OBIWAN.img}')`;
 card.appendChild(face);
 
-// ✅ make sure face rotation is correct on first render
 updateCardFaceRotation(card);
 
-// initial placement (design coords)
 card.style.left = `${DESIGN_W * 0.42}px`;
 card.style.top  = `${DESIGN_H * 0.12}px`;
 card.style.zIndex = "9999";
 stage.appendChild(card);
 
-// Prevent browser context menu on the card (PC)
 card.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   togglePreview(OBIWAN);
@@ -972,14 +1001,12 @@ function startLongPress(e) {
   downX = e.clientX;
   downY = e.clientY;
 
-  // long-press opens preview (mobile)
   pressTimer = setTimeout(() => {
     longPressFired = true;
     showPreview(OBIWAN);
   }, 380);
 }
 
-// Double-tap to rotate (mobile + PC pointer)
 let lastTap = 0;
 
 card.addEventListener("pointerdown", (e) => {
@@ -1015,10 +1042,7 @@ card.addEventListener("pointermove", (e) => {
 
   const dx = e.clientX - downX;
   const dy = e.clientY - downY;
-  if (!longPressFired && Math.hypot(dx, dy) > 8) {
-    clearPressTimer();
-  }
-
+  if (!longPressFired && Math.hypot(dx, dy) > 8) clearPressTimer();
   if (longPressFired) return;
 
   const stageRect = stage.getBoundingClientRect();
@@ -1047,7 +1071,6 @@ card.addEventListener("pointercancel", () => {
   clearPressTimer();
 });
 
-// Keyboard rotate (PC)
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(card);
 });
