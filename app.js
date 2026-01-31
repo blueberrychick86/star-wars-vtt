@@ -1168,8 +1168,16 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "9999";
 stage.appendChild(unitCard);
 
-const baseCard = makeCardEl(TEST_BASE, "base");
-baseCard.style.left = `${DESIGN_W * 0.18}px`;
-baseCard.style.top  = `${DESIGN_H * 0.18}px`;
-baseCard.style.zIndex = "9998";
-stage.appendChild(baseCard);
+// spawn multiple test base cards
+const BASE_TEST_COUNT = 5; // 🔹 change this number anytime
+
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+
+  baseCard.style.left = `${DESIGN_W * (0.16 + i * 0.03)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.18 + i * 0.02)}px`;
+  baseCard.style.zIndex = String(9000 + i);
+
+  stage.appendChild(baseCard);
+}
+
