@@ -8,5 +8,29 @@
 <body>
   <div id="app"></div>
   <script src="./app.js?v=LAYOUT1"></script>
+  // --- Mobile: prevent Safari double-tap page zoom on the board ---
+(function preventBoardDoubleTapZoom(){
+  let lastTouchEnd = 0;
+
+  document.addEventListener('touchend', (e) => {
+    // only block double-tap when it happens on your game area
+    const onBoard = e.target.closest('#table, #board, .slot, .card, .cardSlot, .token');
+    if (!onBoard) return;
+
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      e.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // also block desktop double click from triggering weird behaviors
+  document.addEventListener('dblclick', (e) => {
+    const onBoard = e.target.closest('#table, #board, .slot, .card, .cardSlot, .token');
+    if (!onBoard) return;
+    e.preventDefault();
+  }, { passive: false });
+})();
+
 </body>
 </html>
