@@ -1,4 +1,4 @@
-console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill (no overlap)");
+console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -201,6 +201,9 @@ let forceMarker = null;
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
+
+// z-index base for captured stacks (stable “layering”)
+const CAP_Z_BASE = 20000;
 
 // ---------- zone math ----------
 function computeZones() {
@@ -555,7 +558,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
   }
 }
 
-// ---------- captured slots + NO-OVERLAP AUTOFILL ----------
+// ---------- captured bases: slots + occupancy + stable stacking ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
   stage.querySelectorAll(`.capSlot[data-cap-side="${sideLabel}"]`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
@@ -596,84 +599,58 @@ function clearCapturedAssignment(baseEl) {
   delete baseEl.dataset.capIndex;
 }
 
-function assignBaseToCapturedSlot(baseEl, side, idx) {
+function placeBaseAtSlot(baseEl, side, idx) {
   const centers = capSlotCenters[side];
   if (!centers || !centers[idx]) return;
 
-  // if slot is occupied by someone else, we will move that someone later in normalizeCapturedStacks()
   const w = parseFloat(baseEl.style.width);
   const h = parseFloat(baseEl.style.height);
   const s = centers[idx];
 
   baseEl.style.left = `${s.x - w / 2}px`;
   baseEl.style.top  = `${s.y - h / 2}px`;
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx); // ✅ stable layering
 
   baseEl.dataset.capSide = side;
   baseEl.dataset.capIndex = String(idx);
-  capOccupied[side][idx] = baseEl.dataset.cardId || "__base__";
-  
-  baseEl.style.zIndex = String(20000 + idx); // ✅ consistent stacking
-
+  capOccupied[side][idx] = baseEl.dataset.cardId;
 }
 
+// rebuild the entire stack to be consistent (no overlaps, steady ordering)
 function normalizeCapturedStacks(side) {
-  // rebuild occupancy from DOM truth to prevent ghost frees / overlaps
   capOccupied[side] = Array(CAP_SLOTS).fill(null);
 
+  // get all bases that claim this side
   const bases = [...stage.querySelectorAll('.card[data-kind="base"]')]
     .filter(el => el.dataset.capSide === side && el.dataset.capIndex != null);
 
-  // group by index
-  const byIndex = new Map();
+  // sort by current index, then by DOM order
+  bases.sort((a,b) => Number(a.dataset.capIndex) - Number(b.dataset.capIndex));
+
+  // assign bases to the lowest available slots in their visual order
+  let slot = 0;
   for (const b of bases) {
-  const idx = Number(b.dataset.capIndex);
-  if (!Number.isFinite(idx) || !centers[idx]) continue;
-
-  const w = parseFloat(b.style.width);
-  const h = parseFloat(b.style.height);
-  const s = centers[idx];
-
-  b.style.left = `${s.x - w / 2}px`;
-  b.style.top  = `${s.y - h / 2}px`;
-
-  b.style.zIndex = String(20000 + idx); // ✅ ADD THIS
-}
-
+    if (slot >= CAP_SLOTS) slot = CAP_SLOTS - 1;
+    placeBaseAtSlot(b, side, slot);
+    slot++;
   }
 
-  // if multiple bases claim same slot, keep one in place, reassign extras to next open slots
-  for (let idx = 0; idx < CAP_SLOTS; idx++) {
-    const list = byIndex.get(idx) || [];
-    if (list.length === 0) continue;
-
-    // keep first base in this slot
-    const keeper = list[0];
-    capOccupied[side][idx] = keeper.dataset.cardId;
-
-    // extras go to next open slots
-    for (let j = 1; j < list.length; j++) {
-      const extra = list[j];
-      // find next open
-      let newIdx = capOccupied[side].findIndex(v => v == null);
-      if (newIdx === -1) newIdx = CAP_SLOTS - 1;
-      assignBaseToCapturedSlot(extra, side, newIdx);
-      capOccupied[side][newIdx] = extra.dataset.cardId;
+  // IMPORTANT: if pile is full, last ones overwrite last slot, so also force them slightly
+  // (keeps them visible and consistent, minimal)
+  if (bases.length > CAP_SLOTS) {
+    for (let i = CAP_SLOTS; i < bases.length; i++) {
+      const b = bases[i];
+      placeBaseAtSlot(b, side, CAP_SLOTS - 1);
+      // tiny nudge so they don't look identical if overloaded
+      const n = i - (CAP_SLOTS - 1);
+      b.style.top = `${parseFloat(b.style.top) + n * 2}px`;
+      b.style.left = `${parseFloat(b.style.left) + n * 2}px`;
+      b.style.zIndex = String(CAP_Z_BASE + (CAP_SLOTS - 1) + n);
     }
   }
-
-  // finally, snap every base to its slot center for clean “steady” stacking
-  const centers = capSlotCenters[side];
-  for (const b of bases) {
-    const idx = Number(b.dataset.capIndex);
-    if (!Number.isFinite(idx) || !centers[idx]) continue;
-    const w = parseFloat(b.style.width);
-    const h = parseFloat(b.style.height);
-    const s = centers[idx];
-    b.style.left = `${s.x - w / 2}px`;
-    b.style.top  = `${s.y - h / 2}px`;
-  }
 }
 
+// auto-fill: first empty slot, then normalize to guarantee clean stack
 function snapBaseAutoFill(baseEl) {
   if (!zonesCache) return;
 
@@ -690,13 +667,13 @@ function snapBaseAutoFill(baseEl) {
   const side = inP2 ? "p2" : (inP1 ? "p1" : null);
   if (!side) return;
 
-  // choose first empty slot
+  // first empty
   let idx = capOccupied[side].findIndex(v => v == null);
   if (idx === -1) idx = CAP_SLOTS - 1;
 
-  assignBaseToCapturedSlot(baseEl, side, idx);
+  placeBaseAtSlot(baseEl, side, idx);
 
-  // sanitize: ensures no overlaps + steady stack
+  // full sanitize for steady order
   normalizeCapturedStacks(side);
 }
 
@@ -843,7 +820,7 @@ function makeCardEl(cardData, kind) {
   return el;
 }
 
-// ---------- drag handlers (FIXED: only free slot after real drag) ----------
+// ---------- drag handlers (bases only free slot after real drag) ----------
 function attachDragHandlers(el, cardData, kind) {
   let dragging = false;
   let offsetX = 0;
@@ -854,7 +831,6 @@ function attachDragHandlers(el, cardData, kind) {
   let downX = 0;
   let downY = 0;
 
-  // base-slot free guard
   let baseHadCapturedAssignment = false;
   let baseFreedAssignment = false;
 
@@ -874,7 +850,7 @@ function attachDragHandlers(el, cardData, kind) {
     }, 380);
   }
 
-  // Double-tap to rotate only for units
+  // Double-tap rotate (unit only)
   let lastTap = 0;
 
   el.addEventListener("pointerdown", (e) => {
@@ -894,14 +870,13 @@ function attachDragHandlers(el, cardData, kind) {
       lastTap = now;
     }
 
-    // IMPORTANT: do NOT clear slot on pointerdown.
-    // Only clear if we actually start dragging (move threshold).
     baseHadCapturedAssignment = (kind === "base" && el.dataset.capSide && el.dataset.capIndex != null);
     baseFreedAssignment = false;
 
     startLongPress(e);
 
     dragging = true;
+
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
     const py = (e.clientY - stageRect.top) / camera.scale;
@@ -911,7 +886,8 @@ function attachDragHandlers(el, cardData, kind) {
     offsetX = px - left;
     offsetY = py - top;
 
-    el.style.zIndex = String(9000 + Math.floor(Math.random() * 2000));
+    // raise during drag so it stays visible
+    el.style.zIndex = String(50000);
   });
 
   el.addEventListener("pointermove", (e) => {
@@ -920,11 +896,10 @@ function attachDragHandlers(el, cardData, kind) {
     const dx = e.clientX - downX;
     const dy = e.clientY - downY;
 
-    // if they move enough, we are truly dragging (cancel long press)
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
       clearPressTimer();
 
-      // NOW free the captured slot (only once) if base was assigned
+      // free slot ONLY when it truly starts dragging
       if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
         clearCapturedAssignment(el);
         baseFreedAssignment = true;
@@ -953,8 +928,11 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (kind === "base") {
       snapBaseAutoFill(el);
+      // if it wasn't dropped in captured zone, restore a sensible z-index
+      if (!el.dataset.capSide) el.style.zIndex = "12000";
     } else {
       snapCardToNearestZone(el);
+      el.style.zIndex = "15000";
     }
   });
 
@@ -968,15 +946,15 @@ function attachDragHandlers(el, cardData, kind) {
 const unitCard = makeCardEl(OBIWAN, "unit");
 unitCard.style.left = `${DESIGN_W * 0.42}px`;
 unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "9999";
+unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
-const BASE_TEST_COUNT = 8;
+const BASE_TEST_COUNT = 10;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
   const baseCard = makeCardEl(TEST_BASE, "base");
   baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
   baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = String(9000 + i);
+  baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
 
@@ -984,4 +962,3 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
 });
-+ +
