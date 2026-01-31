@@ -84,6 +84,7 @@ style.textContent = `
     inset: 0;
     background-size: cover;
     background-position: center;
+    will-change: transform;
   }
 
   /* ---------- preview overlay (mobile-safe) ---------- */
@@ -519,7 +520,6 @@ let pinchStartScale = 1;
 let pinchMid = { x: 0, y: 0 };
 
 table.addEventListener("pointerdown", (e) => {
-  // don’t move board if user is touching UI, a card, or preview
   if (previewOpen) return;
   if (e.target.closest(".card")) return;
   if (e.target.closest("#hud")) return;
@@ -542,7 +542,6 @@ table.addEventListener("pointermove", (e) => {
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
-  // Pan with one pointer
   if (boardPointers.size === 1) {
     const dx = e.clientX - boardLast.x;
     const dy = e.clientY - boardLast.y;
@@ -554,7 +553,6 @@ table.addEventListener("pointermove", (e) => {
     return;
   }
 
-  // Pinch with two pointers
   if (boardPointers.size === 2) {
     const pts = [...boardPointers.values()];
     const d = dist(pts[0], pts[1]);
@@ -666,33 +664,36 @@ const OBIWAN = {
 };
 
 //
-// ---------- rotation (swap size, no transform) ----------
-//function updateCardFaceRotation(cardEl) {
-  const face = cardEl.querySelector(".cardFace");
-  if (!face) return;
+// ✅ NEW: rotate the image (cardFace) when card rotates
+//
+function updateCardFaceRotation(cardEl) {
+  const faceEl = cardEl.querySelector(".cardFace");
+  if (!faceEl) return;
 
   const rot = Number(cardEl.dataset.rot || "0");
 
   if (rot === 0) {
-    // normal upright
-    face.style.left = "0";
-    face.style.top = "0";
-    face.style.width = "100%";
-    face.style.height = "100%";
-    face.style.transform = "none";
+    faceEl.style.left = "0";
+    faceEl.style.top = "0";
+    faceEl.style.width = "100%";
+    faceEl.style.height = "100%";
+    faceEl.style.transform = "none";
   } else {
-    // rotate image 90° and swap face box so it fits the swapped card dimensions
+    // cardEl has swapped width/height already; rotate the image and fit it
     const w = parseFloat(cardEl.style.width);
     const h = parseFloat(cardEl.style.height);
 
-    face.style.left = "50%";
-    face.style.top = "50%";
-    face.style.width = `${h}px`;   // swapped
-    face.style.height = `${w}px`;  // swapped
-    face.style.transform = "translate(-50%, -50%) rotate(90deg)";
+    faceEl.style.left = "50%";
+    faceEl.style.top = "50%";
+    faceEl.style.width = `${h}px`;   // swapped
+    faceEl.style.height = `${w}px`;  // swapped
+    faceEl.style.transform = "translate(-50%, -50%) rotate(90deg)";
   }
 }
 
+//
+// ---------- rotation (swap size + rotate image) ----------
+//
 function applyRotationSize(cardEl) {
   const rot = Number(cardEl.dataset.rot || "0");
   if (rot === 0) {
@@ -703,10 +704,8 @@ function applyRotationSize(cardEl) {
     cardEl.style.height = `${CARD_W}px`;
   }
 
-  // ✅ make the image rotate with the card
+  // ✅ ensure the image matches the rotation
   updateCardFaceRotation(cardEl);
-}
-
 }
 
 function toggleRotate(cardEl) {
@@ -774,8 +773,9 @@ const face = document.createElement("div");
 face.className = "cardFace";
 face.style.backgroundImage = `url('${OBIWAN.img}')`;
 card.appendChild(face);
-updateCardFaceRotation(card);
 
+// ✅ make sure face rotation is correct on first render
+updateCardFaceRotation(card);
 
 // initial placement (design coords)
 card.style.left = `${DESIGN_W * 0.42}px`;
