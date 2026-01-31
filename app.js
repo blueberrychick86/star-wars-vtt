@@ -1,4 +1,4 @@
-console.log("LAYOUT3-RESTORE: full zones + black test card + snap");
+console.log("LAYOUT4: full zones + black test card + snap + rotate");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -39,6 +39,7 @@ style.textContent = `
     touch-action: none;
     cursor: grab;
     font-weight: 700;
+    transform-origin: center center;
   }
 `;
 document.head.appendChild(style);
@@ -118,7 +119,7 @@ function computeZones() {
     p2_exile_draw: rect(xOuterRim, yTopExile, CARD_W, CARD_H),
     p2_exile_perm: rect(xOuterRim + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
 
-    // P2 captured
+    // P2 captured (NOT snappable yet)
     p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
 
     // Galaxy deck (centered between row1/row2)
@@ -146,7 +147,7 @@ function computeZones() {
       CARD_W,
       CARD_H
     ),
-    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
+    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH), // NOT snappable yet
     galaxy_discard: rect(
       xGalaxyDiscard,
       yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)),
@@ -163,7 +164,7 @@ function computeZones() {
     p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
     p1_exile_perm: rect(xOuterRim + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
 
-    // P1 captured
+    // P1 captured (NOT snappable yet)
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
   };
 
@@ -181,16 +182,23 @@ function getTransform() {
   return { s, ox, oy };
 }
 
-// ---------- snapping helpers ----------
-const CARD_SIZED_ZONE_IDS = new Set([
+// ---------- snap eligibility ----------
+const SNAP_ZONE_IDS = new Set([
+  // piles
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+
+  // galaxy
   "galaxy_deck","galaxy_discard","outer_rim",
   "g11","g12","g13","g14","g15","g16",
-  "g21","g22","g23","g24","g25","g26"
+  "g21","g22","g23","g24","g25","g26",
+
+  // BASE STACKS (horizontal zones)
+  "p2_base_stack",
+  "p1_base_stack",
 ]);
 
-let zonesMeta = []; // { id, left, top, width, height } in viewport coords
+let zonesMeta = []; // { id, left, top, width, height } viewport coords
 
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
@@ -212,8 +220,11 @@ function snapCardToNearestZone(cardEl) {
     }
   }
 
-  // threshold: 60% of card diagonal
-  const threshold = Math.hypot(cardRect.width, cardRect.height) * 0.6;
+  // Threshold based on BOTH card + zone size (helps larger horizontal base zones)
+  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
+  const zoneDiag = best ? Math.hypot(best.width, best.height) : cardDiag;
+  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
+
   if (!best || bestDist > threshold) return;
 
   const tableRect = table.getBoundingClientRect();
@@ -221,7 +232,15 @@ function snapCardToNearestZone(cardEl) {
   const targetTop  = best.top  - tableRect.top  + (best.height - cardRect.height) / 2;
 
   cardEl.style.left = `${targetLeft}px`;
-  cardEl.style.top = `${targetTop}px`;
+  cardEl.style.top  = `${targetTop}px`;
+}
+
+// ---------- rotation ----------
+function toggleRotate(cardEl) {
+  const cur = Number(cardEl.dataset.rot || "0");
+  const next = cur === 0 ? 90 : 0;
+  cardEl.dataset.rot = String(next);
+  cardEl.style.transform = `rotate(${next}deg)`;
 }
 
 // ---------- test card ----------
@@ -233,13 +252,26 @@ function ensureTestCard(s, ox, oy) {
     testCard.className = "card";
     testCard.textContent = "TEST CARD";
     testCard.style.zIndex = "9999";
+    testCard.dataset.rot = "0";
+    testCard.style.transform = "rotate(0deg)";
     table.appendChild(testCard);
 
     let dragging = false;
     let offsetX = 0;
     let offsetY = 0;
+    let lastTapMs = 0;
 
     testCard.addEventListener("pointerdown", (e) => {
+      // double-tap / double-click to rotate
+      const now = Date.now();
+      if (now - lastTapMs < 300) {
+        toggleRotate(testCard);
+        lastTapMs = 0;
+        // don’t start a drag on the second tap
+        return;
+      }
+      lastTapMs = now;
+
       dragging = true;
       testCard.setPointerCapture(e.pointerId);
       testCard.style.cursor = "grabbing";
@@ -265,18 +297,18 @@ function ensureTestCard(s, ox, oy) {
       testCard.style.cursor = "grab";
       try { testCard.releasePointerCapture(e.pointerId); } catch {}
 
-      // snap on release
       snapCardToNearestZone(testCard);
     });
   }
 
+  // IMPORTANT: keep the element's "base" size as vertical card size.
+  // Rotation changes the bounding box automatically, which makes it fit base zones when rotated.
   const w = Math.round(CARD_W * s);
   const h = Math.round(CARD_H * s);
   testCard.style.width = `${w}px`;
   testCard.style.height = `${h}px`;
 
   if (!testCard.dataset.placed) {
-    // start near center-ish
     const startLeft = ox + (DESIGN_W * s) * 0.45 - w / 2;
     const startTop  = oy + (DESIGN_H * s) * 0.12 - h / 2;
     testCard.style.left = `${Math.round(startLeft)}px`;
@@ -284,6 +316,12 @@ function ensureTestCard(s, ox, oy) {
     testCard.dataset.placed = "1";
   }
 }
+
+// Keyboard rotate: press R
+window.addEventListener("keydown", (e) => {
+  if (!testCard) return;
+  if (e.key === "r" || e.key === "R") toggleRotate(testCard);
+});
 
 // ---------- build ----------
 function build() {
@@ -303,14 +341,13 @@ function build() {
     el.style.height = (r.h * s) + "px";
     table.appendChild(el);
 
-    // after it’s in the DOM, capture its viewport rect if snap-eligible
-    if (CARD_SIZED_ZONE_IDS.has(id)) {
+    if (SNAP_ZONE_IDS.has(id)) {
       const b = el.getBoundingClientRect();
       zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
     }
   }
 
-  testCard = null; // re-create after clearing
+  testCard = null;
   ensureTestCard(s, ox, oy);
 }
 
