@@ -1,6 +1,8 @@
-console.log("PREVIEW2: right-click toggle (PC) + long-press (mobile) + mobile-safe preview modal");
+console.log("PREVIEW2 + CAMERA2: board pan/zoom (PC+mobile) + cards drag/snap + preview modal");
 
+//
 // ---------- base page ----------
+//
 document.body.style.margin = "0";
 document.body.style.padding = "0";
 document.body.style.height = "100vh";
@@ -12,7 +14,9 @@ document.body.style.fontFamily = "Arial, sans-serif";
 const app = document.getElementById("app");
 app.innerHTML = "";
 
+//
 // ---------- CSS ----------
+//
 const style = document.createElement("style");
 style.textContent = `
   #table {
@@ -20,6 +24,7 @@ style.textContent = `
     inset: 0;
     background: #000;
     overflow: hidden;
+    touch-action: none; /* we manage gestures */
   }
 
   #hud {
@@ -42,6 +47,7 @@ style.textContent = `
     letter-spacing: 0.5px;
     user-select: none;
     touch-action: manipulation;
+    cursor: pointer;
   }
 
   /* stage is transformed by our camera */
@@ -68,7 +74,7 @@ style.textContent = `
     background: #111;
     box-sizing: border-box;
     user-select: none;
-    touch-action: none;
+    touch-action: none; /* card handles its own drag */
     cursor: grab;
     overflow: hidden;
   }
@@ -90,6 +96,7 @@ style.textContent = `
     align-items: center;
     justify-content: center;
     padding: 12px;
+    touch-action: none;
   }
 
   #previewCard {
@@ -142,6 +149,7 @@ style.textContent = `
     font-size: 14px;
     user-select: none;
     touch-action: manipulation;
+    cursor: pointer;
   }
 
   /* Scrollable content area so nothing gets cut off */
@@ -201,7 +209,6 @@ style.textContent = `
     background: rgba(255,255,255,0.06);
   }
 
-  /* Small screen tweaks */
   @media (max-width: 380px) {
     #previewTop { grid-template-columns: 96px 1fr; }
     #previewImg { width: 96px; }
@@ -210,7 +217,9 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+//
 // ---------- table + hud + stage ----------
+//
 const table = document.createElement("div");
 table.id = "table";
 app.appendChild(table);
@@ -228,7 +237,9 @@ const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
 
+//
 // ---------- preview overlay ----------
+//
 const previewBackdrop = document.createElement("div");
 previewBackdrop.id = "previewBackdrop";
 previewBackdrop.innerHTML = `
@@ -299,7 +310,6 @@ function showPreview(cardData) {
   previewBackdrop.style.display = "flex";
   previewOpen = true;
 
-  // reset scroll to top every open
   scrollEl.scrollTop = 0;
 }
 
@@ -308,7 +318,6 @@ function togglePreview(cardData) {
   else showPreview(cardData);
 }
 
-// close controls
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => {
   e.preventDefault();
   hidePreview();
@@ -322,7 +331,9 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && previewOpen) hidePreview();
 });
 
-// ---------- constants from offline ----------
+//
+// ---------- constants (design space) ----------
+//
 const CARD_W = 86;
 const CARD_H = Math.round((CARD_W * 3.5) / 2.5);
 const BASE_W = CARD_H;
@@ -340,7 +351,9 @@ let DESIGN_H = 1;
 
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
+//
 // ---------- zone math (design-space) ----------
+//
 function computeZones() {
   const xPiles = 240;
   const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
@@ -430,7 +443,9 @@ function computeZones() {
   };
 }
 
-// ---------- camera (fit + center) ----------
+//
+// ---------- camera (fit + pan + zoom) ----------
+//
 const camera = { scale: 1, tx: 0, ty: 0 };
 
 function viewportSize() {
@@ -461,7 +476,118 @@ fitBtn.addEventListener("click", (e) => {
   fitToScreen();
 });
 
+//
+// Board pan/zoom helpers
+//
+const BOARD_MIN_SCALE = 0.25;
+const BOARD_MAX_SCALE = 4.0;
+
+function viewportToDesign(vx, vy){
+  return {
+    x: (vx - camera.tx) / camera.scale,
+    y: (vy - camera.ty) / camera.scale
+  };
+}
+
+function setScaleAround(newScale, vx, vy){
+  const clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
+  const world = viewportToDesign(vx, vy);
+
+  camera.scale = clamped;
+  camera.tx = vx - world.x * camera.scale;
+  camera.ty = vy - world.y * camera.scale;
+
+  applyCamera();
+  refreshSnapRects();
+}
+
+function dist(a,b){
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+function mid(a,b){
+  return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
+}
+
+//
+// Board gesture listeners (drag empty space to pan, pinch/wheel to zoom)
+// IMPORTANT: ignore gestures if you start on a card, HUD, or preview.
+//
+const boardPointers = new Map();
+let boardLast = { x: 0, y: 0 };
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let pinchMid = { x: 0, y: 0 };
+
+table.addEventListener("pointerdown", (e) => {
+  // don’t move board if user is touching UI, a card, or preview
+  if (previewOpen) return;
+  if (e.target.closest(".card")) return;
+  if (e.target.closest("#hud")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+
+  table.setPointerCapture(e.pointerId);
+  boardPointers.set(e.pointerId, e);
+  boardLast = { x: e.clientX, y: e.clientY };
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    pinchStartDist = dist(pts[0], pts[1]);
+    pinchStartScale = camera.scale;
+    const m = mid(pts[0], pts[1]);
+    pinchMid = { x: m.x, y: m.y };
+  }
+});
+
+table.addEventListener("pointermove", (e) => {
+  if (!boardPointers.has(e.pointerId)) return;
+  boardPointers.set(e.pointerId, e);
+
+  // Pan with one pointer
+  if (boardPointers.size === 1) {
+    const dx = e.clientX - boardLast.x;
+    const dy = e.clientY - boardLast.y;
+    camera.tx += dx;
+    camera.ty += dy;
+    boardLast = { x: e.clientX, y: e.clientY };
+    applyCamera();
+    refreshSnapRects();
+    return;
+  }
+
+  // Pinch with two pointers
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    const d = dist(pts[0], pts[1]);
+    const factor = d / pinchStartDist;
+    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+  }
+});
+
+function endBoardPointer(e){
+  boardPointers.delete(e.pointerId);
+  if (boardPointers.size === 1){
+    const p = [...boardPointers.values()][0];
+    boardLast = { x: p.clientX, y: p.clientY };
+  }
+}
+
+table.addEventListener("pointerup", endBoardPointer);
+table.addEventListener("pointercancel", () => boardPointers.clear());
+
+table.addEventListener("wheel", (e) => {
+  if (previewOpen) return;
+  e.preventDefault();
+
+  const zoomIntensity = 0.0018;
+  const delta = -e.deltaY;
+  const newScale = camera.scale * (1 + delta * zoomIntensity);
+
+  setScaleAround(newScale, e.clientX, e.clientY);
+}, { passive: false });
+
+//
 // ---------- snapping ----------
+//
 const SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
@@ -517,7 +643,9 @@ function snapCardToNearestZone(cardEl) {
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
 }
 
+//
 // ---------- card data (Obi-Wan test) ----------
+//
 const OBIWAN = {
   id: "obiwan_test",
   img: "./cards/test/obiwan.jpg",
@@ -537,7 +665,9 @@ const OBIWAN = {
   reward: "Gain 3 Resources and 3 Force.",
 };
 
+//
 // ---------- rotation (swap size, no transform) ----------
+//
 function applyRotationSize(cardEl) {
   const rot = Number(cardEl.dataset.rot || "0");
   if (rot === 0) {
@@ -570,7 +700,9 @@ function toggleRotate(cardEl) {
   refreshSnapRects();
 }
 
+//
 // ---------- build stage ----------
+//
 function build() {
   stage.innerHTML = "";
 
@@ -595,10 +727,13 @@ function build() {
 }
 
 build();
+
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
+//
 // ---------- Obi-Wan test card ----------
+//
 const card = document.createElement("div");
 card.className = "card";
 card.dataset.rot = "0";
@@ -622,7 +757,9 @@ card.addEventListener("contextmenu", (e) => {
   togglePreview(OBIWAN);
 });
 
+//
 // ---------- drag + mobile long-press preview + rotate ----------
+//
 let dragging = false;
 let offsetX = 0;
 let offsetY = 0;
@@ -656,7 +793,6 @@ function startLongPress(e) {
 let lastTap = 0;
 
 card.addEventListener("pointerdown", (e) => {
-  // If preview is open, don't start dragging behind it
   if (previewOpen) return;
 
   card.setPointerCapture(e.pointerId);
@@ -693,7 +829,6 @@ card.addEventListener("pointermove", (e) => {
     clearPressTimer();
   }
 
-  // if long-press preview fired, do not drag
   if (longPressFired) return;
 
   const stageRect = stage.getBoundingClientRect();
@@ -709,7 +844,6 @@ card.addEventListener("pointerup", (e) => {
   clearPressTimer();
   try { card.releasePointerCapture(e.pointerId); } catch {}
 
-  // If preview opened via long-press, just stop here (user closes via X or backdrop tap)
   if (longPressFired) {
     longPressFired = false;
     return;
