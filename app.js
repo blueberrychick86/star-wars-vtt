@@ -97,9 +97,7 @@ style.textContent = `
     box-sizing: border-box;
     z-index: 150000;
     pointer-events: none;
-
-    /* ✅ KEY FIX: hidden unless opened */
-    display: none;
+    display: none; /* hidden unless opened */
   }
 
   #tray{
@@ -117,46 +115,72 @@ style.textContent = `
     pointer-events: auto;
   }
 
+  /* ✅ smaller header so it doesn't dominate */
   #trayHeaderBar{
-    display:flex; align-items:center; justify-content:space-between;
-    padding: 10px 12px;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
+    gap: 6px;
   }
+
+  /* ✅ smaller title, wrap instead of huge */
   #trayTitle{
     color:#fff;
     font-weight: 900;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 1.05;
     user-select:none;
+
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-word;
+    opacity: 0.95;
   }
+
+  /* ✅ replace "Close" with an X icon button */
   #trayCloseBtn{
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
     border:1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
     color:#fff;
-    border-radius: 12px;
-    padding: 8px 10px;
-    font-weight: 900;
+    border-radius: 10px;
+    font-weight: 1000;
+    font-size: 16px;
     cursor:pointer;
     user-select:none;
     touch-action:manipulation;
+    flex: 0 0 auto;
   }
 
+  /* ✅ search row tighter so it fits narrow tray */
   #traySearchRow{
     display:none;
-    padding: 10px 12px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
-    gap: 10px;
+    gap: 8px;
   }
   #traySearchRow.show{ display:flex; align-items:center; }
+
+  /* ✅ smaller input so it won't be cut off */
   #traySearchInput{
     flex: 1;
+    min-width: 0;
     border: 1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 10px;
+    padding: 8px 10px;
     color:#fff;
     font-weight: 800;
+    font-size: 12px;
     outline: none;
   }
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
@@ -303,8 +327,6 @@ table.appendChild(previewBackdrop);
 const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
-
-// ✅ KEY FIX: force hidden at startup
 trayShell.style.display = "none";
 
 const tray = document.createElement("div");
@@ -320,7 +342,7 @@ trayTitle.textContent = "TRAY";
 const trayCloseBtn = document.createElement("button");
 trayCloseBtn.id = "trayCloseBtn";
 trayCloseBtn.type = "button";
-trayCloseBtn.textContent = "Close";
+trayCloseBtn.textContent = "✕";
 
 trayHeaderBar.appendChild(trayTitle);
 trayHeaderBar.appendChild(trayCloseBtn);
@@ -331,7 +353,7 @@ traySearchRow.id = "traySearchRow";
 const traySearchInput = document.createElement("input");
 traySearchInput.id = "traySearchInput";
 traySearchInput.type = "text";
-traySearchInput.placeholder = "Search… (blank shows all)";
+traySearchInput.placeholder = "Search…";
 traySearchRow.appendChild(traySearchInput);
 
 const trayBody = document.createElement("div");
@@ -422,7 +444,6 @@ const trayState = {
 };
 
 function openTray() {
-  // ✅ KEY FIX: show shell only when opened
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
@@ -469,7 +490,6 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
 
-  // ✅ KEY FIX: hide shell when closed
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
 }
@@ -1143,7 +1163,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
 // ---------- captured slots ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
+  stage.querySelectorAll(\`.capSlot[data-cap-side='\${sideLabel}']\`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
 
   const startX = capRect.x;
@@ -1160,10 +1180,10 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
     slot.dataset.capIndex = String(i);
-    slot.style.left = `${startX}px`;
-    slot.style.top  = `${slotY}px`;
-    slot.style.width = `${CAP_W}px`;
-    slot.style.height = `${BASE_H}px`;
+    slot.style.left = \`\${startX}px\`;
+    slot.style.top  = \`\${slotY}px\`;
+    slot.style.width = \`\${CAP_W}px\`;
+    slot.style.height = \`\${BASE_H}px\`;
     stage.appendChild(slot);
   }
 }
@@ -1218,8 +1238,8 @@ function snapBaseAutoFill(baseEl){
   baseEl.dataset.capIndex = String(idx);
 
   const target = capSlotCenters[side][idx];
-  baseEl.style.left = `${target.x - BASE_W/2}px`;
-  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.left = \`\${target.x - BASE_W/2}px\`;
+  baseEl.style.top  = \`\${target.y - BASE_H/2}px\`;
   baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 }
 
@@ -1227,9 +1247,9 @@ function snapBaseAutoFill(baseEl){
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
   const odd = (rot === 90 || rot === 270);
-  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
-  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
-  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
+  cardEl.style.width = odd ? \`\${CARD_H}px\` : \`\${CARD_W}px\`;
+  cardEl.style.height = odd ? \`\${CARD_W}px\` : \`\${CARD_H}px\`;
+  cardEl.querySelector(".cardFace").style.transform = \`rotate(\${rot}deg)\`;
 }
 
 function toggleRotate(cardEl) {
@@ -1247,8 +1267,8 @@ function toggleRotate(cardEl) {
 
   const left = parseFloat(cardEl.style.left || "0");
   const top = parseFloat(cardEl.style.top || "0");
-  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
-  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
+  cardEl.style.left = \`\${left + (beforeW - afterW) / 2}px\`;
+  cardEl.style.top  = \`\${top + (beforeH - afterH) / 2}px\`;
 
   refreshSnapRects();
 }
@@ -1265,17 +1285,17 @@ function build() {
   const zones = computeZones();
   zonesCache = zones;
 
-  stage.style.width = `${DESIGN_W}px`;
-  stage.style.height = `${DESIGN_H}px`;
+  stage.style.width = \`\${DESIGN_W}px\`;
+  stage.style.height = \`\${DESIGN_H}px\`;
 
   for (const [id, r] of Object.entries(zones)) {
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
-    el.style.left = `${r.x}px`;
-    el.style.top = `${r.y}px`;
-    el.style.width = `${r.w}px`;
-    el.style.height = `${r.h}px`;
+    el.style.left = \`\${r.x}px\`;
+    el.style.top = \`\${r.y}px\`;
+    el.style.width = \`\${r.w}px\`;
+    el.style.height = \`\${r.h}px\`;
     stage.appendChild(el);
   }
 
@@ -1301,12 +1321,12 @@ function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
   el.dataset.kind = kind;
-  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
+  el.dataset.cardId = \`\${cardData.id}_\${Math.random().toString(16).slice(2)}\`;
   el.dataset.face = "up";
 
   const face = document.createElement("div");
   face.className = "cardFace";
-  face.style.backgroundImage = `url('${cardData.img}')`;
+  face.style.backgroundImage = \`url('\${cardData.img}')\`;
   el.appendChild(face);
 
   const back = document.createElement("div");
@@ -1318,8 +1338,8 @@ function makeCardEl(cardData, kind) {
     el.dataset.rot = "0";
     applyRotationSize(el);
   } else if (kind === "base") {
-    el.style.width = `${BASE_W}px`;
-    el.style.height = `${BASE_H}px`;
+    el.style.width = \`\${BASE_W}px\`;
+    el.style.height = \`\${BASE_H}px\`;
     face.style.transform = "none";
   }
 
@@ -1432,8 +1452,8 @@ function attachDragHandlers(el, cardData, kind) {
     const px = (e.clientX - stageRect.left) / camera.scale;
     const py = (e.clientY - stageRect.top) / camera.scale;
 
-    el.style.left = `${px - offsetX}px`;
-    el.style.top  = `${py - offsetY}px`;
+    el.style.left = \`\${px - offsetX}px\`;
+    el.style.top  = \`\${py - offsetY}px\`;
   });
 
   el.addEventListener("pointerup", (e) => {
