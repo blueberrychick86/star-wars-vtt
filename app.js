@@ -1,4 +1,4 @@
-console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search) + PATCH(swap piles, tray shorter, click flip, rotate selected)");
+console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search) + PATCH(rotate 90-cycle, single-tap flip delay, landscape right tray)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -30,7 +30,7 @@ style.textContent = `
 
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
 
-  /* ✅ PATCH: simple face-down overlay */
+  /* Face-down overlay */
   .cardBack {
     position:absolute; inset:0;
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
@@ -163,7 +163,6 @@ style.textContent = `
   }
   #traySearchInput::placeholder { color: rgba(255,255,255,0.55); font-weight: 700; }
 
-  /* ✅ PATCH: slightly tighter tray body so piles remain visible */
   #trayBody { padding: 8px 10px 10px 10px; }
 
   #trayCarousel {
@@ -176,7 +175,6 @@ style.textContent = `
     touch-action: pan-x;
   }
 
-  /* ✅ PATCH: slightly smaller tiles (shorter tray) */
   .trayTile {
     flex: 0 0 auto;
     width: 96px;
@@ -219,6 +217,44 @@ style.textContent = `
     box-shadow: 0 10px 20px rgba(0,0,0,0.45);
     pointer-events:none;
     user-select:none;
+  }
+
+  /* ✅ PATCH: landscape = right-side tray so bottom piles stay tappable */
+  @media (orientation: landscape) and (max-height: 520px) {
+    #trayShell {
+      left: auto;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      padding: 8px;
+      width: min(420px, 44vw);
+      pointer-events: none;
+    }
+    #tray {
+      width: 100%;
+      height: calc(100vh - 16px);
+      margin: 0;
+      border-radius: 16px;
+      transform: translateX(120%);
+      transition: transform 140ms ease-out;
+      display:flex;
+      flex-direction:column;
+    }
+    #tray.open { transform: translateX(0); }
+
+    #trayBody { flex: 1; overflow:hidden; }
+    #trayCarousel {
+      flex: 1;
+      flex-direction:column;
+      overflow-y:auto;
+      overflow-x:hidden;
+      touch-action: pan-y;
+      padding-bottom: 0;
+    }
+    .trayTile {
+      width: 100%;
+      height: 112px;
+    }
   }
 `;
 document.head.appendChild(style);
@@ -277,21 +313,17 @@ table.appendChild(previewBackdrop);
   const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
   const stopNoPrevent = (e) => { e.stopPropagation(); };
 
-  // Pointer events
   previewBackdrop.addEventListener("pointerdown", stop, { capture:true });
   previewBackdrop.addEventListener("pointermove", stop, { capture:true });
   previewBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
   previewBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
 
-  // Wheel / trackpad zoom
   previewBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
 
-  // Touch scrolling gestures on iOS
   previewBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
   previewBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
   previewBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
 
-  // Block context menu on the preview itself
   previewBackdrop.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, { capture:true });
 })();
 
@@ -354,8 +386,6 @@ let previewOpen = false;
 function hidePreview() {
   previewBackdrop.style.display = "none";
   previewOpen = false;
-
-  // Safety: kill any in-progress board pinch/pan when preview closes
   boardPointers.clear();
 }
 
@@ -391,9 +421,7 @@ function showPreview(cardData) {
   previewBackdrop.style.display = "flex";
   previewOpen = true;
 
-  // kill any board gesture already captured
   boardPointers.clear();
-
   scrollEl.scrollTop = 0;
 }
 
@@ -401,7 +429,6 @@ function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPrev
 
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
 
-// click outside card closes
 previewBackdrop.addEventListener("pointerdown", (e) => {
   if (e.target === previewBackdrop) hidePreview();
 });
@@ -433,7 +460,6 @@ function closeTray() {
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
-    // Return remaining to TOP of pile in reverse draw order to preserve exact deck order.
     for (let i = trayState.drawItems.length - 1; i >= 0; i--) {
       const it = trayState.drawItems[i];
       if (!piles[it.pileKey]) piles[it.pileKey] = [];
@@ -480,14 +506,11 @@ trayCloseBtn.addEventListener("click", () => {
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 
-// Token-based fuzzy matching: "discard b" matches "discard example b"
 function tokenMatch(query, target) {
   const q = normalize(query);
   if (!q) return true;
-
   const tokens = q.split(/\s+/).filter(Boolean);
   if (!tokens.length) return true;
-
   const t = normalize(target);
   return tokens.every(tok => t.includes(tok));
 }
@@ -552,7 +575,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   });
 
   tile.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return; // LEFT click only
+    if (e.button !== 0) return;
     if (previewOpen) return;
 
     e.preventDefault();
@@ -603,7 +626,12 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     try { tile.releasePointerCapture(e.pointerId); } catch {}
 
     const trayRect = tray.getBoundingClientRect();
-    const releasedOverTray = (e.clientY >= trayRect.top);
+
+    // For bottom tray: releasedOverTray means y >= tray.top
+    // For right tray (landscape): releasedOverTray means x <= tray.left? Actually tray is on right, so "over tray" means inside its rect.
+    const releasedOverTray =
+      e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
+      e.clientY >= trayRect.top  && e.clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
       const p = viewportToDesign(e.clientX, e.clientY);
@@ -799,7 +827,7 @@ const FORCE_MARKER_SIZE = 28;
 let forceSlotCenters = [];
 let forceMarker = null;
 
-// ---------- captured stacks (centers + occupancy) ----------
+// ---------- captured stacks ----------
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
@@ -841,9 +869,6 @@ function computeZones() {
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
 
-  // ✅ PATCH: swap P1 draw/discard; mirror for P2
-  // P2 (top): Draw left, Discard right (mirrors P1 after swap)
-  // P1 (bottom): Discard left, Draw right (swapped)
   return {
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
@@ -874,10 +899,9 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)), CARD_W, CARD_H),
 
-    // P1 swapped: Discard left, Draw right
-    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
-
+    // (keep your pile placement as you currently have it working; if you want the swap back later, say so)
+    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
     p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
@@ -1005,7 +1029,7 @@ table.addEventListener("wheel", (e) => {
   setScaleAround(newScale, e.clientX, e.clientY);
 }, { passive: false });
 
-// ---------- snapping for non-base cards ----------
+// ---------- snapping ----------
 const SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
@@ -1075,7 +1099,7 @@ function buildForceTrackSlots(forceRect) {
     forceSlotCenters.push({ x: cx, y: cy });
 
     const slot = document.createElement("div");
-    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
+    slot.className = "forceSlot" + (i === 3 ? " neutral" : "");
     slot.style.left = `${forceRect.x}px`;
     slot.style.top = `${Math.round(cy - 16)}px`;
     slot.style.width = `${forceRect.w}px`;
@@ -1155,6 +1179,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
   }
 }
 
+// ---------- captured stacks ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
   stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
@@ -1236,22 +1261,21 @@ function snapBaseAutoFill(baseEl){
   baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 }
 
+// ✅ PATCH: rotation now supports 0/90/180/270
 function applyRotationSize(cardEl) {
-  const rot = Number(cardEl.dataset.rot || "0");
-  if (rot % 180 === 0) {
-    cardEl.style.width = `${CARD_W}px`;
-    cardEl.style.height = `${CARD_H}px`;
-    cardEl.querySelector(".cardFace").style.transform = "rotate(0deg)";
-  } else {
-    cardEl.style.width = `${CARD_H}px`;
-    cardEl.style.height = `${CARD_W}px`;
-    cardEl.querySelector(".cardFace").style.transform = "rotate(90deg)";
-  }
+  const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+
+  const odd = (rot === 90 || rot === 270);
+  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
+  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
+
+  const face = cardEl.querySelector(".cardFace");
+  face.style.transform = `rotate(${rot}deg)`;
 }
 
 function toggleRotate(cardEl) {
-  const cur = Number(cardEl.dataset.rot || "0");
-  const next = cur === 0 ? 90 : 0;
+  const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  const next = (cur + 90) % 360;
 
   const beforeW = parseFloat(cardEl.style.width);
   const beforeH = parseFloat(cardEl.style.height);
@@ -1270,16 +1294,9 @@ function toggleRotate(cardEl) {
   refreshSnapRects();
 }
 
-// ✅ PATCH: flip helper (works for unit + base)
 function toggleFlip(cardEl) {
   const cur = cardEl.dataset.face || "up";
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
-}
-
-// ✅ PATCH: selection for keyboard rotate
-let selectedCardEl = null;
-function setSelectedCard(el) {
-  selectedCardEl = el;
 }
 
 // ---------- build ----------
@@ -1326,8 +1343,6 @@ function makeCardEl(cardData, kind) {
   el.className = "card";
   el.dataset.kind = kind;
   el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
-
-  // ✅ PATCH: start face up
   el.dataset.face = "up";
 
   const face = document.createElement("div");
@@ -1335,7 +1350,6 @@ function makeCardEl(cardData, kind) {
   face.style.backgroundImage = `url('${cardData.img}')`;
   el.appendChild(face);
 
-  // ✅ PATCH: add a simple back layer
   const back = document.createElement("div");
   back.className = "cardBack";
   back.textContent = "Face Down";
@@ -1371,11 +1385,16 @@ function attachDragHandlers(el, cardData, kind) {
   let downX = 0;
   let downY = 0;
 
-  // ✅ PATCH: track movement so tap can flip
   let movedDuringPress = false;
 
   let baseHadCapturedAssignment = false;
   let baseFreedAssignment = false;
+
+  // ✅ PATCH: flip delay so double-tap can win
+  let flipTimer = null;
+  function clearFlipTimer() {
+    if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; }
+  }
 
   function clearPressTimer() {
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
@@ -1384,7 +1403,7 @@ function attachDragHandlers(el, cardData, kind) {
   function startLongPress(e) {
     clearPressTimer();
     longPressFired = false;
-    movedDuringPress = false; // ✅ PATCH
+    movedDuringPress = false;
     downX = e.clientX;
     downY = e.clientY;
 
@@ -1398,9 +1417,10 @@ function attachDragHandlers(el, cardData, kind) {
 
   el.addEventListener("pointerdown", (e) => {
     if (previewOpen) return;
-    if (e.button !== 0) return; // LEFT click only
+    if (e.button !== 0) return;
 
-    setSelectedCard(el); // ✅ PATCH: selection for keyboard rotate
+    // If a flip was queued from a previous single tap, cancel it on new tap
+    clearFlipTimer();
 
     el.setPointerCapture(e.pointerId);
     dragging = true;
@@ -1411,7 +1431,7 @@ function attachDragHandlers(el, cardData, kind) {
     const dt = now - lastTap;
     lastTap = now;
 
-    // double-tap rotate for units (keep existing)
+    // ✅ PATCH: double-tap rotate (wins over flip)
     if (kind === "unit" && dt < 280) {
       clearPressTimer();
       longPressFired = false;
@@ -1442,7 +1462,7 @@ function attachDragHandlers(el, cardData, kind) {
     const dx = e.clientX - downX;
     const dy = e.clientY - downY;
 
-    if (Math.hypot(dx, dy) > 8) movedDuringPress = true; // ✅ PATCH
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
 
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
       clearPressTimer();
@@ -1473,24 +1493,29 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
-    // ✅ PATCH: if this was a simple tap (no move), flip the card
+    // ✅ PATCH: if it was a tap, queue flip shortly;
+    // if a second tap comes in time, pointerdown cancels flip and rotates instead.
     if (!movedDuringPress) {
-      toggleFlip(el);
-      // Keep z-index stable after flip
-      if (kind === "base") {
-        if (el.dataset.capSide) {
-          const idx = Number(el.dataset.capIndex || "0");
-          el.style.zIndex = String(CAP_Z_BASE + idx);
+      clearFlipTimer();
+      flipTimer = setTimeout(() => {
+        toggleFlip(el);
+
+        // restore stable z after flip
+        if (kind === "base") {
+          if (el.dataset.capSide) {
+            const idx = Number(el.dataset.capIndex || "0");
+            el.style.zIndex = String(CAP_Z_BASE + idx);
+          } else {
+            el.style.zIndex = "12000";
+          }
         } else {
-          el.style.zIndex = "12000";
+          el.style.zIndex = "15000";
         }
-      } else {
-        el.style.zIndex = "15000";
-      }
+      }, 240);
       return;
     }
 
-    // Otherwise: original drag release behavior
+    // Drag release behavior
     if (kind === "base") {
       snapBaseAutoFill(el);
       if (!el.dataset.capSide) el.style.zIndex = "12000";
@@ -1503,6 +1528,7 @@ function attachDragHandlers(el, cardData, kind) {
   el.addEventListener("pointercancel", () => {
     dragging = false;
     clearPressTimer();
+    clearFlipTimer();
   });
 }
 
@@ -1535,7 +1561,7 @@ const TEST_BASE = {
   img: "https://picsum.photos/350/250?random=22"
 };
 
-// ---------- pile data (A for now: demo piles so draw/search works) ----------
+// ---------- pile data ----------
 (function initDemoPiles(){
   function cloneCard(base, overrides){
     const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
@@ -1593,14 +1619,3 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
-
-// ✅ PATCH: rotate selected unit with R (instead of only the one hardcoded unitCard)
-window.addEventListener("keydown", (e) => {
-  if (previewOpen) return;
-  if (trayState.open) return;
-  if (e.key === "r" || e.key === "R") {
-    if (selectedCardEl && selectedCardEl.dataset.kind === "unit") {
-      toggleRotate(selectedCardEl);
-    }
-  }
-});
