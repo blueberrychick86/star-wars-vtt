@@ -831,7 +831,8 @@ function computeZones() {
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
   const yBottomPiles = yRow2 + CARD_H + 110;
-  const yBottomBase = yBottomPiles + CARD_H + 30;
+  const yBottomBase = yBottomPiles + CARD_H + 80;
+
 
   const yCapTop = 45;
   const yCapBottom = yRow2 + CARD_H + 35;
