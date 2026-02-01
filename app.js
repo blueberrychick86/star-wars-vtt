@@ -1,28 +1,3 @@
-// --- ERROR OVERLAY (prevents "white screen" mystery) ---
-(function installErrorOverlay(){
-  function show(msg){
-    try{
-      const d = document.createElement("div");
-      d.style.position="fixed";
-      d.style.inset="0";
-      d.style.background="#100";
-      d.style.color="#fdd";
-      d.style.fontFamily="monospace";
-      d.style.padding="16px";
-      d.style.whiteSpace="pre-wrap";
-      d.style.zIndex="999999";
-      d.textContent = "APP.JS CRASH:\n\n" + msg;
-      document.body.innerHTML="";
-      document.body.appendChild(d);
-    }catch{}
-  }
-  window.addEventListener("error", (e)=>{
-    show((e && (e.message || e.error)) + "\n\n" + (e && e.filename) + ":" + (e && e.lineno) + ":" + (e && e.colno));
-  });
-  window.addEventListener("unhandledrejection", (e)=>{
-    show("Unhandled Promise:\n\n" + (e && e.reason));
-  });
-})();
 console.log("VTT: PATCH2 rotate(90-cycle) + flip(single-tap confirmed) + piles swap/mirror + tray right-drawer vertical");
 
 // ---------- base page ----------
@@ -35,14 +10,7 @@ document.body.style.touchAction = "none";
 document.body.style.fontFamily = "Arial, sans-serif";
 
 const app = document.getElementById("app");
-let app = document.getElementById("app");
-if (!app) {
-  app = document.createElement("div");
-  app.id = "app";
-  document.body.appendChild(app);
-}
 app.innerHTML = "";
-
 
 // ---------- CSS ----------
 const style = document.createElement("style");
@@ -146,10 +114,6 @@ style.textContent = `
   box-shadow: -10px 0 26px rgba(0,0,0,0.55);
   overflow: hidden;
   pointer-events: auto;
-  
-  transform: translateX(110%);
-transition: transform 140ms ease-out;
-
 }
 
   #tray.open{ transform: translateX(0); }
