@@ -1,4 +1,4 @@
-console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search) + PATCH(rotate 90-cycle, single-tap flip delay, landscape right tray)");
+console.log("VTT: PATCH2 rotate(90-cycle) + flip(single-tap confirmed) + piles swap/mirror + tray right-drawer vertical");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -88,43 +88,39 @@ style.textContent = `
   .textBox { font-size:14px; line-height:1.3; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.15);
     background: rgba(255,255,255,0.06); }
 
-  @media (max-width: 380px) {
-    #previewTop { grid-template-columns: 96px 1fr; }
-    #previewImg { width: 96px; }
-    #previewTitle { font-size: 16px; }
-  }
-
-  /* -------- TRAY -------- */
-  #trayShell {
+  /* -------- TRAY (RIGHT DRAWER ALWAYS) -------- */
+  #trayShell{
     position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 150000;
-    pointer-events: none;
+    top: 0; bottom: 0; right: 0;
+    width: min(440px, 46vw);
     padding: 8px;
     box-sizing: border-box;
+    z-index: 150000;
+    pointer-events: none;
   }
-  #tray {
-    width: min(1120px, calc(100vw - 16px));
-    margin: 0 auto;
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
+  #tray{
+    width: 100%;
+    height: calc(100vh - 16px);
+    border-radius: 16px;
     border: 1px solid rgba(255,255,255,0.22);
     background: rgba(14,14,16,0.92);
     backdrop-filter: blur(8px);
-    box-shadow: 0 -10px 26px rgba(0,0,0,0.55);
-    transform: translateY(120%);
+    box-shadow: -10px 0 26px rgba(0,0,0,0.55);
+    transform: translateX(120%);
     transition: transform 140ms ease-out;
     pointer-events: auto;
     overflow: hidden;
+    display:flex;
+    flex-direction:column;
   }
-  #tray.open { transform: translateY(0); }
+  #tray.open{ transform: translateX(0); }
 
-  #trayHeaderBar {
+  #trayHeaderBar{
     display:flex; align-items:center; justify-content:space-between;
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
   }
-  #trayTitle {
+  #trayTitle{
     color:#fff;
     font-weight: 900;
     letter-spacing: 0.5px;
@@ -132,7 +128,7 @@ style.textContent = `
     font-size: 12px;
     user-select:none;
   }
-  #trayCloseBtn {
+  #trayCloseBtn{
     border:1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
     color:#fff;
@@ -144,14 +140,14 @@ style.textContent = `
     touch-action:manipulation;
   }
 
-  #traySearchRow {
+  #traySearchRow{
     display:none;
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
     gap: 10px;
   }
-  #traySearchRow.show { display:flex; align-items:center; }
-  #traySearchInput {
+  #traySearchRow.show{ display:flex; align-items:center; }
+  #traySearchInput{
     flex: 1;
     border: 1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
@@ -161,24 +157,25 @@ style.textContent = `
     font-weight: 800;
     outline: none;
   }
-  #traySearchInput::placeholder { color: rgba(255,255,255,0.55); font-weight: 700; }
+  #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
 
-  #trayBody { padding: 8px 10px 10px 10px; }
-
-  #trayCarousel {
+  #trayBody{ flex:1; padding: 10px 12px; overflow:hidden; }
+  #trayCarousel{
+    height: 100%;
     display:flex;
+    flex-direction:column;
     gap: 10px;
-    overflow-x:auto;
-    overflow-y:hidden;
-    padding-bottom: 6px;
+    overflow-y:auto;
+    overflow-x:hidden;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
+    touch-action: pan-y; /* swipe up/down */
+    padding-right: 4px;
   }
 
-  .trayTile {
+  .trayTile{
     flex: 0 0 auto;
-    width: 96px;
-    height: 135px;
+    width: 100%;
+    height: 112px;
     border-radius: 12px;
     border: 2px solid rgba(255,255,255,0.45);
     background: rgba(255,255,255,0.04);
@@ -188,12 +185,12 @@ style.textContent = `
     user-select:none;
     touch-action:none;
   }
-  .trayTile:active { cursor: grabbing; }
-  .trayTileImg { position:absolute; inset:0; background-size:cover; background-position:center; }
-  .trayTileLabel {
-    position:absolute; left:8px; right:8px; bottom:8px;
+  .trayTile:active{ cursor: grabbing; }
+  .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
+  .trayTileLabel{
+    position:absolute; left:10px; right:10px; bottom:10px;
     color: rgba(255,255,255,0.95);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 900;
     line-height: 1.05;
     text-shadow: 0 1px 2px rgba(0,0,0,0.70);
@@ -201,11 +198,11 @@ style.textContent = `
   }
 
   /* clickable zones (decks/piles) */
-  .zone.clickable { cursor:pointer; }
-  .zone.clickable:hover { border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
+  .zone.clickable{ cursor:pointer; }
+  .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
-  /* public "backs count" indicator on board */
-  .trayCountBadge {
+  /* public draw-count badge */
+  .trayCountBadge{
     position:absolute;
     width: 42px; height: 42px;
     border-radius: 999px;
@@ -217,44 +214,6 @@ style.textContent = `
     box-shadow: 0 10px 20px rgba(0,0,0,0.45);
     pointer-events:none;
     user-select:none;
-  }
-
-  /* ✅ PATCH: landscape = right-side tray so bottom piles stay tappable */
-  @media (orientation: landscape) and (max-height: 520px) {
-    #trayShell {
-      left: auto;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      padding: 8px;
-      width: min(420px, 44vw);
-      pointer-events: none;
-    }
-    #tray {
-      width: 100%;
-      height: calc(100vh - 16px);
-      margin: 0;
-      border-radius: 16px;
-      transform: translateX(120%);
-      transition: transform 140ms ease-out;
-      display:flex;
-      flex-direction:column;
-    }
-    #tray.open { transform: translateX(0); }
-
-    #trayBody { flex: 1; overflow:hidden; }
-    #trayCarousel {
-      flex: 1;
-      flex-direction:column;
-      overflow-y:auto;
-      overflow-x:hidden;
-      touch-action: pan-y;
-      padding-bottom: 0;
-    }
-    .trayTile {
-      width: 100%;
-      height: 112px;
-    }
   }
 `;
 document.head.appendChild(style);
@@ -308,7 +267,7 @@ previewBackdrop.innerHTML = `
 `;
 table.appendChild(previewBackdrop);
 
-// HARD-MODAL: trap interactions so board never moves behind preview
+// HARD-MODAL preview
 (function trapPreviewInteractions(){
   const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
   const stopNoPrevent = (e) => { e.stopPropagation(); };
@@ -317,7 +276,6 @@ table.appendChild(previewBackdrop);
   previewBackdrop.addEventListener("pointermove", stop, { capture:true });
   previewBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
   previewBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
-
   previewBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
 
   previewBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
@@ -378,7 +336,7 @@ trayShell.addEventListener("pointermove", (e) => e.stopPropagation());
 trayShell.addEventListener("pointerup",   (e) => e.stopPropagation());
 trayShell.addEventListener("wheel",       (e) => e.stopPropagation(), { passive: true });
 
-// piles live here once card data is defined (A for now)
+// piles
 let piles = {};
 
 let previewOpen = false;
@@ -428,11 +386,7 @@ function showPreview(cardData) {
 function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPreview(cardData); }
 
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
-
-previewBackdrop.addEventListener("pointerdown", (e) => {
-  if (e.target === previewBackdrop) hidePreview();
-});
-
+previewBackdrop.addEventListener("pointerdown", (e) => { if (e.target === previewBackdrop) hidePreview(); });
 window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpen) hidePreview(); });
 
 /* ===========================
@@ -440,8 +394,8 @@ window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpe
    =========================== */
 const trayState = {
   open: false,
-  mode: "draw", // "draw" | "search"
-  drawItems: [], // [{ owner:"p1"|"p2", pileKey:string, card:object }]
+  mode: "draw",
+  drawItems: [],
   searchPileKey: null,
   searchOwner: null,
   searchTitle: "",
@@ -455,7 +409,6 @@ function openTray() {
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
 }
-
 function closeTray() {
   if (!trayState.open) return;
 
@@ -499,13 +452,9 @@ function closeTray() {
   trayCarousel.innerHTML = "";
 }
 
-trayCloseBtn.addEventListener("click", () => {
-  if (previewOpen) return;
-  closeTray();
-});
+trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
-
 function tokenMatch(query, target) {
   const q = normalize(query);
   if (!q) return true;
@@ -515,10 +464,7 @@ function tokenMatch(query, target) {
   return tokens.every(tok => t.includes(tok));
 }
 
-traySearchInput.addEventListener("input", () => {
-  trayState.searchQuery = traySearchInput.value || "";
-  renderTray();
-});
+traySearchInput.addEventListener("input", () => { trayState.searchQuery = traySearchInput.value || ""; renderTray(); });
 
 function openTrayDraw() {
   trayState.mode = "draw";
@@ -568,11 +514,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let ghost = null;
   let start = { x:0, y:0 };
 
-  tile.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showPreview(card);
-  });
+  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
 
   tile.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
@@ -626,9 +568,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     try { tile.releasePointerCapture(e.pointerId); } catch {}
 
     const trayRect = tray.getBoundingClientRect();
-
-    // For bottom tray: releasedOverTray means y >= tray.top
-    // For right tray (landscape): releasedOverTray means x <= tray.left? Actually tray is on right, so "over tray" means inside its rect.
     const releasedOverTray =
       e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
       e.clientY >= trayRect.top  && e.clientY <= trayRect.bottom;
@@ -720,7 +659,7 @@ function renderTray() {
 }
 
 /* ===========================
-   public draw-count badges
+   draw-count badges
    =========================== */
 const drawCountBadges = { p1: null, p2: null };
 function ensureDrawCountBadges() {
@@ -869,7 +808,10 @@ function computeZones() {
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
 
+  // ✅ FIX: P1 discard-left, draw-right
+  // ✅ MIRROR: P2 draw-left, discard-right (from P2 perspective)
   return {
+    // P2 (top) — draw LEFT, discard RIGHT
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
@@ -899,9 +841,9 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)), CARD_W, CARD_H),
 
-    // (keep your pile placement as you currently have it working; if you want the swap back later, say so)
-    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    // P1 (bottom) — discard LEFT, draw RIGHT
+    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
     p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
@@ -1179,7 +1121,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
   }
 }
 
-// ---------- captured stacks ----------
+// ---------- captured slots ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
   stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
@@ -1261,16 +1203,13 @@ function snapBaseAutoFill(baseEl){
   baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 }
 
-// ✅ PATCH: rotation now supports 0/90/180/270
+// ---------- rotation + flip ----------
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-
   const odd = (rot === 90 || rot === 270);
   cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
   cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
-
-  const face = cardEl.querySelector(".cardFace");
-  face.style.transform = `rotate(${rot}deg)`;
+  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
 }
 
 function toggleRotate(cardEl) {
@@ -1384,21 +1323,20 @@ function attachDragHandlers(el, cardData, kind) {
   let longPressFired = false;
   let downX = 0;
   let downY = 0;
-
   let movedDuringPress = false;
 
   let baseHadCapturedAssignment = false;
   let baseFreedAssignment = false;
 
-  // ✅ PATCH: flip delay so double-tap can win
-  let flipTimer = null;
-  function clearFlipTimer() {
-    if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; }
-  }
+  // ✅ FIX: single-tap flip is "confirmed" only after full double-tap window
+  const DOUBLE_TAP_MS = 360;     // more forgiving on mobile
+  const FLIP_CONFIRM_MS = 380;   // must be >= DOUBLE_TAP_MS
 
-  function clearPressTimer() {
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-  }
+  let flipTimer = null;
+  let suppressNextPointerUp = false;
+
+  function clearFlipTimer() { if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; } }
+  function clearPressTimer(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
 
   function startLongPress(e) {
     clearPressTimer();
@@ -1419,25 +1357,23 @@ function attachDragHandlers(el, cardData, kind) {
     if (previewOpen) return;
     if (e.button !== 0) return;
 
-    // If a flip was queued from a previous single tap, cancel it on new tap
     clearFlipTimer();
-
-    el.setPointerCapture(e.pointerId);
-    dragging = true;
-
-    startLongPress(e);
+    suppressNextPointerUp = false;
 
     const now = Date.now();
     const dt = now - lastTap;
     lastTap = now;
 
-    // ✅ PATCH: double-tap rotate (wins over flip)
-    if (kind === "unit" && dt < 280) {
-      clearPressTimer();
-      longPressFired = false;
+    // ✅ Double-tap rotate wins, and we block the upcoming pointerup from scheduling flip.
+    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
+      suppressNextPointerUp = true;
       toggleRotate(el);
       return;
     }
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+    startLongPress(e);
 
     if (kind === "base") {
       baseHadCapturedAssignment = !!el.dataset.capSide;
@@ -1461,7 +1397,6 @@ function attachDragHandlers(el, cardData, kind) {
 
     const dx = e.clientX - downX;
     const dy = e.clientY - downY;
-
     if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
 
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
@@ -1484,34 +1419,35 @@ function attachDragHandlers(el, cardData, kind) {
   });
 
   el.addEventListener("pointerup", (e) => {
-    dragging = false;
     clearPressTimer();
     try { el.releasePointerCapture(e.pointerId); } catch {}
+    dragging = false;
+
+    if (suppressNextPointerUp) {
+      suppressNextPointerUp = false;
+      // keep stable z after rotate
+      el.style.zIndex = (kind === "base") ? "12000" : "15000";
+      return;
+    }
 
     if (longPressFired) {
       longPressFired = false;
       return;
     }
 
-    // ✅ PATCH: if it was a tap, queue flip shortly;
-    // if a second tap comes in time, pointerdown cancels flip and rotates instead.
+    // ✅ If it was a TAP, schedule flip AFTER the double-tap window.
     if (!movedDuringPress) {
       clearFlipTimer();
       flipTimer = setTimeout(() => {
         toggleFlip(el);
-
-        // restore stable z after flip
+        // stable z
         if (kind === "base") {
           if (el.dataset.capSide) {
             const idx = Number(el.dataset.capIndex || "0");
             el.style.zIndex = String(CAP_Z_BASE + idx);
-          } else {
-            el.style.zIndex = "12000";
-          }
-        } else {
-          el.style.zIndex = "15000";
-        }
-      }, 240);
+          } else el.style.zIndex = "12000";
+        } else el.style.zIndex = "15000";
+      }, FLIP_CONFIRM_MS);
       return;
     }
 
@@ -1529,6 +1465,7 @@ function attachDragHandlers(el, cardData, kind) {
     dragging = false;
     clearPressTimer();
     clearFlipTimer();
+    suppressNextPointerUp = false;
   });
 }
 
