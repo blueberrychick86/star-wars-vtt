@@ -1,4 +1,4 @@
-console.log("VTT: PATCH2 rotate(90-cycle) + flip(single-tap confirmed) + piles swap/mirror + tray right-drawer vertical");
+console.log("VTT: PATCH2 + SAFE(app fallback) + tray truly closes");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -9,7 +9,13 @@ document.body.style.overflow = "hidden";
 document.body.style.touchAction = "none";
 document.body.style.fontFamily = "Arial, sans-serif";
 
-const app = document.getElementById("app");
+// ✅ SAFETY: ensure #app exists (prevents white screen if index.html is missing it)
+let app = document.getElementById("app");
+if (!app) {
+  app = document.createElement("div");
+  app.id = "app";
+  document.body.appendChild(app);
+}
 app.innerHTML = "";
 
 // ---------- CSS ----------
@@ -89,32 +95,34 @@ style.textContent = `
     background: rgba(255,255,255,0.06); }
 
   /* -------- TRAY (RIGHT DRAWER ALWAYS) -------- */
- #trayShell{
-  position: fixed;
-  top: 0; bottom: 0; right: 0;
-  width: min(150px, 24vw);       /* fits 84px cards nicely */
-  padding: 4px;
-  box-sizing: border-box;
-  z-index: 150000;
-  pointer-events: none;
-}
+  #trayShell{
+    position: fixed;
+    top: 0; bottom: 0; right: 0;
+    width: min(150px, 24vw);
+    padding: 4px;
+    box-sizing: border-box;
+    z-index: 150000;
+    pointer-events: none;
+    display: none;               /* ✅ hidden unless open */
+  }
 
+  #tray{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(14,14,16,0.92);
+    backdrop-filter: blur(8px);
+    box-shadow: -10px 0 26px rgba(0,0,0,0.55);
+    overflow: hidden;
+    pointer-events: auto;
 
- #tray{
-  width: 100%;
-  height: 100%;
-  display: flex;                 /* IMPORTANT */
-  flex-direction: column;        /* IMPORTANT */
-
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.22);
-  background: rgba(14,14,16,0.92);
-  backdrop-filter: blur(8px);
-  box-shadow: -10px 0 26px rgba(0,0,0,0.55);
-  overflow: hidden;
-  pointer-events: auto;
-}
+    transform: translateX(110%); /* ✅ closed state off-screen */
+    transition: transform 160ms ease;
+  }
 
   #tray.open{ transform: translateX(0); }
 
@@ -163,55 +171,42 @@ style.textContent = `
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
 
   #trayBody{
-  flex: 1;                       /* IMPORTANT */
-  overflow: hidden;              /* IMPORTANT (carousel scrolls, not body) */
-  padding: 4px;
-}
-
-
-
- #trayCarousel{
-  height: 100%;                  /* IMPORTANT */
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-
-  overflow-y: auto;              /* IMPORTANT */
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-
-  touch-action: pan-y;           /* allow finger scroll */
-  padding-right: 2px;            /* tiny room for scroll bar */
-}
-
+    flex: 1;
+    overflow: hidden;
+    padding: 4px;
+  }
 
   #trayCarousel{
-  /* ...keep your existing properties... */
-  padding-bottom: 20px;
-}
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 
- .trayTile{
-  flex: 0 0 auto;
+    touch-action: pan-y;
+    padding-right: 2px;
+    padding-bottom: 20px;
+  }
 
-  width: 100%;
-  max-width: 84px;               /* tad bigger (was ~64) */
-  aspect-ratio: 2.5 / 3.5;
+  .trayTile{
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 84px;
+    aspect-ratio: 2.5 / 3.5;
+    margin: 0 auto;
 
-  margin: 0 auto;
-
-  border-radius: 9px;
-  border: 2px solid rgba(255,255,255,0.45);
-  background: rgba(255,255,255,0.04);
-  position: relative;
-  overflow: hidden;
-  cursor: grab;
-  user-select:none;
-  touch-action:none;
-}
-
-
-
+    border-radius: 9px;
+    border: 2px solid rgba(255,255,255,0.45);
+    background: rgba(255,255,255,0.04);
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+    user-select:none;
+    touch-action:none;
+  }
 
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
@@ -317,6 +312,7 @@ table.appendChild(previewBackdrop);
 const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
+trayShell.style.display = "none";
 
 const tray = document.createElement("div");
 tray.id = "tray";
@@ -389,13 +385,13 @@ function showPreview(cardData) {
   subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
-  const pills = [
+  const pillsArr = [
     `Cost: ${cardData.cost ?? "—"}`,
     `Attack: ${cardData.attack ?? "—"}`,
     `Resources: ${cardData.resources ?? "—"}`,
     `Force: ${cardData.force ?? "—"}`,
   ];
-  for (const p of pills) {
+  for (const p of pillsArr) {
     const d = document.createElement("div");
     d.className = "pill";
     d.textContent = p;
@@ -433,7 +429,8 @@ const trayState = {
 };
 
 function openTray() {
-  tray.classList.add("open");
+  trayShell.style.display = "block";     // ✅ show shell
+  tray.classList.add("open");            // ✅ slide in
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
 }
@@ -478,6 +475,11 @@ function closeTray() {
   trayShell.style.pointerEvents = "none";
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
+
+  // ✅ hide shell after slide-out finishes
+  setTimeout(() => {
+    if (!trayState.open) trayShell.style.display = "none";
+  }, 170);
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
@@ -836,8 +838,6 @@ function computeZones() {
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
 
-  // ✅ FIX: P1 discard-left, draw-right
-  // ✅ MIRROR: P2 draw-left, discard-right (from P2 perspective)
   return {
     // P2 (top) — draw LEFT, discard RIGHT
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
@@ -1151,7 +1151,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
 // ---------- captured slots ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
+  stage.querySelectorAll(\`.capSlot[data-cap-side='\${sideLabel}']\`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
 
   const startX = capRect.x;
@@ -1168,10 +1168,10 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
     slot.dataset.capIndex = String(i);
-    slot.style.left = `${startX}px`;
-    slot.style.top  = `${slotY}px`;
-    slot.style.width = `${CAP_W}px`;
-    slot.style.height = `${BASE_H}px`;
+    slot.style.left = \`\${startX}px\`;
+    slot.style.top  = \`\${slotY}px\`;
+    slot.style.width = \`\${CAP_W}px\`;
+    slot.style.height = \`\${BASE_H}px\`;
     stage.appendChild(slot);
   }
 }
@@ -1226,8 +1226,8 @@ function snapBaseAutoFill(baseEl){
   baseEl.dataset.capIndex = String(idx);
 
   const target = capSlotCenters[side][idx];
-  baseEl.style.left = `${target.x - BASE_W/2}px`;
-  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.left = \`\${target.x - BASE_W/2}px\`;
+  baseEl.style.top  = \`\${target.y - BASE_H/2}px\`;
   baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 }
 
@@ -1235,9 +1235,9 @@ function snapBaseAutoFill(baseEl){
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
   const odd = (rot === 90 || rot === 270);
-  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
-  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
-  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
+  cardEl.style.width = odd ? \`\${CARD_H}px\` : \`\${CARD_W}px\`;
+  cardEl.style.height = odd ? \`\${CARD_W}px\` : \`\${CARD_H}px\`;
+  cardEl.querySelector(".cardFace").style.transform = \`rotate(\${rot}deg)\`;
 }
 
 function toggleRotate(cardEl) {
@@ -1255,8 +1255,8 @@ function toggleRotate(cardEl) {
 
   const left = parseFloat(cardEl.style.left || "0");
   const top = parseFloat(cardEl.style.top || "0");
-  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
-  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
+  cardEl.style.left = \`\${left + (beforeW - afterW) / 2}px\`;
+  cardEl.style.top  = \`\${top + (beforeH - afterH) / 2}px\`;
 
   refreshSnapRects();
 }
@@ -1356,9 +1356,8 @@ function attachDragHandlers(el, cardData, kind) {
   let baseHadCapturedAssignment = false;
   let baseFreedAssignment = false;
 
-  // ✅ FIX: single-tap flip is "confirmed" only after full double-tap window
-  const DOUBLE_TAP_MS = 360;     // more forgiving on mobile
-  const FLIP_CONFIRM_MS = 380;   // must be >= DOUBLE_TAP_MS
+  const DOUBLE_TAP_MS = 360;
+  const FLIP_CONFIRM_MS = 380;
 
   let flipTimer = null;
   let suppressNextPointerUp = false;
@@ -1392,7 +1391,6 @@ function attachDragHandlers(el, cardData, kind) {
     const dt = now - lastTap;
     lastTap = now;
 
-    // ✅ Double-tap rotate wins, and we block the upcoming pointerup from scheduling flip.
     if (kind === "unit" && dt < DOUBLE_TAP_MS) {
       suppressNextPointerUp = true;
       toggleRotate(el);
@@ -1453,7 +1451,6 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
-      // keep stable z after rotate
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
       return;
     }
@@ -1463,12 +1460,10 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
-    // ✅ If it was a TAP, schedule flip AFTER the double-tap window.
     if (!movedDuringPress) {
       clearFlipTimer();
       flipTimer = setTimeout(() => {
         toggleFlip(el);
-        // stable z
         if (kind === "base") {
           if (el.dataset.capSide) {
             const idx = Number(el.dataset.capIndex || "0");
@@ -1479,7 +1474,6 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
-    // Drag release behavior
     if (kind === "base") {
       snapBaseAutoFill(el);
       if (!el.dataset.capSide) el.style.zIndex = "12000";
@@ -1542,32 +1536,14 @@ const TEST_BASE = {
   }
 
   piles = {
-    // Big draw piles for scroll testing
-    p1_draw: [
-      ...makeMany("P1 Draw Card", 30),
-    ],
-    p2_draw: [
-      ...makeMany("P2 Draw Card", 30),
-    ],
-
-    // Big discard piles for search + scroll testing
-    p1_discard: [
-      ...makeMany("Discard Example", 25),
-    ],
-    p2_discard: [
-      ...makeMany("Discard Example", 25),
-    ],
-
-    // Optional: bigger exile too
-    p1_exile: [
-      ...makeMany("Exiled Example", 18),
-    ],
-    p2_exile: [
-      ...makeMany("Exiled Example", 18),
-    ],
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
   };
 })();
-
 
 // ---------- spawn test cards ----------
 const unitCard = makeCardEl(OBIWAN, "unit");
