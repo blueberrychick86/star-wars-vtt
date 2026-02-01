@@ -93,14 +93,15 @@ style.textContent = `
   position: fixed;
   top: 0; bottom: 0; right: 0;
 
-  /* tighter drawer for small vertical cards */
-  width: min(200px, 28vw);
+  /* ultra-compact drawer */
+  width: min(120px, 22vw);
 
-  padding: 6px;
+  padding: 4px;
   box-sizing: border-box;
   z-index: 150000;
   pointer-events: none;
 }
+
 
 
   #tray{
@@ -164,19 +165,22 @@ style.textContent = `
   }
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
 
-  #trayBody{ flex:1; padding: 12px 12px 10px 12px; overflow:hidden; }
+  #trayBody{
+  flex: 1;
+  padding: 4px;
+  overflow: hidden;
+}
 
-  #trayCarousel{
-    height: 100%;
-    display:flex;
-    flex-direction:column;
-    gap: 10px;
-    overflow-y:auto;
-    overflow-x:hidden;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y; /* swipe up/down */
-    padding-right: 4px;
-  }
+
+ #trayCarousel{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
   #trayCarousel{
   /* ...keep your existing properties... */
   padding-bottom: 20px;
@@ -186,13 +190,14 @@ style.textContent = `
   .trayTile{
   flex: 0 0 auto;
 
-  /* smaller vertical cards */
+  /* very compact vertical cards */
   width: 100%;
-  max-width: 120px;              /* ~50% of previous 240px */
-  aspect-ratio: 2.5 / 3.5;       /* true card ratio */
+  max-width: 64px;               /* half again */
+  aspect-ratio: 2.5 / 3.5;
+
   margin: 0 auto;
 
-  border-radius: 10px;
+  border-radius: 8px;
   border: 2px solid rgba(255,255,255,0.45);
   background: rgba(255,255,255,0.04);
   position: relative;
@@ -201,6 +206,7 @@ style.textContent = `
   user-select:none;
   touch-action:none;
 }
+
 
 
   .trayTile:active{ cursor: grabbing; }
