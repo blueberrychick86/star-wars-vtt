@@ -207,6 +207,7 @@ const CAP_Z_BASE = 20000;
 
 // ---------- zone math ----------
 function computeZones() {
+  const CAP_DISCARD_GAP = 26; // spacing between galaxy_discard and captured stacks
   const xPiles = 240;
   const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
 
@@ -239,8 +240,11 @@ function computeZones() {
 
   const yBottomPiles = yRow2 + CARD_H + 110;
 
-  const yCapTop = 45;
-  const yCapBottom = yRow2 + CARD_H + 35;
+  // galaxy discard is already computed to be vertically centered on the force track
+const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
+const yCapTop = yGalaxyDiscard - CAP_DISCARD_GAP - CAP_H;          // top stack sits above discard
+const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;      // bottom stack sits below discard
+
 
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
