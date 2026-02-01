@@ -178,7 +178,7 @@ const GAP = 18;
 const BIG_GAP = 28;
 
 // ✅ ONE knob: distance between Galaxy Rows and base stacks
-const BASE_ROW_GAP = 120;
+const BASE_ROW_GAP = 480;
 
 const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
