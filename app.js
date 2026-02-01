@@ -92,12 +92,16 @@ style.textContent = `
   #trayShell{
   position: fixed;
   top: 0; bottom: 0; right: 0;
-  width: min(320px, 36vw);   /* narrower drawer */
-  padding: 8px;
+
+  /* tighter drawer for small vertical cards */
+  width: min(200px, 28vw);
+
+  padding: 6px;
   box-sizing: border-box;
   z-index: 150000;
   pointer-events: none;
 }
+
 
   #tray{
     width: 100%;
