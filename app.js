@@ -818,15 +818,12 @@ function computeZones() {
   const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
 
   // ✅ shared spacing for base stacks (top & bottom)
-const BASE_GAP_FROM_PILES = 90; // increase for more play space
-
-// Top piles stay where they are
-const yTopPiles = 90;
-
-// Top base stack pushed UP away from galaxy row
-const yTopBase = Math.max(8, yTopPiles - BASE_H - BASE_GAP_FROM_PILES);
+  const BASE_GAP_FROM_PILES = 90; // increase for more play space
 
   const yTopPiles = 90;
+
+  // Top base stack pushed UP away from the galaxy area (and clamped so it never goes off-screen)
+  const yTopBase = Math.max(8, yTopPiles - BASE_H - BASE_GAP_FROM_PILES);
 
   const yRow1 = 220;
   const yRow2 = yRow1 + CARD_H + GAP;
@@ -839,10 +836,9 @@ const yTopBase = Math.max(8, yTopPiles - BASE_H - BASE_GAP_FROM_PILES);
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
   const yBottomPiles = yRow2 + CARD_H + 110;
-  // Bottom base stack pushed DOWN away from galaxy row
-const yBottomBase = yBottomPiles + CARD_H + BASE_GAP_FROM_PILES;
 
-
+  // Bottom base stack pushed DOWN away from the galaxy area
+  const yBottomBase = yBottomPiles + CARD_H + BASE_GAP_FROM_PILES;
 
   const yCapTop = 45;
   const yCapBottom = yRow2 + CARD_H + 35;
@@ -931,14 +927,11 @@ function fitToScreen() {
   const leftBias = Math.min(90, Math.round(w * 0.10));
 
   camera.tx = centerTx - leftBias;
-  const downBias = Math.min(120, Math.round(h * 0.08)); // push view down a bit
-camera.ty = centerTy + downBias;
-
+  camera.ty = centerTy;
 
   applyCamera();
   refreshSnapRects();
 }
-
 
 fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
 
