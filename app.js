@@ -909,3 +909,646 @@ function setScaleAround(newScale, vx, vy){
 
   camera.scale = clamped;
   camera.tx = vx - world.x * camera.scale;
+  camera.ty = vy - world.y * camera.scale;
+
+  applyCamera();
+  refreshSnapRects();
+}
+function dist(a,b){ return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function mid(a,b){ return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 }; }
+
+const boardPointers = new Map();
+let boardLast = { x: 0, y: 0 };
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let pinchMid = { x: 0, y: 0 };
+
+table.addEventListener("pointerdown", (e) => {
+  if (previewOpen) return;
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+  if (e.target.closest(".card")) return;
+  if (e.target.closest(".forceMarker")) return;
+  if (e.target.closest("#hud")) return;
+
+  table.setPointerCapture(e.pointerId);
+  boardPointers.set(e.pointerId, e);
+  boardLast = { x: e.clientX, y: e.clientY };
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    pinchStartDist = dist(pts[0], pts[1]);
+    pinchStartScale = camera.scale;
+    const m = mid(pts[0], pts[1]);
+    pinchMid = { x: m.x, y: m.y };
+  }
+});
+
+table.addEventListener("pointermove", (e) => {
+  if (previewOpen) return;
+  if (!boardPointers.has(e.pointerId)) return;
+  boardPointers.set(e.pointerId, e);
+
+  if (boardPointers.size === 1) {
+    const dx = e.clientX - boardLast.x;
+    const dy = e.clientY - boardLast.y;
+    camera.tx += dx;
+    camera.ty += dy;
+    boardLast = { x: e.clientX, y: e.clientY };
+    applyCamera();
+    refreshSnapRects();
+    return;
+  }
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    const d = dist(pts[0], pts[1]);
+    const factor = d / pinchStartDist;
+    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+  }
+});
+
+function endBoardPointer(e){
+  boardPointers.delete(e.pointerId);
+  if (boardPointers.size === 1){
+    const p = [...boardPointers.values()][0];
+    boardLast = { x: p.clientX, y: p.clientY };
+  }
+}
+table.addEventListener("pointerup", endBoardPointer);
+table.addEventListener("pointercancel", () => boardPointers.clear());
+
+table.addEventListener("wheel", (e) => {
+  if (previewOpen) return;
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+  e.preventDefault();
+  const zoomIntensity = 0.0018;
+  const delta = -e.deltaY;
+  const newScale = camera.scale * (1 + delta * zoomIntensity);
+  setScaleAround(newScale, e.clientX, e.clientY);
+}, { passive: false });
+
+// ---------- snapping ----------
+const SNAP_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26",
+  "p2_base_stack","p1_base_stack",
+]);
+
+let zonesMeta = [];
+function refreshSnapRects() {
+  zonesMeta = [];
+  stage.querySelectorAll(".zone").forEach((el) => {
+    const id = el.dataset.zoneId;
+    if (!SNAP_ZONE_IDS.has(id)) return;
+    const b = el.getBoundingClientRect();
+    zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
+  });
+}
+function snapCardToNearestZone(cardEl) {
+  if (!zonesMeta.length) return;
+
+  const cardRect = cardEl.getBoundingClientRect();
+  const cx = cardRect.left + cardRect.width / 2;
+  const cy = cardRect.top + cardRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) { bestDist = d; best = z; }
+  }
+
+  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
+  const zoneDiag = best ? Math.hypot(best.width, best.height) : cardDiag;
+  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
+
+  if (!best || bestDist > threshold) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  const w = parseFloat(cardEl.style.width);
+  const h = parseFloat(cardEl.style.height);
+
+  cardEl.style.left = `${targetCenterX - w / 2}px`;
+  cardEl.style.top  = `${targetCenterY - h / 2}px`;
+}
+
+// ---------- force track ----------
+function buildForceTrackSlots(forceRect) {
+  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
+  forceSlotCenters = [];
+
+  const pad = 10;
+  const usableH = forceRect.h - pad * 2;
+
+  for (let i = 0; i < FORCE_SLOTS; i++) {
+    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
+    const cy = forceRect.y + pad + t * usableH;
+    const cx = forceRect.x + forceRect.w / 2;
+
+    forceSlotCenters.push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "forceSlot" + (i === 3 ? " neutral" : "");
+    slot.style.left = `${forceRect.x}px`;
+    slot.style.top = `${Math.round(cy - 16)}px`;
+    slot.style.width = `${forceRect.w}px`;
+    slot.style.height = `32px`;
+    stage.appendChild(slot);
+  }
+}
+function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
+  if (forceMarker) return;
+
+  forceMarker = document.createElement("div");
+  forceMarker.className = "forceMarker";
+  stage.appendChild(forceMarker);
+
+  let draggingMarker = false;
+  let markerOffX = 0;
+  let markerOffY = 0;
+
+  function snapMarkerToNearestSlot() {
+    if (!forceSlotCenters.length) return;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    const cx = left + FORCE_MARKER_SIZE / 2;
+    const cy = top + FORCE_MARKER_SIZE / 2;
+
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < forceSlotCenters.length; i++) {
+      const s = forceSlotCenters[i];
+      const d = Math.hypot(cx - s.x, cy - s.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+
+    const target = forceSlotCenters[best];
+    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+
+  forceMarker.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+    forceMarker.setPointerCapture(e.pointerId);
+    draggingMarker = true;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    markerOffX = px - left;
+    markerOffY = py - top;
+  });
+
+  forceMarker.addEventListener("pointermove", (e) => {
+    if (!draggingMarker) return;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+    forceMarker.style.left = `${px - markerOffX}px`;
+    forceMarker.style.top  = `${py - markerOffY}px`;
+  });
+
+  forceMarker.addEventListener("pointerup", (e) => {
+    draggingMarker = false;
+    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
+    snapMarkerToNearestSlot();
+  });
+
+  forceMarker.addEventListener("pointercancel", () => { draggingMarker = false; });
+
+  if (forceSlotCenters.length) {
+    const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
+    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+}
+
+// ---------- captured slots ----------
+function buildCapturedBaseSlots(capRect, sideLabel) {
+  stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
+  capSlotCenters[sideLabel] = [];
+
+  const startX = capRect.x;
+  const startY = capRect.y;
+
+  for (let i = 0; i < CAP_SLOTS; i++) {
+    const slotY = startY + i * CAP_OVERLAP;
+    const cx = startX + CAP_W / 2;
+    const cy = slotY + BASE_H / 2;
+
+    capSlotCenters[sideLabel].push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "capSlot";
+    slot.dataset.capSide = sideLabel;
+    slot.dataset.capIndex = String(i);
+    slot.style.left = `${startX}px`;
+    slot.style.top  = `${slotY}px`;
+    slot.style.width = `${CAP_W}px`;
+    slot.style.height = `${BASE_H}px`;
+    stage.appendChild(slot);
+  }
+}
+
+function clearCapturedAssignment(baseEl){
+  const side = baseEl.dataset.capSide;
+  const idx = Number(baseEl.dataset.capIndex || "-1");
+  if (!side || idx < 0) return;
+  if (capOccupied[side] && capOccupied[side][idx] === baseEl.dataset.cardId) {
+    capOccupied[side][idx] = null;
+  }
+  delete baseEl.dataset.capSide;
+  delete baseEl.dataset.capIndex;
+}
+
+function snapBaseAutoFill(baseEl){
+  const capP2 = zonesCache.p2_captured_bases;
+  const capP1 = zonesCache.p1_captured_bases;
+
+  const b = baseEl.getBoundingClientRect();
+  const cx = b.left + b.width/2;
+  const cy = b.top + b.height/2;
+
+  const inRect = (r) => (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
+
+  const stageRect = stage.getBoundingClientRect();
+
+  const rectFor = (capRect) => {
+    const l = stageRect.left + capRect.x * camera.scale;
+    const t = stageRect.top  + capRect.y * camera.scale;
+    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
+  };
+
+  const p2R = rectFor(capP2);
+  const p1R = rectFor(capP1);
+
+  let side = null;
+  if (inRect(p2R)) side = "p2";
+  else if (inRect(p1R)) side = "p1";
+
+  if (!side){
+    clearCapturedAssignment(baseEl);
+    return;
+  }
+
+  const occ = capOccupied[side];
+  let idx = occ.findIndex(v => v === null);
+  if (idx === -1) idx = CAP_SLOTS - 1;
+
+  occ[idx] = baseEl.dataset.cardId;
+  baseEl.dataset.capSide = side;
+  baseEl.dataset.capIndex = String(idx);
+
+  const target = capSlotCenters[side][idx];
+  baseEl.style.left = `${target.x - BASE_W/2}px`;
+  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
+}
+
+// ---------- rotation + flip ----------
+function applyRotationSize(cardEl) {
+  const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  const odd = (rot === 90 || rot === 270);
+  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
+  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
+  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
+}
+
+function toggleRotate(cardEl) {
+  const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  const next = (cur + 90) % 360;
+
+  const beforeW = parseFloat(cardEl.style.width);
+  const beforeH = parseFloat(cardEl.style.height);
+
+  cardEl.dataset.rot = String(next);
+  applyRotationSize(cardEl);
+
+  const afterW = parseFloat(cardEl.style.width);
+  const afterH = parseFloat(cardEl.style.height);
+
+  const left = parseFloat(cardEl.style.left || "0");
+  const top = parseFloat(cardEl.style.top || "0");
+  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
+  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
+
+  refreshSnapRects();
+}
+
+function toggleFlip(cardEl) {
+  const cur = cardEl.dataset.face || "up";
+  cardEl.dataset.face = (cur === "up") ? "down" : "up";
+}
+
+// ---------- build ----------
+function build() {
+  stage.innerHTML = "";
+
+  const zones = computeZones();
+  zonesCache = zones;
+
+  stage.style.width = `${DESIGN_W}px`;
+  stage.style.height = `${DESIGN_H}px`;
+
+  for (const [id, r] of Object.entries(zones)) {
+    const el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = `${r.x}px`;
+    el.style.top = `${r.y}px`;
+    el.style.width = `${r.w}px`;
+    el.style.height = `${r.h}px`;
+    stage.appendChild(el);
+  }
+
+  buildForceTrackSlots(zones.force_track);
+  ensureForceMarker(FORCE_NEUTRAL_INDEX);
+
+  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
+  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
+
+  applyCamera();
+  refreshSnapRects();
+  ensureDrawCountBadges();
+  bindPileZoneClicks();
+  fitToScreen();
+}
+build();
+
+window.addEventListener("resize", () => fitToScreen());
+if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
+
+// ---------- card factory ----------
+function makeCardEl(cardData, kind) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.dataset.kind = kind;
+  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
+  el.dataset.face = "up";
+
+  const face = document.createElement("div");
+  face.className = "cardFace";
+  face.style.backgroundImage = `url('${cardData.img}')`;
+  el.appendChild(face);
+
+  const back = document.createElement("div");
+  back.className = "cardBack";
+  back.textContent = "Face Down";
+  el.appendChild(back);
+
+  if (kind === "unit") {
+    el.dataset.rot = "0";
+    applyRotationSize(el);
+  } else if (kind === "base") {
+    el.style.width = `${BASE_W}px`;
+    el.style.height = `${BASE_H}px`;
+    face.style.transform = "none";
+  }
+
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePreview(cardData);
+  });
+
+  attachDragHandlers(el, cardData, kind);
+  return el;
+}
+
+// ---------- drag handlers ----------
+function attachDragHandlers(el, cardData, kind) {
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  let pressTimer = null;
+  let longPressFired = false;
+  let downX = 0;
+  let downY = 0;
+  let movedDuringPress = false;
+
+  let baseHadCapturedAssignment = false;
+  let baseFreedAssignment = false;
+
+  const DOUBLE_TAP_MS = 360;
+  const FLIP_CONFIRM_MS = 380;
+
+  let flipTimer = null;
+  let suppressNextPointerUp = false;
+
+  function clearFlipTimer() { if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; } }
+  function clearPressTimer(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+
+  function startLongPress(e) {
+    clearPressTimer();
+    longPressFired = false;
+    movedDuringPress = false;
+    downX = e.clientX;
+    downY = e.clientY;
+
+    pressTimer = setTimeout(() => {
+      longPressFired = true;
+      showPreview(cardData);
+    }, 380);
+  }
+
+  let lastTap = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+
+    const now = Date.now();
+    const dt = now - lastTap;
+    lastTap = now;
+
+    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
+      suppressNextPointerUp = true;
+      toggleRotate(el);
+      return;
+    }
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+    startLongPress(e);
+
+    if (kind === "base") {
+      baseHadCapturedAssignment = !!el.dataset.capSide;
+      baseFreedAssignment = false;
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    el.style.zIndex = String(50000);
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer();
+
+      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
+        clearCapturedAssignment(el);
+        baseFreedAssignment = true;
+      }
+    }
+
+    if (longPressFired) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offsetX}px`;
+    el.style.top  = `${py - offsetY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    dragging = false;
+
+    if (suppressNextPointerUp) {
+      suppressNextPointerUp = false;
+      el.style.zIndex = (kind === "base") ? "12000" : "15000";
+      return;
+    }
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    if (!movedDuringPress) {
+      clearFlipTimer();
+      flipTimer = setTimeout(() => {
+        toggleFlip(el);
+        if (kind === "base") {
+          if (el.dataset.capSide) {
+            const idx = Number(el.dataset.capIndex || "0");
+            el.style.zIndex = String(CAP_Z_BASE + idx);
+          } else el.style.zIndex = "12000";
+        } else el.style.zIndex = "15000";
+      }, FLIP_CONFIRM_MS);
+      return;
+    }
+
+    if (kind === "base") {
+      snapBaseAutoFill(el);
+      if (!el.dataset.capSide) el.style.zIndex = "12000";
+    } else {
+      snapCardToNearestZone(el);
+      el.style.zIndex = "15000";
+    }
+  });
+
+  el.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearPressTimer();
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+  });
+}
+
+// ---------- sample card data ----------
+const OBIWAN = {
+  id: "obiwan",
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
+// ---------- pile data ----------
+(function initDemoPiles(){
+  function cloneCard(base, overrides){
+    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    return { ...base, ...overrides, id };
+  }
+
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
+  piles = {
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 10;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
