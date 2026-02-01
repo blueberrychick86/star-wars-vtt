@@ -1,4 +1,4 @@
-console.log("VTT: PATCH2 rotate(90-cycle) + flip(single-tap confirmed) + piles swap/mirror + tray right-drawer vertical");
+console.log("VTT: PATCH2 rotate(90-cycle) + flip(single-tap confirmed) + piles swap/mirror + tray right-drawer vertical + UI tray shrink + board left-bias + token piles");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -24,6 +24,13 @@ style.textContent = `
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
+  .tokenZone { border-style: dashed; border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.02); }
+  .zoneLabel {
+    position:absolute; left:8px; top:6px;
+    font-size:10px; font-weight:900; letter-spacing:0.4px; text-transform:uppercase;
+    color: rgba(255,255,255,0.72);
+    user-select:none; pointer-events:none;
+  }
 
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
@@ -45,6 +52,20 @@ style.textContent = `
   }
   .card[data-face='down'] .cardBack { display:flex; }
   .card[data-face='down'] .cardFace { filter: brightness(0.35); }
+
+  /* TOKEN CUBES */
+  .tokenCube{
+    position:absolute;
+    width:14px; height:14px;
+    border-radius:3px;
+    border:1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.55);
+    box-sizing:border-box;
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+  }
+  .tokenCube:active{ cursor:grabbing; }
 
   /* force track */
   .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
@@ -115,7 +136,7 @@ style.textContent = `
     pointer-events: auto;
   }
 
-  /* ✅ smaller header + tighter layout */
+  /* smaller header + tighter layout */
   #trayHeaderBar{
     display:flex; align-items:center; justify-content:space-between;
     padding: 6px 8px;
@@ -151,7 +172,7 @@ style.textContent = `
     line-height: 1;
   }
 
-  /* ✅ smaller search row + input fits narrow tray */
+  /* smaller search row + input fits narrow tray */
   #traySearchRow{
     display:none;
     padding: 6px 8px;
@@ -785,6 +806,11 @@ const CAP_OVERLAP = Math.round(BASE_H * 0.45);
 const CAP_W = BASE_W;
 const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
 
+/* TOKENS */
+const TOKEN_SIZE = 14;
+const TOKEN_GAP = 2;
+const TOKENS_PER_PILE = 20; // ✅ per your requirement
+
 let DESIGN_W = 1;
 let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
@@ -836,10 +862,23 @@ function computeZones() {
   const yCapTop = 45;
   const yCapBottom = yRow2 + CARD_H + 35;
 
+  // ✅ shared token piles live in the unused left margin (x ~ 20)
+  const tokenW = 92;
+  const tokenH = 74;
+  const tokenX = 20;
+  const tokenY1 = yRow1 + 10;          // Attack
+  const tokenY2 = tokenY1 + tokenH + 12; // Resource
+  const tokenY3 = tokenY2 + tokenH + 12; // Placeholder
+
   DESIGN_W = xCaptured + CAP_W + 18;
-  DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
+  DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18, tokenY3 + tokenH + 18);
 
   return {
+    // token piles (shared)
+    token_attack: rect(tokenX, tokenY1, tokenW, tokenH),
+    token_resource: rect(tokenX, tokenY2, tokenW, tokenH),
+    token_placeholder: rect(tokenX, tokenY3, tokenW, tokenH),
+
     // P2 (top)
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
@@ -898,8 +937,14 @@ function fitToScreen() {
 
   const s = Math.min((w - margin * 2) / DESIGN_W, (h - margin * 2) / DESIGN_H);
   camera.scale = s;
-  camera.tx = Math.round((w - DESIGN_W * s) / 2);
-  camera.ty = Math.round((h - DESIGN_H * s) / 2);
+
+  // ✅ left-bias so right side isn't hugging the edge / getting clipped
+  const centerTx = Math.round((w - DESIGN_W * s) / 2);
+  const centerTy = Math.round((h - DESIGN_H * s) / 2);
+
+  const leftBias = Math.min(90, Math.round(w * 0.18)); // safe, screen-relative
+  camera.tx = centerTx - leftBias;
+  camera.ty = centerTy;
 
   applyCamera();
   refreshSnapRects();
@@ -939,6 +984,7 @@ table.addEventListener("pointerdown", (e) => {
   if (e.target.closest("#previewBackdrop")) return;
   if (e.target.closest(".card")) return;
   if (e.target.closest(".forceMarker")) return;
+  if (e.target.closest(".tokenCube")) return;
   if (e.target.closest("#hud")) return;
 
   table.setPointerCapture(e.pointerId);
@@ -1267,7 +1313,88 @@ function toggleFlip(cardEl) {
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
 }
 
+/* ===========================
+   TOKENS (draggable cubes)
+   =========================== */
+function makeTokenCube(color, x, y) {
+  const el = document.createElement("div");
+  el.className = "tokenCube";
+  el.style.background = color;
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+  el.style.zIndex = "30000";
+  attachTokenDrag(el);
+  return el;
+}
+
+function attachTokenDrag(el) {
+  let dragging = false;
+  let offX = 0, offY = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offX = px - left;
+    offY = py - top;
+
+    el.style.zIndex = "60000";
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offX}px`;
+    el.style.top  = `${py - offY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    dragging = false;
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    el.style.zIndex = "30000";
+  });
+
+  el.addEventListener("pointercancel", () => { dragging = false; });
+}
+
+function spawnTokenPile(zoneRect, color) {
+  // layout 5 x 4 = 20 tokens
+  const cols = 5;
+  const rows = 4;
+
+  const padX = 10;
+  const padY = 22;
+
+  for (let i = 0; i < TOKENS_PER_PILE; i++) {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+
+    const x = zoneRect.x + padX + c * (TOKEN_SIZE + TOKEN_GAP);
+    const y = zoneRect.y + padY + r * (TOKEN_SIZE + TOKEN_GAP);
+
+    stage.appendChild(makeTokenCube(color, x, y));
+  }
+}
+
 // ---------- build ----------
+let zonesMeta = [];
+let zonesCache = null;
+
 function build() {
   stage.innerHTML = "";
 
@@ -1285,6 +1412,18 @@ function build() {
     el.style.top = `${r.y}px`;
     el.style.width = `${r.w}px`;
     el.style.height = `${r.h}px`;
+
+    if (id.startsWith("token_")) {
+      el.classList.add("tokenZone");
+      const lbl = document.createElement("div");
+      lbl.className = "zoneLabel";
+      lbl.textContent =
+        id === "token_attack" ? "TOKENS: ATTACK" :
+        id === "token_resource" ? "TOKENS: RESOURCE" :
+        "TOKENS: PLACEHOLDER";
+      el.appendChild(lbl);
+    }
+
     stage.appendChild(el);
   }
 
@@ -1293,6 +1432,11 @@ function build() {
 
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
+
+  // ✅ spawn shared token piles (20 each)
+  spawnTokenPile(zones.token_attack, "rgba(150,60,255,0.95)");     // purple
+  spawnTokenPile(zones.token_resource, "rgba(255,210,60,0.95)");   // yellow
+  spawnTokenPile(zones.token_placeholder, "rgba(155,95,55,0.95)"); // brown
 
   applyCamera();
   refreshSnapRects();
@@ -1305,7 +1449,54 @@ build();
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
-// ---------- card factory ----------
+/* ===========================
+   draw-count badges
+   =========================== */
+const drawCountBadges = { p1: null, p2: null };
+function ensureDrawCountBadges() {
+  if (!zonesCache) return;
+  const z1 = zonesCache.p1_draw;
+  const z2 = zonesCache.p2_draw;
+
+  if (!drawCountBadges.p1) {
+    drawCountBadges.p1 = document.createElement("div");
+    drawCountBadges.p1.className = "trayCountBadge";
+    stage.appendChild(drawCountBadges.p1);
+  }
+  if (!drawCountBadges.p2) {
+    drawCountBadges.p2 = document.createElement("div");
+    drawCountBadges.p2.className = "trayCountBadge";
+    stage.appendChild(drawCountBadges.p2);
+  }
+
+  drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
+  drawCountBadges.p1.style.top  = `${Math.round(z1.y + z1.h/2 - 21)}px`;
+
+  drawCountBadges.p2.style.left = `${Math.round(z2.x + z2.w + 10)}px`;
+  drawCountBadges.p2.style.top  = `${Math.round(z2.y + z2.h/2 - 21)}px`;
+
+  setDrawCount("p1", 0);
+  setDrawCount("p2", 0);
+}
+function setDrawCount(owner, n) {
+  const b = drawCountBadges[owner];
+  if (!b) return;
+  b.textContent = String(n);
+  b.style.display = n > 0 ? "flex" : "none";
+}
+
+/* ===========================
+   rest of your original code
+   (cards / piles / drag handlers)
+   =========================== */
+
+function viewportToDesign(vx, vy){
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+}
+
+/* --- card factory + drag handlers + sample data + init piles + spawn cards --- */
+/* NOTE: Everything below is unchanged from your last working version. */
+
 function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
@@ -1342,7 +1533,6 @@ function makeCardEl(cardData, kind) {
   return el;
 }
 
-// ---------- drag handlers ----------
 function attachDragHandlers(el, cardData, kind) {
   let dragging = false;
   let offsetX = 0;
