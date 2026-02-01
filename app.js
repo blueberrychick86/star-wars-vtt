@@ -817,28 +817,25 @@ function computeZones() {
   const xGalaxyDiscard = xForce + 52 + GAP;
   const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
 
-  // ✅ shared spacing for base stacks (top & bottom)
-  const BASE_GAP_FROM_PILES = 90; // increase for more play space
+const yTopPiles = 90;
 
-  const yTopPiles = 90;
+const yRow1 = 220;
+const yRow2 = yRow1 + CARD_H + GAP;
 
-  // Top base stack pushed UP away from the galaxy area (and clamped so it never goes off-screen)
-  const yTopBase = Math.max(8, yTopPiles - BASE_H - BASE_GAP_FROM_PILES);
+// ✅ base gap relative to the Galaxy Row (symmetrical top & bottom)
+const BASE_ROW_GAP = 180; // increase for more empty play space
 
-  const yRow1 = 220;
-  const yRow2 = yRow1 + CARD_H + GAP;
+// P2 base: move DOWN away from Row 1
+const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
 
-  const yForceTrack = yRow1;
-  const forceTrackW = 52;
-  const forceTrackH = (CARD_H * 2) + GAP;
+const yTopExile = yRow1 - (CARD_H + BIG_GAP);
+const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
-  const yTopExile = yRow1 - (CARD_H + BIG_GAP);
-  const yBotExile = yRow2 + CARD_H + BIG_GAP;
+const yBottomPiles = yRow2 + CARD_H + 110;
 
-  const yBottomPiles = yRow2 + CARD_H + 110;
+// P1 base: move DOWN away from Row 2
+const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
 
-  // Bottom base stack pushed DOWN away from the galaxy area
-  const yBottomBase = yBottomPiles + CARD_H + BASE_GAP_FROM_PILES;
 
   const yCapTop = 45;
   const yCapBottom = yRow2 + CARD_H + 35;
