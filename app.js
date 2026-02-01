@@ -117,46 +117,61 @@ style.textContent = `
     pointer-events: auto;
   }
 
+  /* ✅ UI polish: smaller header + tighter layout */
   #trayHeaderBar{
     display:flex; align-items:center; justify-content:space-between;
-    padding: 10px 12px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
+    gap: 6px;
   }
   #trayTitle{
     color:#fff;
     font-weight: 900;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 1.1;
     user-select:none;
+
+    /* keep long SEARCH titles from blowing up the tray */
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   #trayCloseBtn{
     border:1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
     color:#fff;
-    border-radius: 12px;
-    padding: 8px 10px;
+    border-radius: 10px;
+    padding: 6px 8px;
     font-weight: 900;
+    font-size: 14px;
     cursor:pointer;
     user-select:none;
     touch-action:manipulation;
+    line-height: 1;
   }
 
+  /* ✅ UI polish: smaller search row + input fits narrow tray */
   #traySearchRow{
     display:none;
-    padding: 10px 12px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
-    gap: 10px;
+    gap: 6px;
   }
   #traySearchRow.show{ display:flex; align-items:center; }
   #traySearchInput{
     flex: 1;
+    min-width: 0;
     border: 1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 10px;
+    padding: 6px 8px;
     color:#fff;
     font-weight: 800;
+    font-size: 12px;
     outline: none;
   }
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
@@ -320,7 +335,9 @@ trayTitle.textContent = "TRAY";
 const trayCloseBtn = document.createElement("button");
 trayCloseBtn.id = "trayCloseBtn";
 trayCloseBtn.type = "button";
-trayCloseBtn.textContent = "Close";
+/* ✅ UI polish: icon-only close button */
+trayCloseBtn.textContent = "✕";
+trayCloseBtn.setAttribute("aria-label", "Close tray");
 
 trayHeaderBar.appendChild(trayTitle);
 trayHeaderBar.appendChild(trayCloseBtn);
@@ -735,7 +752,7 @@ function bindPileZoneClicks() {
   ];
 
   for (const m of clickMap) {
-    const el = stage.querySelector(`.zone[data-zone-id='${m.id}']`);
+    const el = stage.querySelector(\`.zone[data-zone-id='\${m.id}']\`);
     if (!el) continue;
     el.classList.add("clickable");
 
@@ -851,8 +868,8 @@ function computeZones() {
     ...(() => {
       const out = {};
       for (let c = 0; c < 6; c++) {
-        out[`g1${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
-        out[`g2${c + 1}`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
+        out[\`g1\${c + 1}\`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
+        out[\`g2\${c + 1}\`] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
       }
       return out;
     })(),
@@ -881,7 +898,7 @@ function viewportSize() {
   return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
 function applyCamera() {
-  stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
+  stage.style.transform = \`translate(\${camera.tx}px, \${camera.ty}px) scale(\${camera.scale})\`;
 }
 function fitToScreen() {
   const { w, h } = viewportSize();
@@ -1041,8 +1058,8 @@ function snapCardToNearestZone(cardEl) {
   const w = parseFloat(cardEl.style.width);
   const h = parseFloat(cardEl.style.height);
 
-  cardEl.style.left = `${targetCenterX - w / 2}px`;
-  cardEl.style.top  = `${targetCenterY - h / 2}px`;
+  cardEl.style.left = \`\${targetCenterX - w / 2}px\`;
+  cardEl.style.top  = \`\${targetCenterY - h / 2}px\`;
 }
 
 // ---------- force track ----------
@@ -1062,10 +1079,10 @@ function buildForceTrackSlots(forceRect) {
 
     const slot = document.createElement("div");
     slot.className = "forceSlot" + (i === 3 ? " neutral" : "");
-    slot.style.left = `${forceRect.x}px`;
-    slot.style.top = `${Math.round(cy - 16)}px`;
-    slot.style.width = `${forceRect.w}px`;
-    slot.style.height = `32px`;
+    slot.style.left = \`\${forceRect.x}px\`;
+    slot.style.top = \`\${Math.round(cy - 16)}px\`;
+    slot.style.width = \`\${forceRect.w}px\`;
+    slot.style.height = \`32px\`;
     stage.appendChild(slot);
   }
 }
@@ -1097,8 +1114,8 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
     }
 
     const target = forceSlotCenters[best];
-    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.left = \`\${target.x - FORCE_MARKER_SIZE / 2}px\`;
+    forceMarker.style.top  = \`\${target.y - FORCE_MARKER_SIZE / 2}px\`;
   }
 
   forceMarker.addEventListener("pointerdown", (e) => {
@@ -1122,8 +1139,8 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
     const py = (e.clientY - stageRect.top) / camera.scale;
-    forceMarker.style.left = `${px - markerOffX}px`;
-    forceMarker.style.top  = `${py - markerOffY}px`;
+    forceMarker.style.left = \`\${px - markerOffX}px\`;
+    forceMarker.style.top  = \`\${py - markerOffY}px\`;
   });
 
   forceMarker.addEventListener("pointerup", (e) => {
@@ -1136,14 +1153,14 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
   if (forceSlotCenters.length) {
     const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
-    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.left = \`\${c.x - FORCE_MARKER_SIZE / 2}px\`;
+    forceMarker.style.top  = \`\${c.y - FORCE_MARKER_SIZE / 2}px\`;
   }
 }
 
 // ---------- captured slots ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
+  stage.querySelectorAll(\`.capSlot[data-cap-side='\${sideLabel}']\`).forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
 
   const startX = capRect.x;
@@ -1160,10 +1177,10 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
     slot.dataset.capIndex = String(i);
-    slot.style.left = `${startX}px`;
-    slot.style.top  = `${slotY}px`;
-    slot.style.width = `${CAP_W}px`;
-    slot.style.height = `${BASE_H}px`;
+    slot.style.left = \`\${startX}px\`;
+    slot.style.top  = \`\${slotY}px\`;
+    slot.style.width = \`\${CAP_W}px\`;
+    slot.style.height = \`\${BASE_H}px\`;
     stage.appendChild(slot);
   }
 }
@@ -1218,8 +1235,8 @@ function snapBaseAutoFill(baseEl){
   baseEl.dataset.capIndex = String(idx);
 
   const target = capSlotCenters[side][idx];
-  baseEl.style.left = `${target.x - BASE_W/2}px`;
-  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.left = \`\${target.x - BASE_W/2}px\`;
+  baseEl.style.top  = \`\${target.y - BASE_H/2}px\`;
   baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 }
 
@@ -1227,9 +1244,9 @@ function snapBaseAutoFill(baseEl){
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
   const odd = (rot === 90 || rot === 270);
-  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
-  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
-  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
+  cardEl.style.width = odd ? \`\${CARD_H}px\` : \`\${CARD_W}px\`;
+  cardEl.style.height = odd ? \`\${CARD_W}px\` : \`\${CARD_H}px\`;
+  cardEl.querySelector(".cardFace").style.transform = \`rotate(\${rot}deg)\`;
 }
 
 function toggleRotate(cardEl) {
@@ -1247,8 +1264,8 @@ function toggleRotate(cardEl) {
 
   const left = parseFloat(cardEl.style.left || "0");
   const top = parseFloat(cardEl.style.top || "0");
-  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
-  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
+  cardEl.style.left = \`\${left + (beforeW - afterW) / 2}px\`;
+  cardEl.style.top  = \`\${top + (beforeH - afterH) / 2}px\`;
 
   refreshSnapRects();
 }
@@ -1265,17 +1282,17 @@ function build() {
   const zones = computeZones();
   zonesCache = zones;
 
-  stage.style.width = `${DESIGN_W}px`;
-  stage.style.height = `${DESIGN_H}px`;
+  stage.style.width = \`\${DESIGN_W}px\`;
+  stage.style.height = \`\${DESIGN_H}px\`;
 
   for (const [id, r] of Object.entries(zones)) {
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
-    el.style.left = `${r.x}px`;
-    el.style.top = `${r.y}px`;
-    el.style.width = `${r.w}px`;
-    el.style.height = `${r.h}px`;
+    el.style.left = \`\${r.x}px\`;
+    el.style.top = \`\${r.y}px\`;
+    el.style.width = \`\${r.w}px\`;
+    el.style.height = \`\${r.h}px\`;
     stage.appendChild(el);
   }
 
@@ -1301,12 +1318,12 @@ function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
   el.dataset.kind = kind;
-  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
+  el.dataset.cardId = \`\${cardData.id}_\${Math.random().toString(16).slice(2)}\`;
   el.dataset.face = "up";
 
   const face = document.createElement("div");
   face.className = "cardFace";
-  face.style.backgroundImage = `url('${cardData.img}')`;
+  face.style.backgroundImage = \`url('\${cardData.img}')\`;
   el.appendChild(face);
 
   const back = document.createElement("div");
@@ -1318,8 +1335,8 @@ function makeCardEl(cardData, kind) {
     el.dataset.rot = "0";
     applyRotationSize(el);
   } else if (kind === "base") {
-    el.style.width = `${BASE_W}px`;
-    el.style.height = `${BASE_H}px`;
+    el.style.width = \`\${BASE_W}px\`;
+    el.style.height = \`\${BASE_H}px\`;
     face.style.transform = "none";
   }
 
@@ -1432,8 +1449,8 @@ function attachDragHandlers(el, cardData, kind) {
     const px = (e.clientX - stageRect.left) / camera.scale;
     const py = (e.clientY - stageRect.top) / camera.scale;
 
-    el.style.left = `${px - offsetX}px`;
-    el.style.top  = `${py - offsetY}px`;
+    el.style.left = \`\${px - offsetX}px\`;
+    el.style.top  = \`\${py - offsetY}px\`;
   });
 
   el.addEventListener("pointerup", (e) => {
@@ -1515,14 +1532,14 @@ const TEST_BASE = {
 // ---------- pile data ----------
 (function initDemoPiles(){
   function cloneCard(base, overrides){
-    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    const id = \`\${base.id}_\${Math.random().toString(16).slice(2)}\`;
     return { ...base, ...overrides, id };
   }
 
   function makeMany(prefix, count){
     const out = [];
     for (let i = 1; i <= count; i++){
-      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+      out.push(cloneCard(OBIWAN, { name: \`\${prefix} \${i}\` }));
     }
     return out;
   }
@@ -1539,16 +1556,16 @@ const TEST_BASE = {
 
 // ---------- spawn test cards ----------
 const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.left = \`\${DESIGN_W * 0.42}px\`;
+unitCard.style.top  = \`\${DESIGN_H * 0.12}px\`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
 const BASE_TEST_COUNT = 10;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
   const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.left = \`\${DESIGN_W * (0.14 + i * 0.03)}px\`;
+  baseCard.style.top  = \`\${DESIGN_H * (0.22 + i * 0.02)}px\`;
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
