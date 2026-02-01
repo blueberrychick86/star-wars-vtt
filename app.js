@@ -921,7 +921,9 @@ function fitToScreen() {
   const leftBias = Math.min(90, Math.round(w * 0.10));
 
   camera.tx = centerTx - leftBias;
-  camera.ty = centerTy;
+  const downBias = Math.min(120, Math.round(h * 0.08)); // push view down a bit
+camera.ty = centerTy + downBias;
+
 
   applyCamera();
   refreshSnapRects();
