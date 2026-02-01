@@ -253,6 +253,29 @@ previewBackdrop.innerHTML = `
 `;
 table.appendChild(previewBackdrop);
 
+// HARD-MODAL: trap interactions so board never moves behind preview
+(function trapPreviewInteractions(){
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+  const stopNoPrevent = (e) => { e.stopPropagation(); };
+
+  // Pointer events
+  previewBackdrop.addEventListener("pointerdown", stop, { capture:true });
+  previewBackdrop.addEventListener("pointermove", stop, { capture:true });
+  previewBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
+  previewBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
+
+  // Wheel / trackpad zoom
+  previewBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
+
+  // Touch scrolling gestures on iOS
+  previewBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
+  previewBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
+  previewBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
+
+  // Block context menu on the preview itself
+  previewBackdrop.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, { capture:true });
+})();
+
 // ---------- tray ----------
 const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
@@ -309,7 +332,14 @@ let piles = {};
 
 let previewOpen = false;
 
-function hidePreview() { previewBackdrop.style.display = "none"; previewOpen = false; }
+function hidePreview() {
+  previewBackdrop.style.display = "none";
+  previewOpen = false;
+
+  // Safety: kill any in-progress board pinch/pan when preview closes
+  boardPointers.clear();
+}
+
 function showPreview(cardData) {
   const imgEl = previewBackdrop.querySelector("#previewImg");
   const titleEl = previewBackdrop.querySelector("#previewTitle");
@@ -341,12 +371,22 @@ function showPreview(cardData) {
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
+
+  // kill any board gesture already captured
+  boardPointers.clear();
+
   scrollEl.scrollTop = 0;
 }
+
 function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPreview(cardData); }
 
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
-previewBackdrop.addEventListener("pointerdown", (e) => { if (e.target === previewBackdrop) hidePreview(); });
+
+// click outside card closes
+previewBackdrop.addEventListener("pointerdown", (e) => {
+  if (e.target === previewBackdrop) hidePreview();
+});
+
 window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpen) hidePreview(); });
 
 /* ===========================
@@ -421,6 +461,18 @@ trayCloseBtn.addEventListener("click", () => {
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 
+// Token-based fuzzy matching: "discard b" matches "discard example b"
+function tokenMatch(query, target) {
+  const q = normalize(query);
+  if (!q) return true;
+
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+
+  const t = normalize(target);
+  return tokens.every(tok => t.includes(tok));
+}
+
 traySearchInput.addEventListener("input", () => {
   trayState.searchQuery = traySearchInput.value || "";
   renderTray();
@@ -449,10 +501,7 @@ function openTraySearch(owner, pileKey, title) {
   openTray();
   renderTray();
 
-  // focus input so typing immediately works
-  setTimeout(() => {
-    try { traySearchInput.focus(); } catch {}
-  }, 0);
+  setTimeout(() => { try { traySearchInput.focus(); } catch {} }, 0);
 }
 
 function makeTrayTile(card) {
@@ -477,7 +526,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let ghost = null;
   let start = { x:0, y:0 };
 
-  // Right-click = preview only (no drag)
   tile.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -485,8 +533,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   });
 
   tile.addEventListener("pointerdown", (e) => {
-    // LEFT click only
-    if (e.button !== 0) return;
+    if (e.button !== 0) return; // LEFT click only
     if (previewOpen) return;
 
     e.preventDefault();
@@ -591,7 +638,6 @@ function renderTray() {
     const pileKey = trayState.searchPileKey;
     if (!pileKey) return;
 
-    const q = normalize(trayState.searchQuery);
     const removed = trayState.searchRemovedIds;
 
     const pileById = new Map();
@@ -604,7 +650,8 @@ function renderTray() {
       if (card) ordered.push(card);
     }
 
-    const visible = q ? ordered.filter(c => normalize(c.name).includes(q)) : ordered;
+    const q = trayState.searchQuery || "";
+    const visible = q ? ordered.filter(c => tokenMatch(q, c.name || "")) : ordered;
 
     for (const card of visible) {
       const tile = makeTrayTile(card);
@@ -868,12 +915,12 @@ let pinchMid = { x: 0, y: 0 };
 
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
-  if (e.target.closest("#tray")) return;        // tray should never start board pan
-  if (e.target.closest("#trayShell")) return;   // safety
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
   if (e.target.closest(".card")) return;
   if (e.target.closest(".forceMarker")) return;
   if (e.target.closest("#hud")) return;
-  if (e.target.closest("#previewBackdrop")) return;
 
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
@@ -889,6 +936,7 @@ table.addEventListener("pointerdown", (e) => {
 });
 
 table.addEventListener("pointermove", (e) => {
+  if (previewOpen) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
@@ -910,6 +958,7 @@ table.addEventListener("pointermove", (e) => {
     setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
   }
 });
+
 function endBoardPointer(e){
   boardPointers.delete(e.pointerId);
   if (boardPointers.size === 1){
@@ -924,6 +973,7 @@ table.addEventListener("wheel", (e) => {
   if (previewOpen) return;
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
   e.preventDefault();
   const zoomIntensity = 0.0018;
   const delta = -e.deltaY;
@@ -1255,7 +1305,6 @@ function makeCardEl(cardData, kind) {
     face.style.transform = "none";
   }
 
-  // Right-click preview (no drag)
   el.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     e.stopPropagation();
