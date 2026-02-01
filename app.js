@@ -89,13 +89,10 @@ style.textContent = `
     background: rgba(255,255,255,0.06); }
 
   /* -------- TRAY (RIGHT DRAWER ALWAYS) -------- */
-  #trayShell{
+ #trayShell{
   position: fixed;
   top: 0; bottom: 0; right: 0;
-
-  /* ultra-compact drawer */
-  width: min(120px, 22vw);
-
+  width: min(150px, 24vw);       /* fits 84px cards nicely */
   padding: 4px;
   box-sizing: border-box;
   z-index: 150000;
@@ -104,21 +101,21 @@ style.textContent = `
 
 
 
-  #tray{
-    width: 100%;
-    height: calc(100vh - 16px);
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(14,14,16,0.92);
-    backdrop-filter: blur(8px);
-    box-shadow: -10px 0 26px rgba(0,0,0,0.55);
-    transform: translateX(120%);
-    transition: transform 140ms ease-out;
-    pointer-events: auto;
-    overflow: hidden;
-    display:flex;
-    flex-direction:column;
-  }
+ #tray{
+  width: 100%;
+  height: 100%;
+  display: flex;                 /* IMPORTANT */
+  flex-direction: column;        /* IMPORTANT */
+
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(14,14,16,0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: -10px 0 26px rgba(0,0,0,0.55);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
   #tray.open{ transform: translateX(0); }
 
   #trayHeaderBar{
@@ -166,20 +163,27 @@ style.textContent = `
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
 
   #trayBody{
-  flex: 1;
+  flex: 1;                       /* IMPORTANT */
+  overflow: hidden;              /* IMPORTANT (carousel scrolls, not body) */
   padding: 4px;
-  overflow: hidden;
 }
+
 
 
  #trayCarousel{
+  height: 100%;                  /* IMPORTANT */
   display: flex;
   flex-direction: column;
   gap: 6px;
-  overflow-y: auto;
+
+  overflow-y: auto;              /* IMPORTANT */
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+
+  touch-action: pan-y;           /* allow finger scroll */
+  padding-right: 2px;            /* tiny room for scroll bar */
 }
+
 
   #trayCarousel{
   /* ...keep your existing properties... */
@@ -187,17 +191,16 @@ style.textContent = `
 }
 
 
-  .trayTile{
+ .trayTile{
   flex: 0 0 auto;
 
-  /* very compact vertical cards */
   width: 100%;
-  max-width: 64px;               /* half again */
+  max-width: 84px;               /* tad bigger (was ~64) */
   aspect-ratio: 2.5 / 3.5;
 
   margin: 0 auto;
 
-  border-radius: 8px;
+  border-radius: 9px;
   border: 2px solid rgba(255,255,255,0.45);
   background: rgba(255,255,255,0.04);
   position: relative;
@@ -206,6 +209,7 @@ style.textContent = `
   user-select:none;
   touch-action:none;
 }
+
 
 
 
