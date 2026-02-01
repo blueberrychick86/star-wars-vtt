@@ -102,6 +102,7 @@ style.textContent = `
     overflow: hidden;
   }
   #tray.open { transform: translateY(0); }
+
   #trayHeaderBar {
     display:flex; align-items:center; justify-content:space-between;
     padding: 10px 12px;
@@ -297,6 +298,12 @@ tray.appendChild(trayBody);
 trayShell.appendChild(tray);
 table.appendChild(trayShell);
 
+// Stop tray interactions from bubbling into board pan/zoom
+trayShell.addEventListener("pointerdown", (e) => e.stopPropagation());
+trayShell.addEventListener("pointermove", (e) => e.stopPropagation());
+trayShell.addEventListener("pointerup",   (e) => e.stopPropagation());
+trayShell.addEventListener("wheel",       (e) => e.stopPropagation(), { passive: true });
+
 // piles live here once card data is defined (A for now)
 let piles = {};
 
@@ -312,9 +319,9 @@ function showPreview(cardData) {
   const rewEl = previewBackdrop.querySelector("#previewReward");
   const scrollEl = previewBackdrop.querySelector("#previewScroll");
 
-  imgEl.style.backgroundImage = `url('${cardData.img}')`;
-  titleEl.textContent = cardData.name;
-  subEl.textContent = `${cardData.type}${cardData.subtype ? " • " + cardData.subtype : ""}`;
+  imgEl.style.backgroundImage = `url('${cardData.img || ""}')`;
+  titleEl.textContent = cardData.name || "Card";
+  subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
   const pills = [
@@ -367,8 +374,7 @@ function closeTray() {
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
-    // return remaining (not dragged out) to the TOP of the same pile, in reverse draw order
-    // so the deck order is preserved exactly.
+    // Return remaining to TOP of pile in reverse draw order to preserve exact deck order.
     for (let i = trayState.drawItems.length - 1; i >= 0; i--) {
       const it = trayState.drawItems[i];
       if (!piles[it.pileKey]) piles[it.pileKey] = [];
@@ -378,7 +384,6 @@ function closeTray() {
     setDrawCount("p1", 0);
     setDrawCount("p2", 0);
   } else if (trayState.mode === "search") {
-    // restore exact order for any cards not dragged out
     const pileKey = trayState.searchPileKey;
     if (pileKey && piles[pileKey]) {
       const removed = trayState.searchRemovedIds;
@@ -393,6 +398,7 @@ function closeTray() {
       }
       piles[pileKey] = rebuilt;
     }
+
     trayState.searchPileKey = null;
     trayState.searchOwner = null;
     trayState.searchTitle = "";
@@ -442,6 +448,11 @@ function openTraySearch(owner, pileKey, title) {
   traySearchRow.classList.add("show");
   openTray();
   renderTray();
+
+  // focus input so typing immediately works
+  setTimeout(() => {
+    try { traySearchInput.focus(); } catch {}
+  }, 0);
 }
 
 function makeTrayTile(card) {
@@ -466,9 +477,21 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let ghost = null;
   let start = { x:0, y:0 };
 
-  tile.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
+  // Right-click = preview only (no drag)
+  tile.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    showPreview(card);
+  });
+
+  tile.addEventListener("pointerdown", (e) => {
+    // LEFT click only
+    if (e.button !== 0) return;
+    if (previewOpen) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
     dragging = true;
     tile.__justDragged = false;
     start = { x: e.clientX, y: e.clientY };
@@ -511,11 +534,11 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     tile.__justDragged = moved;
 
     if (ghost) { ghost.remove(); ghost = null; }
+    try { tile.releasePointerCapture(e.pointerId); } catch {}
 
     const trayRect = tray.getBoundingClientRect();
     const releasedOverTray = (e.clientY >= trayRect.top);
 
-    // if released outside tray -> commit to board (becomes public)
     if (!releasedOverTray) {
       const p = viewportToDesign(e.clientX, e.clientY);
       const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
@@ -550,15 +573,18 @@ function renderTray() {
   if (trayState.mode === "draw") {
     for (const item of trayState.drawItems) {
       const tile = makeTrayTile(item.card);
+
       tile.addEventListener("click", () => {
         if (tile.__justDragged) { tile.__justDragged = false; return; }
         showPreview(item.card);
       });
+
       makeTrayTileDraggable(tile, item.card, () => {
         trayState.drawItems = trayState.drawItems.filter(x => x.card.id !== item.card.id);
         setDrawCount(item.owner, trayState.drawItems.filter(x => x.owner === item.owner).length);
         renderTray();
       });
+
       trayCarousel.appendChild(tile);
     }
   } else {
@@ -582,6 +608,7 @@ function renderTray() {
 
     for (const card of visible) {
       const tile = makeTrayTile(card);
+
       tile.addEventListener("click", () => {
         if (tile.__justDragged) { tile.__justDragged = false; return; }
         showPreview(card);
@@ -606,6 +633,7 @@ function ensureDrawCountBadges() {
   if (!zonesCache) return;
   const z1 = zonesCache.p1_draw;
   const z2 = zonesCache.p2_draw;
+
   if (!drawCountBadges.p1) {
     drawCountBadges.p1 = document.createElement("div");
     drawCountBadges.p1.className = "trayCountBadge";
@@ -616,7 +644,7 @@ function ensureDrawCountBadges() {
     drawCountBadges.p2.className = "trayCountBadge";
     stage.appendChild(drawCountBadges.p2);
   }
-  // position: slightly right of draw deck, vertically centered
+
   drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
   drawCountBadges.p1.style.top  = `${Math.round(z1.y + z1.h/2 - 21)}px`;
 
@@ -656,20 +684,17 @@ function bindPileZoneClicks() {
     if (!el) continue;
     el.classList.add("clickable");
 
-    // clear prior handlers by cloning (safe for rebuild)
     const clone = el.cloneNode(true);
     el.replaceWith(clone);
 
     clone.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
-      // prevent board pan start
       e.stopPropagation();
 
       if (m.id === "p1_draw" || m.id === "p2_draw") {
         if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
 
         openTrayDraw();
-        // draw from top (shift) and add to tray
         const card = piles[m.pileKey].shift();
         trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card });
         setDrawCount(m.owner, trayState.drawItems.filter(x => x.owner === m.owner).length);
@@ -677,7 +702,6 @@ function bindPileZoneClicks() {
         return;
       }
 
-      // discard/exile open search tray
       openTraySearch(m.owner, m.pileKey, m.label);
     });
   }
@@ -713,8 +737,6 @@ let forceMarker = null;
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
-
-// z-index base for captured stacks
 const CAP_Z_BASE = 20000;
 
 // ---------- zone math ----------
@@ -846,6 +868,8 @@ let pinchMid = { x: 0, y: 0 };
 
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
+  if (e.target.closest("#tray")) return;        // tray should never start board pan
+  if (e.target.closest("#trayShell")) return;   // safety
   if (e.target.closest(".card")) return;
   if (e.target.closest(".forceMarker")) return;
   if (e.target.closest("#hud")) return;
@@ -898,6 +922,8 @@ table.addEventListener("pointercancel", () => boardPointers.clear());
 
 table.addEventListener("wheel", (e) => {
   if (previewOpen) return;
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
   e.preventDefault();
   const zoomIntensity = 0.0018;
   const delta = -e.deltaY;
@@ -1017,6 +1043,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
   forceMarker.addEventListener("pointerdown", (e) => {
     if (previewOpen) return;
+    if (e.button !== 0) return;
     forceMarker.setPointerCapture(e.pointerId);
     draggingMarker = true;
 
@@ -1047,7 +1074,6 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
   forceMarker.addEventListener("pointercancel", () => { draggingMarker = false; });
 
-  // initial position
   if (forceSlotCenters.length) {
     const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
     forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
@@ -1122,12 +1148,10 @@ function snapBaseAutoFill(baseEl){
     return;
   }
 
-  // find first open slot
   const occ = capOccupied[side];
   let idx = occ.findIndex(v => v === null);
   if (idx === -1) idx = CAP_SLOTS - 1;
 
-  // assign
   occ[idx] = baseEl.dataset.cardId;
   baseEl.dataset.capSide = side;
   baseEl.dataset.capIndex = String(idx);
@@ -1231,13 +1255,18 @@ function makeCardEl(cardData, kind) {
     face.style.transform = "none";
   }
 
-  el.addEventListener("contextmenu", (e) => { e.preventDefault(); togglePreview(cardData); });
+  // Right-click preview (no drag)
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePreview(cardData);
+  });
 
   attachDragHandlers(el, cardData, kind);
   return el;
 }
 
-// ---------- drag handlers (bases only free slot after real drag) ----------
+// ---------- drag handlers ----------
 function attachDragHandlers(el, cardData, kind) {
   let dragging = false;
   let offsetX = 0;
@@ -1267,11 +1296,11 @@ function attachDragHandlers(el, cardData, kind) {
     }, 380);
   }
 
-  // Double-tap rotate (unit only)
   let lastTap = 0;
 
   el.addEventListener("pointerdown", (e) => {
     if (previewOpen) return;
+    if (e.button !== 0) return; // LEFT click only
 
     el.setPointerCapture(e.pointerId);
     dragging = true;
@@ -1288,7 +1317,6 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
-    // record whether base currently assigned
     if (kind === "base") {
       baseHadCapturedAssignment = !!el.dataset.capSide;
       baseFreedAssignment = false;
@@ -1303,7 +1331,6 @@ function attachDragHandlers(el, cardData, kind) {
     offsetX = px - left;
     offsetY = py - top;
 
-    // raise during drag so it stays visible
     el.style.zIndex = String(50000);
   });
 
@@ -1316,7 +1343,6 @@ function attachDragHandlers(el, cardData, kind) {
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
       clearPressTimer();
 
-      // free slot ONLY when it truly starts dragging
       if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
         clearCapturedAssignment(el);
         baseFreedAssignment = true;
@@ -1345,7 +1371,6 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (kind === "base") {
       snapBaseAutoFill(el);
-      // if it wasn't dropped in captured zone, restore a sensible z-index
       if (!el.dataset.capSide) el.style.zIndex = "12000";
     } else {
       snapCardToNearestZone(el);
@@ -1388,9 +1413,8 @@ const TEST_BASE = {
   img: "https://picsum.photos/350/250?random=22"
 };
 
-// ---------- pile data (A for now: simple demo piles so tray/search works) ----------
+// ---------- pile data (A for now: demo piles so draw/search works) ----------
 (function initDemoPiles(){
-  // Make a small set of unique cards based on OBIWAN so search can find names.
   function cloneCard(base, overrides){
     const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
     return { ...base, ...overrides, id };
@@ -1448,7 +1472,6 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   stage.appendChild(baseCard);
 }
 
-// keyboard rotate for unit
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
 });
