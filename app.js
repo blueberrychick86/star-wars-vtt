@@ -436,8 +436,6 @@ function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
-  
-  setTimeout(() => fitToScreen(), 0);
 }
 
 function closeTray() {
@@ -483,8 +481,6 @@ function closeTray() {
 
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
-  
-  setTimeout(() => fitToScreen(), 0);
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
@@ -900,7 +896,7 @@ function fitToScreen() {
   const { w, h } = viewportSize();
   const margin = 16;
 
-  // Reserve tray width if it's open so we don't frame under it.
+  // If tray is visible, reserve its width so FIT doesn't center under it.
   let trayW = 0;
   try {
     if (trayShell && trayShell.style.display !== "none") {
@@ -908,26 +904,12 @@ function fitToScreen() {
     }
   } catch {}
 
-  // Small extra buffer so the right-most zones don't kiss the tray edge
-  const buffer = trayW ? 10 : 0;
-
-  const usableW = Math.max(240, w - trayW - buffer);
+  const usableW = Math.max(200, w - trayW); // keep sane minimum
 
   const s = Math.min(
     (usableW - margin * 2) / DESIGN_W,
     (h - margin * 2) / DESIGN_H
   );
-
-  camera.scale = s;
-
-  // Center inside the usable area (the part not covered by tray)
-  camera.tx = Math.round((usableW - DESIGN_W * s) / 2);
-  camera.ty = Math.round((h - DESIGN_H * s) / 2);
-
-  applyCamera();
-  refreshSnapRects();
-}
-
 
   camera.scale = s;
 
