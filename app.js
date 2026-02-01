@@ -896,20 +896,36 @@ function fitToScreen() {
   const { w, h } = viewportSize();
   const margin = 16;
 
-  const s = Math.min((w - margin * 2) / DESIGN_W, (h - margin * 2) / DESIGN_H);
+  // If tray is visible, reserve its width so FIT doesn't center under it.
+  let trayW = 0;
+  try {
+    if (trayShell && trayShell.style.display !== "none") {
+      trayW = trayShell.getBoundingClientRect().width;
+    }
+  } catch {}
+
+  const usableW = Math.max(200, w - trayW); // keep sane minimum
+
+  const s = Math.min(
+    (usableW - margin * 2) / DESIGN_W,
+    (h - margin * 2) / DESIGN_H
+  );
+
   camera.scale = s;
 
-  const centerTx = Math.round((w - DESIGN_W * s) / 2);
+  const centerTx = Math.round((usableW - DESIGN_W * s) / 2);
   const centerTy = Math.round((h - DESIGN_H * s) / 2);
 
-  // shift board left a bit (safe, only affects initial framing)
-  const leftBias = Math.min(90, Math.round(w * 0.18));
+  // small left bias still allowed (helps overall framing)
+  const leftBias = Math.min(90, Math.round(w * 0.10));
+
   camera.tx = centerTx - leftBias;
   camera.ty = centerTy;
 
   applyCamera();
   refreshSnapRects();
 }
+
 
 fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
 
