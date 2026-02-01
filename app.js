@@ -817,7 +817,15 @@ function computeZones() {
   const xGalaxyDiscard = xForce + 52 + GAP;
   const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
 
-  const yTopBase = 20;
+  // ✅ shared spacing for base stacks (top & bottom)
+const BASE_GAP_FROM_PILES = 90; // increase for more play space
+
+// Top piles stay where they are
+const yTopPiles = 90;
+
+// Top base stack pushed UP away from galaxy row
+const yTopBase = Math.max(8, yTopPiles - BASE_H - BASE_GAP_FROM_PILES);
+
   const yTopPiles = 90;
 
   const yRow1 = 220;
@@ -831,7 +839,9 @@ function computeZones() {
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
   const yBottomPiles = yRow2 + CARD_H + 110;
-  const yBottomBase = yBottomPiles + CARD_H + 80;
+  // Bottom base stack pushed DOWN away from galaxy row
+const yBottomBase = yBottomPiles + CARD_H + BASE_GAP_FROM_PILES;
+
 
 
   const yCapTop = 45;
