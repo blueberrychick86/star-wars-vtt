@@ -182,13 +182,13 @@ style.textContent = `
   .trayTile{
   flex: 0 0 auto;
 
-  /* full vertical card */
+  /* smaller vertical cards */
   width: 100%;
-  max-width: 240px;              /* keeps cards from getting giant */
+  max-width: 120px;              /* ~50% of previous 240px */
   aspect-ratio: 2.5 / 3.5;       /* true card ratio */
-  margin: 0 auto;                /* center in drawer */
+  margin: 0 auto;
 
-  border-radius: 14px;
+  border-radius: 10px;
   border: 2px solid rgba(255,255,255,0.45);
   background: rgba(255,255,255,0.04);
   position: relative;
@@ -197,6 +197,7 @@ style.textContent = `
   user-select:none;
   touch-action:none;
 }
+
 
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
