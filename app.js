@@ -436,6 +436,8 @@ function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
+  
+  setTimeout(() => fitToScreen(), 0);
 }
 
 function closeTray() {
@@ -481,6 +483,8 @@ function closeTray() {
 
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
+  
+  setTimeout(() => fitToScreen(), 0);
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
