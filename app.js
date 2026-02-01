@@ -434,29 +434,18 @@ const trayState = {
 
 function openTray() {
   tray.classList.add("open");
-  trayShell.classList.add("open");
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
 }
-
 function closeTray() {
   if (!trayState.open) return;
 
-  // --- KEEP your existing return-to-pile logic here ---
-  // (draw mode return / search restore etc.)
-  // ----------------------------------------------------
-
-  trayState.open = false;
-
-  // VISUAL CLOSE (force it)
-  tray.classList.remove("open");
-  trayShell.classList.remove("open");
-  trayShell.style.pointerEvents = "none";
-
-  traySearchRow.classList.remove("show");
-  trayCarousel.innerHTML = "";
-}
-
+  if (trayState.mode === "draw") {
+    for (let i = trayState.drawItems.length - 1; i >= 0; i--) {
+      const it = trayState.drawItems[i];
+      if (!piles[it.pileKey]) piles[it.pileKey] = [];
+      piles[it.pileKey].unshift(it.card);
+    }
     trayState.drawItems = [];
     setDrawCount("p1", 0);
     setDrawCount("p2", 0);
