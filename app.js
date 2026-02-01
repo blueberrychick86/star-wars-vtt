@@ -1,4 +1,4 @@
-console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search)");
+console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search) + PATCH(swap piles, tray shorter, click flip, rotate selected)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -29,6 +29,22 @@ style.textContent = `
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
 
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
+
+  /* ✅ PATCH: simple face-down overlay */
+  .cardBack {
+    position:absolute; inset:0;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+  }
+  .card[data-face='down'] .cardBack { display:flex; }
+  .card[data-face='down'] .cardFace { filter: brightness(0.35); }
 
   /* force track */
   .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
@@ -147,21 +163,24 @@ style.textContent = `
   }
   #traySearchInput::placeholder { color: rgba(255,255,255,0.55); font-weight: 700; }
 
-  #trayBody { padding: 10px 12px 14px 12px; }
+  /* ✅ PATCH: slightly tighter tray body so piles remain visible */
+  #trayBody { padding: 8px 10px 10px 10px; }
+
   #trayCarousel {
     display:flex;
     gap: 10px;
     overflow-x:auto;
     overflow-y:hidden;
-    padding-bottom: 8px;
+    padding-bottom: 6px;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
   }
 
+  /* ✅ PATCH: slightly smaller tiles (shorter tray) */
   .trayTile {
     flex: 0 0 auto;
-    width: 108px;
-    height: 151px;
+    width: 96px;
+    height: 135px;
     border-radius: 12px;
     border: 2px solid rgba(255,255,255,0.45);
     background: rgba(255,255,255,0.04);
@@ -822,6 +841,9 @@ function computeZones() {
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
 
+  // ✅ PATCH: swap P1 draw/discard; mirror for P2
+  // P2 (top): Draw left, Discard right (mirrors P1 after swap)
+  // P1 (bottom): Discard left, Draw right (swapped)
   return {
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
@@ -852,8 +874,10 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)), CARD_W, CARD_H),
 
-    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    // P1 swapped: Discard left, Draw right
+    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
     p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
@@ -1246,6 +1270,18 @@ function toggleRotate(cardEl) {
   refreshSnapRects();
 }
 
+// ✅ PATCH: flip helper (works for unit + base)
+function toggleFlip(cardEl) {
+  const cur = cardEl.dataset.face || "up";
+  cardEl.dataset.face = (cur === "up") ? "down" : "up";
+}
+
+// ✅ PATCH: selection for keyboard rotate
+let selectedCardEl = null;
+function setSelectedCard(el) {
+  selectedCardEl = el;
+}
+
 // ---------- build ----------
 function build() {
   stage.innerHTML = "";
@@ -1291,10 +1327,19 @@ function makeCardEl(cardData, kind) {
   el.dataset.kind = kind;
   el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
 
+  // ✅ PATCH: start face up
+  el.dataset.face = "up";
+
   const face = document.createElement("div");
   face.className = "cardFace";
   face.style.backgroundImage = `url('${cardData.img}')`;
   el.appendChild(face);
+
+  // ✅ PATCH: add a simple back layer
+  const back = document.createElement("div");
+  back.className = "cardBack";
+  back.textContent = "Face Down";
+  el.appendChild(back);
 
   if (kind === "unit") {
     el.dataset.rot = "0";
@@ -1326,6 +1371,9 @@ function attachDragHandlers(el, cardData, kind) {
   let downX = 0;
   let downY = 0;
 
+  // ✅ PATCH: track movement so tap can flip
+  let movedDuringPress = false;
+
   let baseHadCapturedAssignment = false;
   let baseFreedAssignment = false;
 
@@ -1336,6 +1384,7 @@ function attachDragHandlers(el, cardData, kind) {
   function startLongPress(e) {
     clearPressTimer();
     longPressFired = false;
+    movedDuringPress = false; // ✅ PATCH
     downX = e.clientX;
     downY = e.clientY;
 
@@ -1351,6 +1400,8 @@ function attachDragHandlers(el, cardData, kind) {
     if (previewOpen) return;
     if (e.button !== 0) return; // LEFT click only
 
+    setSelectedCard(el); // ✅ PATCH: selection for keyboard rotate
+
     el.setPointerCapture(e.pointerId);
     dragging = true;
 
@@ -1359,6 +1410,8 @@ function attachDragHandlers(el, cardData, kind) {
     const now = Date.now();
     const dt = now - lastTap;
     lastTap = now;
+
+    // double-tap rotate for units (keep existing)
     if (kind === "unit" && dt < 280) {
       clearPressTimer();
       longPressFired = false;
@@ -1389,6 +1442,8 @@ function attachDragHandlers(el, cardData, kind) {
     const dx = e.clientX - downX;
     const dy = e.clientY - downY;
 
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true; // ✅ PATCH
+
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
       clearPressTimer();
 
@@ -1418,6 +1473,24 @@ function attachDragHandlers(el, cardData, kind) {
       return;
     }
 
+    // ✅ PATCH: if this was a simple tap (no move), flip the card
+    if (!movedDuringPress) {
+      toggleFlip(el);
+      // Keep z-index stable after flip
+      if (kind === "base") {
+        if (el.dataset.capSide) {
+          const idx = Number(el.dataset.capIndex || "0");
+          el.style.zIndex = String(CAP_Z_BASE + idx);
+        } else {
+          el.style.zIndex = "12000";
+        }
+      } else {
+        el.style.zIndex = "15000";
+      }
+      return;
+    }
+
+    // Otherwise: original drag release behavior
     if (kind === "base") {
       snapBaseAutoFill(el);
       if (!el.dataset.capSide) el.style.zIndex = "12000";
@@ -1521,6 +1594,13 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   stage.appendChild(baseCard);
 }
 
+// ✅ PATCH: rotate selected unit with R (instead of only the one hardcoded unitCard)
 window.addEventListener("keydown", (e) => {
-  if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
+  if (previewOpen) return;
+  if (trayState.open) return;
+  if (e.key === "r" || e.key === "R") {
+    if (selectedCardEl && selectedCardEl.dataset.kind === "unit") {
+      toggleRotate(selectedCardEl);
+    }
+  }
 });
