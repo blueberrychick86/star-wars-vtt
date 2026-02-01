@@ -24,8 +24,6 @@ style.textContent = `
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
-  .zone.clickable { cursor:pointer; }
-  .zone.clickable:hover { border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
@@ -184,6 +182,10 @@ style.textContent = `
     pointer-events:none;
   }
 
+  /* clickable zones (decks/piles) */
+  .zone.clickable { cursor:pointer; }
+  .zone.clickable:hover { border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
+
   /* public "backs count" indicator on board */
   .trayCountBadge {
     position:absolute;
@@ -250,51 +252,7 @@ previewBackdrop.innerHTML = `
 `;
 table.appendChild(previewBackdrop);
 
-let previewOpen = false;
-
-function hidePreview() { previewBackdrop.style.display = "none"; previewOpen = false; }
-function showPreview(cardData) {
-  const imgEl = previewBackdrop.querySelector("#previewImg");
-  const titleEl = previewBackdrop.querySelector("#previewTitle");
-  const subEl = previewBackdrop.querySelector("#previewSub");
-  const pillsEl = previewBackdrop.querySelector("#previewPills");
-  const effEl = previewBackdrop.querySelector("#previewEffect");
-  const rewEl = previewBackdrop.querySelector("#previewReward");
-  const scrollEl = previewBackdrop.querySelector("#previewScroll");
-
-  imgEl.style.backgroundImage = `url('${cardData.img || ""}')`;
-  titleEl.textContent = cardData.name || "Card";
-  subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
-
-  pillsEl.innerHTML = "";
-  const pills = [
-    `Cost: ${cardData.cost ?? "—"}`,
-    `Attack: ${cardData.attack ?? "—"}`,
-    `Resources: ${cardData.resources ?? "—"}`,
-    `Force: ${cardData.force ?? "—"}`,
-  ];
-  for (const p of pills) {
-    const d = document.createElement("div");
-    d.className = "pill";
-    d.textContent = p;
-    pillsEl.appendChild(d);
-  }
-  effEl.textContent = cardData.effect ?? "—";
-  rewEl.textContent = cardData.reward ?? "—";
-
-  previewBackdrop.style.display = "flex";
-  previewOpen = true;
-  scrollEl.scrollTop = 0;
-}
-function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPreview(cardData); }
-
-previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
-previewBackdrop.addEventListener("pointerdown", (e) => { if (e.target === previewBackdrop) hidePreview(); });
-window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpen) hidePreview(); });
-
-/* ===========================
-   TRAY DOM + STATE (MOVED UP)
-   =========================== */
+// ---------- tray ----------
 const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
@@ -339,13 +297,58 @@ tray.appendChild(trayBody);
 trayShell.appendChild(tray);
 table.appendChild(trayShell);
 
-// ---------- TRAY state ----------
+// piles live here once card data is defined (A for now)
+let piles = {};
+
+let previewOpen = false;
+
+function hidePreview() { previewBackdrop.style.display = "none"; previewOpen = false; }
+function showPreview(cardData) {
+  const imgEl = previewBackdrop.querySelector("#previewImg");
+  const titleEl = previewBackdrop.querySelector("#previewTitle");
+  const subEl = previewBackdrop.querySelector("#previewSub");
+  const pillsEl = previewBackdrop.querySelector("#previewPills");
+  const effEl = previewBackdrop.querySelector("#previewEffect");
+  const rewEl = previewBackdrop.querySelector("#previewReward");
+  const scrollEl = previewBackdrop.querySelector("#previewScroll");
+
+  imgEl.style.backgroundImage = `url('${cardData.img}')`;
+  titleEl.textContent = cardData.name;
+  subEl.textContent = `${cardData.type}${cardData.subtype ? " • " + cardData.subtype : ""}`;
+
+  pillsEl.innerHTML = "";
+  const pills = [
+    `Cost: ${cardData.cost ?? "—"}`,
+    `Attack: ${cardData.attack ?? "—"}`,
+    `Resources: ${cardData.resources ?? "—"}`,
+    `Force: ${cardData.force ?? "—"}`,
+  ];
+  for (const p of pills) {
+    const d = document.createElement("div");
+    d.className = "pill";
+    d.textContent = p;
+    pillsEl.appendChild(d);
+  }
+  effEl.textContent = cardData.effect ?? "—";
+  rewEl.textContent = cardData.reward ?? "—";
+
+  previewBackdrop.style.display = "flex";
+  previewOpen = true;
+  scrollEl.scrollTop = 0;
+}
+function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPreview(cardData); }
+
+previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
+previewBackdrop.addEventListener("pointerdown", (e) => { if (e.target === previewBackdrop) hidePreview(); });
+window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpen) hidePreview(); });
+
+/* ===========================
+   TRAY state + behavior
+   =========================== */
 const trayState = {
   open: false,
   mode: "draw", // "draw" | "search"
-  // Draw items: [{ owner, pileKey, card }]
-  drawItems: [],
-  // Search state
+  drawItems: [], // [{ owner:"p1"|"p2", pileKey:string, card:object }]
   searchPileKey: null,
   searchOwner: null,
   searchTitle: "",
@@ -364,17 +367,20 @@ function closeTray() {
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
-    const remaining = trayState.drawItems.slice();
-    for (let i = remaining.length - 1; i >= 0; i--) {
-      const it = remaining[i];
-      piles[it.pileKey].push(it.card);
+    // return remaining (not dragged out) to the TOP of the same pile, in reverse draw order
+    // so the deck order is preserved exactly.
+    for (let i = trayState.drawItems.length - 1; i >= 0; i--) {
+      const it = trayState.drawItems[i];
+      if (!piles[it.pileKey]) piles[it.pileKey] = [];
+      piles[it.pileKey].unshift(it.card);
     }
     trayState.drawItems = [];
     setDrawCount("p1", 0);
     setDrawCount("p2", 0);
   } else if (trayState.mode === "search") {
+    // restore exact order for any cards not dragged out
     const pileKey = trayState.searchPileKey;
-    if (pileKey) {
+    if (pileKey && piles[pileKey]) {
       const removed = trayState.searchRemovedIds;
       const byId = new Map();
       for (const c of piles[pileKey]) byId.set(c.id, c);
@@ -387,7 +393,6 @@ function closeTray() {
       }
       piles[pileKey] = rebuilt;
     }
-
     trayState.searchPileKey = null;
     trayState.searchOwner = null;
     trayState.searchTitle = "";
@@ -408,12 +413,12 @@ trayCloseBtn.addEventListener("click", () => {
   closeTray();
 });
 
+function normalize(s) { return (s || "").toLowerCase().trim(); }
+
 traySearchInput.addEventListener("input", () => {
   trayState.searchQuery = traySearchInput.value || "";
   renderTray();
 });
-
-function normalize(s) { return (s || "").toLowerCase().trim(); }
 
 function openTrayDraw() {
   trayState.mode = "draw";
@@ -430,68 +435,13 @@ function openTraySearch(owner, pileKey, title) {
   trayState.searchTitle = title;
   trayState.searchQuery = "";
   trayState.searchRemovedIds = new Set();
-  trayState.searchOriginalIds = piles[pileKey].map(c => c.id);
+  trayState.searchOriginalIds = (piles[pileKey] || []).map(c => c.id);
 
   trayTitle.textContent = `SEARCH: ${title}`;
   traySearchInput.value = "";
   traySearchRow.classList.add("show");
   openTray();
   renderTray();
-}
-
-function renderTray() {
-  trayCarousel.innerHTML = "";
-  if (!trayState.open) return;
-
-  if (trayState.mode === "draw") {
-    for (const item of trayState.drawItems) {
-      const tile = makeTrayTile(item.card);
-      tile.addEventListener("click", () => {
-        if (tile.__justDragged) { tile.__justDragged = false; return; }
-        showPreview(item.card);
-      });
-      makeTrayTileDraggable(tile, item.card, () => {
-        trayState.drawItems = trayState.drawItems.filter(x => x.card.id !== item.card.id);
-        setDrawCount(item.owner, trayState.drawItems.filter(x => x.owner === item.owner).length);
-        renderTray();
-      });
-      trayCarousel.appendChild(tile);
-    }
-  } else {
-    const pileKey = trayState.searchPileKey;
-    if (!pileKey) return;
-
-    const q = normalize(trayState.searchQuery);
-    const removed = trayState.searchRemovedIds;
-
-    const pileById = new Map();
-    for (const c of piles[pileKey]) pileById.set(c.id, c);
-
-    const ordered = [];
-    for (const id of trayState.searchOriginalIds) {
-      if (removed.has(id)) continue;
-      const card = pileById.get(id);
-      if (card) ordered.push(card);
-    }
-
-    const visible = q ? ordered.filter(c => normalize(c.name).includes(q)) : ordered;
-
-    for (const card of visible) {
-      const tile = makeTrayTile(card);
-      tile.addEventListener("click", () => {
-        if (tile.__justDragged) { tile.__justDragged = false; return; }
-        showPreview(card);
-      });
-
-      makeTrayTileDraggable(tile, card, () => {
-        trayState.searchRemovedIds.add(card.id);
-        piles[pileKey] = piles[pileKey].filter(c => c.id !== card.id);
-        renderTray();
-      });
-
-      trayCarousel.appendChild(tile);
-    }
-  }
 }
 
 function makeTrayTile(card) {
@@ -565,6 +515,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     const trayRect = tray.getBoundingClientRect();
     const releasedOverTray = (e.clientY >= trayRect.top);
 
+    // if released outside tray -> commit to board (becomes public)
     if (!releasedOverTray) {
       const p = viewportToDesign(e.clientX, e.clientY);
       const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
@@ -592,13 +543,145 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   });
 }
 
+function renderTray() {
+  trayCarousel.innerHTML = "";
+  if (!trayState.open) return;
+
+  if (trayState.mode === "draw") {
+    for (const item of trayState.drawItems) {
+      const tile = makeTrayTile(item.card);
+      tile.addEventListener("click", () => {
+        if (tile.__justDragged) { tile.__justDragged = false; return; }
+        showPreview(item.card);
+      });
+      makeTrayTileDraggable(tile, item.card, () => {
+        trayState.drawItems = trayState.drawItems.filter(x => x.card.id !== item.card.id);
+        setDrawCount(item.owner, trayState.drawItems.filter(x => x.owner === item.owner).length);
+        renderTray();
+      });
+      trayCarousel.appendChild(tile);
+    }
+  } else {
+    const pileKey = trayState.searchPileKey;
+    if (!pileKey) return;
+
+    const q = normalize(trayState.searchQuery);
+    const removed = trayState.searchRemovedIds;
+
+    const pileById = new Map();
+    for (const c of (piles[pileKey] || [])) pileById.set(c.id, c);
+
+    const ordered = [];
+    for (const id of trayState.searchOriginalIds) {
+      if (removed.has(id)) continue;
+      const card = pileById.get(id);
+      if (card) ordered.push(card);
+    }
+
+    const visible = q ? ordered.filter(c => normalize(c.name).includes(q)) : ordered;
+
+    for (const card of visible) {
+      const tile = makeTrayTile(card);
+      tile.addEventListener("click", () => {
+        if (tile.__justDragged) { tile.__justDragged = false; return; }
+        showPreview(card);
+      });
+
+      makeTrayTileDraggable(tile, card, () => {
+        trayState.searchRemovedIds.add(card.id);
+        piles[pileKey] = (piles[pileKey] || []).filter(c => c.id !== card.id);
+        renderTray();
+      });
+
+      trayCarousel.appendChild(tile);
+    }
+  }
+}
+
 /* ===========================
-   Everything below here is
-   your original working code
-   with NO structural changes,
-   except: pile click bindings
-   and count badges now work.
+   public draw-count badges
    =========================== */
+const drawCountBadges = { p1: null, p2: null };
+function ensureDrawCountBadges() {
+  if (!zonesCache) return;
+  const z1 = zonesCache.p1_draw;
+  const z2 = zonesCache.p2_draw;
+  if (!drawCountBadges.p1) {
+    drawCountBadges.p1 = document.createElement("div");
+    drawCountBadges.p1.className = "trayCountBadge";
+    stage.appendChild(drawCountBadges.p1);
+  }
+  if (!drawCountBadges.p2) {
+    drawCountBadges.p2 = document.createElement("div");
+    drawCountBadges.p2.className = "trayCountBadge";
+    stage.appendChild(drawCountBadges.p2);
+  }
+  // position: slightly right of draw deck, vertically centered
+  drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
+  drawCountBadges.p1.style.top  = `${Math.round(z1.y + z1.h/2 - 21)}px`;
+
+  drawCountBadges.p2.style.left = `${Math.round(z2.x + z2.w + 10)}px`;
+  drawCountBadges.p2.style.top  = `${Math.round(z2.y + z2.h/2 - 21)}px`;
+
+  setDrawCount("p1", 0);
+  setDrawCount("p2", 0);
+}
+function setDrawCount(owner, n) {
+  const b = drawCountBadges[owner];
+  if (!b) return;
+  b.textContent = String(n);
+  b.style.display = n > 0 ? "flex" : "none";
+}
+
+/* ===========================
+   pile click bindings
+   =========================== */
+function bindPileZoneClicks() {
+  const clickMap = [
+    { id:"p1_draw", owner:"p1", pileKey:"p1_draw", label:"P1 DRAW" },
+    { id:"p2_draw", owner:"p2", pileKey:"p2_draw", label:"P2 DRAW" },
+
+    { id:"p1_discard", owner:"p1", pileKey:"p1_discard", label:"P1 DISCARD" },
+    { id:"p2_discard", owner:"p2", pileKey:"p2_discard", label:"P2 DISCARD" },
+
+    { id:"p1_exile_draw", owner:"p1", pileKey:"p1_exile", label:"P1 EXILE" },
+    { id:"p1_exile_perm", owner:"p1", pileKey:"p1_exile", label:"P1 EXILE" },
+
+    { id:"p2_exile_draw", owner:"p2", pileKey:"p2_exile", label:"P2 EXILE" },
+    { id:"p2_exile_perm", owner:"p2", pileKey:"p2_exile", label:"P2 EXILE" },
+  ];
+
+  for (const m of clickMap) {
+    const el = stage.querySelector(`.zone[data-zone-id='${m.id}']`);
+    if (!el) continue;
+    el.classList.add("clickable");
+
+    // clear prior handlers by cloning (safe for rebuild)
+    const clone = el.cloneNode(true);
+    el.replaceWith(clone);
+
+    clone.addEventListener("pointerdown", (e) => {
+      if (previewOpen) return;
+      // prevent board pan start
+      e.stopPropagation();
+
+      if (m.id === "p1_draw" || m.id === "p2_draw") {
+        if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
+
+        openTrayDraw();
+        // draw from top (shift) and add to tray
+        const card = piles[m.pileKey].shift();
+        trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card });
+        setDrawCount(m.owner, trayState.drawItems.filter(x => x.owner === m.owner).length);
+        renderTray();
+        return;
+      }
+
+      // discard/exile open search tray
+      openTraySearch(m.owner, m.pileKey, m.label);
+    });
+  }
+}
 
 // ---------- constants ----------
 const CARD_W = 86;
@@ -735,7 +818,637 @@ function fitToScreen() {
 }
 fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
 
-// (rest of your original file continues unchanged…)
-// ✅ For brevity in this chat: if you paste this, it will run, but
-// I need to include the remainder of your original working app.js here
-// exactly as it was after this point to keep everything 100% identical.
+const BOARD_MIN_SCALE = 0.25;
+const BOARD_MAX_SCALE = 4.0;
+
+function viewportToDesign(vx, vy){
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+}
+function setScaleAround(newScale, vx, vy){
+  const clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
+  const world = viewportToDesign(vx, vy);
+
+  camera.scale = clamped;
+  camera.tx = vx - world.x * camera.scale;
+  camera.ty = vy - world.y * camera.scale;
+
+  applyCamera();
+  refreshSnapRects();
+}
+function dist(a,b){ return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function mid(a,b){ return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 }; }
+
+const boardPointers = new Map();
+let boardLast = { x: 0, y: 0 };
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let pinchMid = { x: 0, y: 0 };
+
+table.addEventListener("pointerdown", (e) => {
+  if (previewOpen) return;
+  if (e.target.closest(".card")) return;
+  if (e.target.closest(".forceMarker")) return;
+  if (e.target.closest("#hud")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+
+  table.setPointerCapture(e.pointerId);
+  boardPointers.set(e.pointerId, e);
+  boardLast = { x: e.clientX, y: e.clientY };
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    pinchStartDist = dist(pts[0], pts[1]);
+    pinchStartScale = camera.scale;
+    const m = mid(pts[0], pts[1]);
+    pinchMid = { x: m.x, y: m.y };
+  }
+});
+
+table.addEventListener("pointermove", (e) => {
+  if (!boardPointers.has(e.pointerId)) return;
+  boardPointers.set(e.pointerId, e);
+
+  if (boardPointers.size === 1) {
+    const dx = e.clientX - boardLast.x;
+    const dy = e.clientY - boardLast.y;
+    camera.tx += dx;
+    camera.ty += dy;
+    boardLast = { x: e.clientX, y: e.clientY };
+    applyCamera();
+    refreshSnapRects();
+    return;
+  }
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    const d = dist(pts[0], pts[1]);
+    const factor = d / pinchStartDist;
+    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+  }
+});
+function endBoardPointer(e){
+  boardPointers.delete(e.pointerId);
+  if (boardPointers.size === 1){
+    const p = [...boardPointers.values()][0];
+    boardLast = { x: p.clientX, y: p.clientY };
+  }
+}
+table.addEventListener("pointerup", endBoardPointer);
+table.addEventListener("pointercancel", () => boardPointers.clear());
+
+table.addEventListener("wheel", (e) => {
+  if (previewOpen) return;
+  e.preventDefault();
+  const zoomIntensity = 0.0018;
+  const delta = -e.deltaY;
+  const newScale = camera.scale * (1 + delta * zoomIntensity);
+  setScaleAround(newScale, e.clientX, e.clientY);
+}, { passive: false });
+
+// ---------- snapping for non-base cards ----------
+const SNAP_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26",
+  "p2_base_stack","p1_base_stack",
+]);
+
+let zonesMeta = [];
+function refreshSnapRects() {
+  zonesMeta = [];
+  stage.querySelectorAll(".zone").forEach((el) => {
+    const id = el.dataset.zoneId;
+    if (!SNAP_ZONE_IDS.has(id)) return;
+    const b = el.getBoundingClientRect();
+    zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
+  });
+}
+function snapCardToNearestZone(cardEl) {
+  if (!zonesMeta.length) return;
+
+  const cardRect = cardEl.getBoundingClientRect();
+  const cx = cardRect.left + cardRect.width / 2;
+  const cy = cardRect.top + cardRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) { bestDist = d; best = z; }
+  }
+
+  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
+  const zoneDiag = best ? Math.hypot(best.width, best.height) : cardDiag;
+  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
+
+  if (!best || bestDist > threshold) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  const w = parseFloat(cardEl.style.width);
+  const h = parseFloat(cardEl.style.height);
+
+  cardEl.style.left = `${targetCenterX - w / 2}px`;
+  cardEl.style.top  = `${targetCenterY - h / 2}px`;
+}
+
+// ---------- force track ----------
+function buildForceTrackSlots(forceRect) {
+  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
+  forceSlotCenters = [];
+
+  const pad = 10;
+  const usableH = forceRect.h - pad * 2;
+
+  for (let i = 0; i < FORCE_SLOTS; i++) {
+    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
+    const cy = forceRect.y + pad + t * usableH;
+    const cx = forceRect.x + forceRect.w / 2;
+
+    forceSlotCenters.push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
+    slot.style.left = `${forceRect.x}px`;
+    slot.style.top = `${Math.round(cy - 16)}px`;
+    slot.style.width = `${forceRect.w}px`;
+    slot.style.height = `32px`;
+    stage.appendChild(slot);
+  }
+}
+function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
+  if (forceMarker) return;
+
+  forceMarker = document.createElement("div");
+  forceMarker.className = "forceMarker";
+  stage.appendChild(forceMarker);
+
+  let draggingMarker = false;
+  let markerOffX = 0;
+  let markerOffY = 0;
+
+  function snapMarkerToNearestSlot() {
+    if (!forceSlotCenters.length) return;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    const cx = left + FORCE_MARKER_SIZE / 2;
+    const cy = top + FORCE_MARKER_SIZE / 2;
+
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < forceSlotCenters.length; i++) {
+      const s = forceSlotCenters[i];
+      const d = Math.hypot(cx - s.x, cy - s.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+
+    const target = forceSlotCenters[best];
+    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+
+  forceMarker.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    forceMarker.setPointerCapture(e.pointerId);
+    draggingMarker = true;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    markerOffX = px - left;
+    markerOffY = py - top;
+  });
+
+  forceMarker.addEventListener("pointermove", (e) => {
+    if (!draggingMarker) return;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+    forceMarker.style.left = `${px - markerOffX}px`;
+    forceMarker.style.top  = `${py - markerOffY}px`;
+  });
+
+  forceMarker.addEventListener("pointerup", (e) => {
+    draggingMarker = false;
+    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
+    snapMarkerToNearestSlot();
+  });
+
+  forceMarker.addEventListener("pointercancel", () => { draggingMarker = false; });
+
+  // initial position
+  if (forceSlotCenters.length) {
+    const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
+    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+}
+
+function buildCapturedBaseSlots(capRect, sideLabel) {
+  stage.querySelectorAll(`.capSlot[data-cap-side='${sideLabel}']`).forEach(el => el.remove());
+  capSlotCenters[sideLabel] = [];
+
+  const startX = capRect.x;
+  const startY = capRect.y;
+
+  for (let i = 0; i < CAP_SLOTS; i++) {
+    const slotY = startY + i * CAP_OVERLAP;
+    const cx = startX + CAP_W / 2;
+    const cy = slotY + BASE_H / 2;
+
+    capSlotCenters[sideLabel].push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "capSlot";
+    slot.dataset.capSide = sideLabel;
+    slot.dataset.capIndex = String(i);
+    slot.style.left = `${startX}px`;
+    slot.style.top  = `${slotY}px`;
+    slot.style.width = `${CAP_W}px`;
+    slot.style.height = `${BASE_H}px`;
+    stage.appendChild(slot);
+  }
+}
+
+function clearCapturedAssignment(baseEl){
+  const side = baseEl.dataset.capSide;
+  const idx = Number(baseEl.dataset.capIndex || "-1");
+  if (!side || idx < 0) return;
+  if (capOccupied[side] && capOccupied[side][idx] === baseEl.dataset.cardId) {
+    capOccupied[side][idx] = null;
+  }
+  delete baseEl.dataset.capSide;
+  delete baseEl.dataset.capIndex;
+}
+
+function snapBaseAutoFill(baseEl){
+  const capP2 = zonesCache.p2_captured_bases;
+  const capP1 = zonesCache.p1_captured_bases;
+
+  const b = baseEl.getBoundingClientRect();
+  const cx = b.left + b.width/2;
+  const cy = b.top + b.height/2;
+
+  const inRect = (r) => (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
+
+  const stageRect = stage.getBoundingClientRect();
+
+  const rectFor = (capRect) => {
+    const l = stageRect.left + capRect.x * camera.scale;
+    const t = stageRect.top  + capRect.y * camera.scale;
+    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
+  };
+
+  const p2R = rectFor(capP2);
+  const p1R = rectFor(capP1);
+
+  let side = null;
+  if (inRect(p2R)) side = "p2";
+  else if (inRect(p1R)) side = "p1";
+
+  if (!side){
+    clearCapturedAssignment(baseEl);
+    return;
+  }
+
+  // find first open slot
+  const occ = capOccupied[side];
+  let idx = occ.findIndex(v => v === null);
+  if (idx === -1) idx = CAP_SLOTS - 1;
+
+  // assign
+  occ[idx] = baseEl.dataset.cardId;
+  baseEl.dataset.capSide = side;
+  baseEl.dataset.capIndex = String(idx);
+
+  const target = capSlotCenters[side][idx];
+  baseEl.style.left = `${target.x - BASE_W/2}px`;
+  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
+}
+
+function applyRotationSize(cardEl) {
+  const rot = Number(cardEl.dataset.rot || "0");
+  if (rot % 180 === 0) {
+    cardEl.style.width = `${CARD_W}px`;
+    cardEl.style.height = `${CARD_H}px`;
+    cardEl.querySelector(".cardFace").style.transform = "rotate(0deg)";
+  } else {
+    cardEl.style.width = `${CARD_H}px`;
+    cardEl.style.height = `${CARD_W}px`;
+    cardEl.querySelector(".cardFace").style.transform = "rotate(90deg)";
+  }
+}
+
+function toggleRotate(cardEl) {
+  const cur = Number(cardEl.dataset.rot || "0");
+  const next = cur === 0 ? 90 : 0;
+
+  const beforeW = parseFloat(cardEl.style.width);
+  const beforeH = parseFloat(cardEl.style.height);
+
+  cardEl.dataset.rot = String(next);
+  applyRotationSize(cardEl);
+
+  const afterW = parseFloat(cardEl.style.width);
+  const afterH = parseFloat(cardEl.style.height);
+
+  const left = parseFloat(cardEl.style.left || "0");
+  const top = parseFloat(cardEl.style.top || "0");
+  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
+  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
+
+  refreshSnapRects();
+}
+
+// ---------- build ----------
+function build() {
+  stage.innerHTML = "";
+
+  const zones = computeZones();
+  zonesCache = zones;
+
+  stage.style.width = `${DESIGN_W}px`;
+  stage.style.height = `${DESIGN_H}px`;
+
+  for (const [id, r] of Object.entries(zones)) {
+    const el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = `${r.x}px`;
+    el.style.top = `${r.y}px`;
+    el.style.width = `${r.w}px`;
+    el.style.height = `${r.h}px`;
+    stage.appendChild(el);
+  }
+
+  buildForceTrackSlots(zones.force_track);
+  ensureForceMarker(FORCE_NEUTRAL_INDEX);
+
+  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
+  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
+
+  applyCamera();
+  refreshSnapRects();
+  ensureDrawCountBadges();
+  bindPileZoneClicks();
+  fitToScreen();
+}
+build();
+
+window.addEventListener("resize", () => fitToScreen());
+if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
+
+// ---------- card factory ----------
+function makeCardEl(cardData, kind) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.dataset.kind = kind;
+  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
+
+  const face = document.createElement("div");
+  face.className = "cardFace";
+  face.style.backgroundImage = `url('${cardData.img}')`;
+  el.appendChild(face);
+
+  if (kind === "unit") {
+    el.dataset.rot = "0";
+    applyRotationSize(el);
+  } else if (kind === "base") {
+    el.style.width = `${BASE_W}px`;
+    el.style.height = `${BASE_H}px`;
+    face.style.transform = "none";
+  }
+
+  el.addEventListener("contextmenu", (e) => { e.preventDefault(); togglePreview(cardData); });
+
+  attachDragHandlers(el, cardData, kind);
+  return el;
+}
+
+// ---------- drag handlers (bases only free slot after real drag) ----------
+function attachDragHandlers(el, cardData, kind) {
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  let pressTimer = null;
+  let longPressFired = false;
+  let downX = 0;
+  let downY = 0;
+
+  let baseHadCapturedAssignment = false;
+  let baseFreedAssignment = false;
+
+  function clearPressTimer() {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  }
+
+  function startLongPress(e) {
+    clearPressTimer();
+    longPressFired = false;
+    downX = e.clientX;
+    downY = e.clientY;
+
+    pressTimer = setTimeout(() => {
+      longPressFired = true;
+      showPreview(cardData);
+    }, 380);
+  }
+
+  // Double-tap rotate (unit only)
+  let lastTap = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+
+    startLongPress(e);
+
+    const now = Date.now();
+    const dt = now - lastTap;
+    lastTap = now;
+    if (kind === "unit" && dt < 280) {
+      clearPressTimer();
+      longPressFired = false;
+      toggleRotate(el);
+      return;
+    }
+
+    // record whether base currently assigned
+    if (kind === "base") {
+      baseHadCapturedAssignment = !!el.dataset.capSide;
+      baseFreedAssignment = false;
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    // raise during drag so it stays visible
+    el.style.zIndex = String(50000);
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer();
+
+      // free slot ONLY when it truly starts dragging
+      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
+        clearCapturedAssignment(el);
+        baseFreedAssignment = true;
+      }
+    }
+
+    if (longPressFired) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offsetX}px`;
+    el.style.top  = `${py - offsetY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    dragging = false;
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    if (kind === "base") {
+      snapBaseAutoFill(el);
+      // if it wasn't dropped in captured zone, restore a sensible z-index
+      if (!el.dataset.capSide) el.style.zIndex = "12000";
+    } else {
+      snapCardToNearestZone(el);
+      el.style.zIndex = "15000";
+    }
+  });
+
+  el.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearPressTimer();
+  });
+}
+
+// ---------- sample card data ----------
+const OBIWAN = {
+  id: "obiwan",
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
+// ---------- pile data (A for now: simple demo piles so tray/search works) ----------
+(function initDemoPiles(){
+  // Make a small set of unique cards based on OBIWAN so search can find names.
+  function cloneCard(base, overrides){
+    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    return { ...base, ...overrides, id };
+  }
+
+  piles = {
+    p1_draw: [
+      cloneCard(OBIWAN, { name: "Rebel Trooper" }),
+      cloneCard(OBIWAN, { name: "X-Wing" }),
+      cloneCard(OBIWAN, { name: "Leia Organa" }),
+      cloneCard(OBIWAN, { name: "Rebel Trooper" }),
+      cloneCard(OBIWAN, { name: "Y-Wing" }),
+      cloneCard(OBIWAN, { name: "Luke Skywalker" }),
+    ],
+    p2_draw: [
+      cloneCard(OBIWAN, { name: "TIE Fighter" }),
+      cloneCard(OBIWAN, { name: "Stormtrooper" }),
+      cloneCard(OBIWAN, { name: "Darth Vader" }),
+      cloneCard(OBIWAN, { name: "Stormtrooper" }),
+      cloneCard(OBIWAN, { name: "TIE Fighter" }),
+      cloneCard(OBIWAN, { name: "Imperial Officer" }),
+    ],
+    p1_discard: [
+      cloneCard(OBIWAN, { name: "Discard Example A" }),
+      cloneCard(OBIWAN, { name: "Discard Example B" }),
+    ],
+    p2_discard: [
+      cloneCard(OBIWAN, { name: "Discard Example C" }),
+      cloneCard(OBIWAN, { name: "Discard Example D" }),
+    ],
+    p1_exile: [
+      cloneCard(OBIWAN, { name: "Exiled Example A" }),
+      cloneCard(OBIWAN, { name: "Exiled Example B" }),
+    ],
+    p2_exile: [
+      cloneCard(OBIWAN, { name: "Exiled Example C" }),
+      cloneCard(OBIWAN, { name: "Exiled Example D" }),
+    ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 10;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
+
+// keyboard rotate for unit
+window.addEventListener("keydown", (e) => {
+  if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
+});
