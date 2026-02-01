@@ -229,6 +229,10 @@ function computeZones() {
   const yForceTrack = yRow1;
   const forceTrackW = 52;
   const forceTrackH = (CARD_H * 2) + GAP;
+  // Center the exile-pair GAP on the force track center
+const xForceCenter = xForce + (forceTrackW / 2);
+const xExileLeft = xForceCenter - (CARD_W + (GAP / 2));
+
 
   // ✅ ONLY base stacks move (symmetrical)
   const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;  // P2 mirrors freely (can go negative)
@@ -259,8 +263,9 @@ const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;      // bottom sta
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
 
-    p2_exile_draw: rect(xOuterRim, yTopExile, CARD_W, CARD_H),
-    p2_exile_perm: rect(xOuterRim + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
+    p2_exile_draw: rect(xExileLeft, yTopExile, CARD_W, CARD_H),
+p2_exile_perm: rect(xExileLeft + CARD_W + GAP, yTopExile, CARD_W, CARD_H),
+
 
     p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
 
@@ -284,8 +289,9 @@ const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;      // bottom sta
     p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
-    p1_exile_draw: rect(xOuterRim, yBotExile, CARD_W, CARD_H),
-    p1_exile_perm: rect(xOuterRim + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
+    p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
+p1_exile_perm: rect(xExileLeft + CARD_W + GAP, yBotExile, CARD_W, CARD_H),
+
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
   };
