@@ -1,4 +1,4 @@
-console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack");
+console.log("VTT: camera + drag/snap + preview + FORCE(7) + CAPTURED(7) + BASE autofill + stable z-stack + TRAY(draw/search)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -24,6 +24,8 @@ style.textContent = `
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
+  .zone.clickable { cursor:pointer; }
+  .zone.clickable:hover { border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
@@ -76,6 +78,131 @@ style.textContent = `
     #previewTop { grid-template-columns: 96px 1fr; }
     #previewImg { width: 96px; }
     #previewTitle { font-size: 16px; }
+  }
+
+  /* -------- TRAY -------- */
+  #trayShell {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 150000;
+    pointer-events: none;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  #tray {
+    width: min(1120px, calc(100vw - 16px));
+    margin: 0 auto;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(14,14,16,0.92);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -10px 26px rgba(0,0,0,0.55);
+    transform: translateY(120%);
+    transition: transform 140ms ease-out;
+    pointer-events: auto;
+    overflow: hidden;
+  }
+  #tray.open { transform: translateY(0); }
+  #trayHeaderBar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+  }
+  #trayTitle {
+    color:#fff;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 12px;
+    user-select:none;
+  }
+  #trayCloseBtn {
+    border:1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color:#fff;
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-weight: 900;
+    cursor:pointer;
+    user-select:none;
+    touch-action:manipulation;
+  }
+
+  #traySearchRow {
+    display:none;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    gap: 10px;
+  }
+  #traySearchRow.show { display:flex; align-items:center; }
+  #traySearchInput {
+    flex: 1;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 12px;
+    color:#fff;
+    font-weight: 800;
+    outline: none;
+  }
+  #traySearchInput::placeholder { color: rgba(255,255,255,0.55); font-weight: 700; }
+
+  #trayBody {
+    padding: 10px 12px 14px 12px;
+  }
+  #trayCarousel {
+    display:flex;
+    gap: 10px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .trayTile {
+    flex: 0 0 auto;
+    width: 108px;
+    height: 151px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.45);
+    background: rgba(255,255,255,0.04);
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+    user-select:none;
+    touch-action:none;
+  }
+  .trayTile:active { cursor: grabbing; }
+  .trayTileImg {
+    position:absolute; inset:0;
+    background-size:cover; background-position:center;
+    filter: saturate(1.02);
+  }
+  .trayTileLabel {
+    position:absolute; left:8px; right:8px; bottom:8px;
+    color: rgba(255,255,255,0.95);
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.05;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.70);
+    pointer-events:none;
+  }
+
+  /* public "backs count" indicator on board */
+  .trayCountBadge {
+    position:absolute;
+    width: 42px; height: 42px;
+    border-radius: 999px;
+    border: 2px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    display:flex; align-items:center; justify-content:center;
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.45);
+    pointer-events:none;
+    user-select:none;
   }
 `;
 document.head.appendChild(style);
@@ -141,9 +268,9 @@ function showPreview(cardData) {
   const rewEl = previewBackdrop.querySelector("#previewReward");
   const scrollEl = previewBackdrop.querySelector("#previewScroll");
 
-  imgEl.style.backgroundImage = `url('${cardData.img}')`;
-  titleEl.textContent = cardData.name;
-  subEl.textContent = `${cardData.type}${cardData.subtype ? " • " + cardData.subtype : ""}`;
+  imgEl.style.backgroundImage = `url('${cardData.img || ""}')`;
+  titleEl.textContent = cardData.name || "Card";
+  subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
   const pills = [
@@ -170,6 +297,51 @@ function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPrev
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", (e) => { e.preventDefault(); hidePreview(); });
 previewBackdrop.addEventListener("pointerdown", (e) => { if (e.target === previewBackdrop) hidePreview(); });
 window.addEventListener("keydown", (e) => { if (e.key === "Escape" && previewOpen) hidePreview(); });
+
+// ---------- TRAY DOM ----------
+const trayShell = document.createElement("div");
+trayShell.id = "trayShell";
+trayShell.style.pointerEvents = "none";
+
+const tray = document.createElement("div");
+tray.id = "tray";
+
+const trayHeaderBar = document.createElement("div");
+trayHeaderBar.id = "trayHeaderBar";
+
+const trayTitle = document.createElement("div");
+trayTitle.id = "trayTitle";
+trayTitle.textContent = "TRAY";
+
+const trayCloseBtn = document.createElement("button");
+trayCloseBtn.id = "trayCloseBtn";
+trayCloseBtn.type = "button";
+trayCloseBtn.textContent = "Close";
+
+trayHeaderBar.appendChild(trayTitle);
+trayHeaderBar.appendChild(trayCloseBtn);
+
+const traySearchRow = document.createElement("div");
+traySearchRow.id = "traySearchRow";
+
+const traySearchInput = document.createElement("input");
+traySearchInput.id = "traySearchInput";
+traySearchInput.type = "text";
+traySearchInput.placeholder = "Search… (blank shows all)";
+traySearchRow.appendChild(traySearchInput);
+
+const trayBody = document.createElement("div");
+trayBody.id = "trayBody";
+
+const trayCarousel = document.createElement("div");
+trayCarousel.id = "trayCarousel";
+trayBody.appendChild(trayCarousel);
+
+tray.appendChild(trayHeaderBar);
+tray.appendChild(traySearchRow);
+tray.appendChild(trayBody);
+trayShell.appendChild(tray);
+table.appendChild(trayShell);
 
 // ---------- constants ----------
 const CARD_W = 86;
@@ -202,7 +374,7 @@ const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
 
-// z-index base for captured stacks (stable “layering”)
+// z-index base for captured stacks
 const CAP_Z_BASE = 20000;
 
 // ---------- zone math ----------
@@ -334,10 +506,12 @@ let pinchMid = { x: 0, y: 0 };
 
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
+  if (trayState.open) return;
   if (e.target.closest(".card")) return;
   if (e.target.closest(".forceMarker")) return;
   if (e.target.closest("#hud")) return;
   if (e.target.closest("#previewBackdrop")) return;
+  if (e.target.closest("#tray")) return;
 
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
@@ -386,6 +560,7 @@ table.addEventListener("pointercancel", () => boardPointers.clear());
 
 table.addEventListener("wheel", (e) => {
   if (previewOpen) return;
+  if (trayState.open) return;
   e.preventDefault();
   const zoomIntensity = 0.0018;
   const delta = -e.deltaY;
@@ -609,25 +784,21 @@ function placeBaseAtSlot(baseEl, side, idx) {
 
   baseEl.style.left = `${s.x - w / 2}px`;
   baseEl.style.top  = `${s.y - h / 2}px`;
-  baseEl.style.zIndex = String(CAP_Z_BASE + idx); // ✅ stable layering
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
 
   baseEl.dataset.capSide = side;
   baseEl.dataset.capIndex = String(idx);
   capOccupied[side][idx] = baseEl.dataset.cardId;
 }
 
-// rebuild the entire stack to be consistent (no overlaps, steady ordering)
 function normalizeCapturedStacks(side) {
   capOccupied[side] = Array(CAP_SLOTS).fill(null);
 
-  // get all bases that claim this side
   const bases = [...stage.querySelectorAll('.card[data-kind="base"]')]
     .filter(el => el.dataset.capSide === side && el.dataset.capIndex != null);
 
-  // sort by current index, then by DOM order
   bases.sort((a,b) => Number(a.dataset.capIndex) - Number(b.dataset.capIndex));
 
-  // assign bases to the lowest available slots in their visual order
   let slot = 0;
   for (const b of bases) {
     if (slot >= CAP_SLOTS) slot = CAP_SLOTS - 1;
@@ -635,13 +806,10 @@ function normalizeCapturedStacks(side) {
     slot++;
   }
 
-  // IMPORTANT: if pile is full, last ones overwrite last slot, so also force them slightly
-  // (keeps them visible and consistent, minimal)
   if (bases.length > CAP_SLOTS) {
     for (let i = CAP_SLOTS; i < bases.length; i++) {
       const b = bases[i];
       placeBaseAtSlot(b, side, CAP_SLOTS - 1);
-      // tiny nudge so they don't look identical if overloaded
       const n = i - (CAP_SLOTS - 1);
       b.style.top = `${parseFloat(b.style.top) + n * 2}px`;
       b.style.left = `${parseFloat(b.style.left) + n * 2}px`;
@@ -650,7 +818,6 @@ function normalizeCapturedStacks(side) {
   }
 }
 
-// auto-fill: first empty slot, then normalize to guarantee clean stack
 function snapBaseAutoFill(baseEl) {
   if (!zonesCache) return;
 
@@ -667,44 +834,93 @@ function snapBaseAutoFill(baseEl) {
   const side = inP2 ? "p2" : (inP1 ? "p1" : null);
   if (!side) return;
 
-  // first empty
   let idx = capOccupied[side].findIndex(v => v == null);
   if (idx === -1) idx = CAP_SLOTS - 1;
 
   placeBaseAtSlot(baseEl, side, idx);
-
-  // full sanitize for steady order
   normalizeCapturedStacks(side);
 }
 
-// ---------- test data ----------
-const OBIWAN = {
-  id: "obiwan_test",
-  img: "./cards/test/obiwan.jpg",
-  name: "Obi-Wan Kenobi",
-  type: "Unit",
-  subtype: "Jedi",
-  cost: "6",
-  attack: "4",
-  resources: "—",
-  force: "2",
-  effect: "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
-  reward: "Gain 3 Resources and 3 Force.",
+// ---------- DEMO pile data (replace later with real decks) ----------
+function uid(prefix="c") { return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`; }
+
+const DEMO_CARDS = [
+  {
+    img: "./cards/test/obiwan.jpg",
+    name: "Obi-Wan Kenobi",
+    type: "Unit",
+    subtype: "Jedi",
+    cost: "6",
+    attack: "4",
+    resources: "—",
+    force: "2",
+    effect: "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
+    reward: "Gain 3 Resources and 3 Force.",
+    kind: "unit",
+  },
+  {
+    img: "./cards/test/obiwan.jpg",
+    name: "TIE Fighter",
+    type: "Ship",
+    subtype: "",
+    cost: "2",
+    attack: "2",
+    resources: "—",
+    force: "—",
+    effect: "Demo card.",
+    reward: "—",
+    kind: "unit",
+  },
+  {
+    img: "./cards/test/obiwan.jpg",
+    name: "Stormtrooper",
+    type: "Unit",
+    subtype: "Trooper",
+    cost: "1",
+    attack: "1",
+    resources: "—",
+    force: "—",
+    effect: "Demo card.",
+    reward: "—",
+    kind: "unit",
+  },
+  {
+    img: "./cards/test/base.jpg",
+    name: "Test Base",
+    type: "Base",
+    subtype: "Location",
+    cost: "—",
+    attack: "—",
+    resources: "—",
+    force: "—",
+    effect: "Test base card for captured-base auto-fill.",
+    reward: "—",
+    kind: "base",
+  },
+];
+
+function cloneDemoCard(i) {
+  const src = DEMO_CARDS[i % DEMO_CARDS.length];
+  return { ...src, id: uid("card") };
+}
+
+const piles = {
+  p1_deck: [],
+  p2_deck: [],
+  p1_discard: [],
+  p2_discard: [],
+  p1_exile: [],
+  p2_exile: [],
 };
 
-const TEST_BASE = {
-  id: "base_test",
-  img: "./cards/test/base.jpg",
-  name: "Test Base",
-  type: "Base",
-  subtype: "Location",
-  cost: "—",
-  attack: "—",
-  resources: "—",
-  force: "—",
-  effect: "Test base card for captured-base auto-fill.",
-  reward: "—",
-};
+// Populate decks with demo cards
+for (let i = 0; i < 20; i++) piles.p1_deck.push(cloneDemoCard(i));
+for (let i = 0; i < 20; i++) piles.p2_deck.push(cloneDemoCard(i + 7));
+// Put a few into discard/exile so search is testable
+for (let i = 0; i < 6; i++) piles.p1_discard.push(cloneDemoCard(i + 3));
+for (let i = 0; i < 4; i++) piles.p1_exile.push(cloneDemoCard(i + 10));
+for (let i = 0; i < 5; i++) piles.p2_discard.push(cloneDemoCard(i + 2));
+for (let i = 0; i < 3; i++) piles.p2_exile.push(cloneDemoCard(i + 12));
 
 // ---------- unit rotation ----------
 function updateCardFaceRotation(cardEl) {
@@ -758,6 +974,42 @@ function toggleRotate(cardEl) {
 }
 
 // ---------- build ----------
+let drawCountBadgeP1 = null;
+let drawCountBadgeP2 = null;
+
+function ensureDrawCountBadges(zones) {
+  // remove old if present (build() clears stage anyway)
+  drawCountBadgeP1 = document.createElement("div");
+  drawCountBadgeP1.className = "trayCountBadge";
+  drawCountBadgeP1.dataset.side = "p1";
+  drawCountBadgeP1.textContent = "0";
+
+  drawCountBadgeP2 = document.createElement("div");
+  drawCountBadgeP2.className = "trayCountBadge";
+  drawCountBadgeP2.dataset.side = "p2";
+  drawCountBadgeP2.textContent = "0";
+
+  // place near draw deck slots (design coords)
+  const p1 = zones.p1_draw;
+  const p2 = zones.p2_draw;
+
+  drawCountBadgeP1.style.left = `${p1.x + p1.w + 12}px`;
+  drawCountBadgeP1.style.top  = `${p1.y + 10}px`;
+
+  drawCountBadgeP2.style.left = `${p2.x + p2.w + 12}px`;
+  drawCountBadgeP2.style.top  = `${p2.y + 10}px`;
+
+  stage.appendChild(drawCountBadgeP1);
+  stage.appendChild(drawCountBadgeP2);
+  setDrawCount("p1", trayState.drawItems.filter(x => x.owner === "p1").length);
+  setDrawCount("p2", trayState.drawItems.filter(x => x.owner === "p2").length);
+}
+
+function setDrawCount(owner, n) {
+  if (owner === "p1" && drawCountBadgeP1) drawCountBadgeP1.textContent = String(n);
+  if (owner === "p2" && drawCountBadgeP2) drawCountBadgeP2.textContent = String(n);
+}
+
 function build() {
   stage.innerHTML = "";
 
@@ -775,6 +1027,15 @@ function build() {
     el.style.top = `${r.y}px`;
     el.style.width = `${r.w}px`;
     el.style.height = `${r.h}px`;
+
+    // clickable cues for piles
+    if (id === "p1_draw" || id === "p2_draw" ||
+        id === "p1_discard" || id === "p2_discard" ||
+        id === "p1_exile_draw" || id === "p1_exile_perm" ||
+        id === "p2_exile_draw" || id === "p2_exile_perm") {
+      el.classList.add("clickable");
+    }
+
     stage.appendChild(el);
   }
 
@@ -784,9 +1045,13 @@ function build() {
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
+  ensureDrawCountBadges(zones);
+
   applyCamera();
   refreshSnapRects();
   fitToScreen();
+
+  bindPileZoneClicks(); // must rebind after rebuild
 }
 build();
 
@@ -802,7 +1067,7 @@ function makeCardEl(cardData, kind) {
 
   const face = document.createElement("div");
   face.className = "cardFace";
-  face.style.backgroundImage = `url('${cardData.img}')`;
+  face.style.backgroundImage = `url('${cardData.img || ""}')`;
   el.appendChild(face);
 
   if (kind === "unit") {
@@ -814,7 +1079,14 @@ function makeCardEl(cardData, kind) {
     face.style.transform = "none";
   }
 
+  // Right click / contextmenu = preview (PC)
   el.addEventListener("contextmenu", (e) => { e.preventDefault(); togglePreview(cardData); });
+
+  // Click on board card = preview (mobile/pc), but don't conflict with drag
+  el.addEventListener("click", () => {
+    if (previewOpen) return;
+    togglePreview(cardData);
+  });
 
   attachDragHandlers(el, cardData, kind);
   return el;
@@ -850,7 +1122,6 @@ function attachDragHandlers(el, cardData, kind) {
     }, 380);
   }
 
-  // Double-tap rotate (unit only)
   let lastTap = 0;
 
   el.addEventListener("pointerdown", (e) => {
@@ -886,7 +1157,6 @@ function attachDragHandlers(el, cardData, kind) {
     offsetX = px - left;
     offsetY = py - top;
 
-    // raise during drag so it stays visible
     el.style.zIndex = String(50000);
   });
 
@@ -899,7 +1169,6 @@ function attachDragHandlers(el, cardData, kind) {
     if (!longPressFired && Math.hypot(dx, dy) > 8) {
       clearPressTimer();
 
-      // free slot ONLY when it truly starts dragging
       if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
         clearCapturedAssignment(el);
         baseFreedAssignment = true;
@@ -928,7 +1197,6 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (kind === "base") {
       snapBaseAutoFill(el);
-      // if it wasn't dropped in captured zone, restore a sensible z-index
       if (!el.dataset.capSide) el.style.zIndex = "12000";
     } else {
       snapCardToNearestZone(el);
@@ -942,8 +1210,378 @@ function attachDragHandlers(el, cardData, kind) {
   });
 }
 
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
+// ---------- TRAY state + logic ----------
+const trayState = {
+  open: false,
+  mode: "draw", // "draw" | "search"
+  // Draw items: [{ owner, pileKey, card }]
+  drawItems: [],
+  // Search state
+  searchPileKey: null,
+  searchOwner: null,
+  searchTitle: "",
+  searchOriginalIds: [],
+  searchRemovedIds: new Set(),
+  searchQuery: "",
+};
+
+function openTray() {
+  tray.classList.add("open");
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  trayShell.style.pointerEvents = "auto";
+  // ^ (harmless) keeps pointer-events enabled even if browser drops a style update mid-gesture
+
+  trayState.open = true;
+}
+
+function closeTray() {
+  if (!trayState.open) return;
+
+  if (trayState.mode === "draw") {
+    // Return remaining drawn cards to their original deck pile, preserving order.
+    // To restore pre-draw state: push back in reverse draw order.
+    const remaining = trayState.drawItems.slice();
+    for (let i = remaining.length - 1; i >= 0; i--) {
+      const it = remaining[i];
+      piles[it.pileKey].push(it.card);
+    }
+    trayState.drawItems = [];
+    setDrawCount("p1", 0);
+    setDrawCount("p2", 0);
+  } else if (trayState.mode === "search") {
+    const pileKey = trayState.searchPileKey;
+    if (pileKey) {
+      const removed = trayState.searchRemovedIds;
+
+      const byId = new Map();
+      for (const c of piles[pileKey]) byId.set(c.id, c);
+
+      // Rebuild from original snapshot order, skipping removed.
+      const rebuilt = [];
+      for (const id of trayState.searchOriginalIds) {
+        if (removed.has(id)) continue;
+        const card = byId.get(id);
+        if (card) rebuilt.push(card);
+      }
+      piles[pileKey] = rebuilt;
+    }
+
+    trayState.searchPileKey = null;
+    trayState.searchOwner = null;
+    trayState.searchTitle = "";
+    trayState.searchOriginalIds = [];
+    trayState.searchRemovedIds = new Set();
+    trayState.searchQuery = "";
+  }
+
+  trayState.open = false;
+  tray.classList.remove("open");
+  trayShell.style.pointerEvents = "none";
+  traySearchRow.classList.remove("show");
+  trayCarousel.innerHTML = "";
+}
+
+trayCloseBtn.addEventListener("click", () => {
+  if (previewOpen) return;
+  closeTray();
+});
+
+traySearchInput.addEventListener("input", () => {
+  trayState.searchQuery = traySearchInput.value || "";
+  renderTray();
+});
+
+function normalize(s) { return (s || "").toLowerCase().trim(); }
+
+function openTrayDraw() {
+  trayState.mode = "draw";
+  trayTitle.textContent = "TRAY (DRAW)";
+  traySearchRow.classList.remove("show");
+  openTray();
+  renderTray();
+}
+
+function openTraySearch(owner, pileKey, title) {
+  trayState.mode = "search";
+  trayState.searchOwner = owner;
+  trayState.searchPileKey = pileKey;
+  trayState.searchTitle = title;
+  trayState.searchQuery = "";
+  trayState.searchRemovedIds = new Set();
+  trayState.searchOriginalIds = piles[pileKey].map(c => c.id);
+
+  trayTitle.textContent = `SEARCH: ${title}`;
+  traySearchInput.value = "";
+  traySearchRow.classList.add("show");
+  openTray();
+  renderTray();
+}
+
+function renderTray() {
+  trayCarousel.innerHTML = "";
+
+  if (!trayState.open) return;
+
+  if (trayState.mode === "draw") {
+    // Show drawn cards (private)
+    for (const item of trayState.drawItems) {
+      const tile = makeTrayTile(item.card);
+      tile.addEventListener("click", () => {
+        if (tile.__justDragged) { tile.__justDragged = false; return; }
+        showPreview(item.card);
+      });
+      makeTrayTileDraggable(tile, item.card, () => {
+        trayState.drawItems = trayState.drawItems.filter(x => x.card.id !== item.card.id);
+        setDrawCount(item.owner, trayState.drawItems.filter(x => x.owner === item.owner).length);
+        renderTray();
+      });
+      trayCarousel.appendChild(tile);
+    }
+  } else {
+    const pileKey = trayState.searchPileKey;
+    if (!pileKey) return;
+
+    const q = normalize(trayState.searchQuery);
+    const removed = trayState.searchRemovedIds;
+
+    // ordered list from snapshot
+    const pileById = new Map();
+    for (const c of piles[pileKey]) pileById.set(c.id, c);
+
+    const ordered = [];
+    for (const id of trayState.searchOriginalIds) {
+      if (removed.has(id)) continue;
+      const card = pileById.get(id);
+      if (card) ordered.push(card);
+    }
+
+    // blank shows all in natural order
+    const visible = q ? ordered.filter(c => normalize(c.name).includes(q)) : ordered;
+
+    for (const card of visible) {
+      const tile = makeTrayTile(card);
+      tile.addEventListener("click", () => {
+        if (tile.__justDragged) { tile.__justDragged = false; return; }
+        showPreview(card);
+      });
+
+      makeTrayTileDraggable(tile, card, () => {
+        trayState.searchRemovedIds.add(card.id);
+        // Remove from live pile
+        piles[pileKey] = piles[pileKey].filter(c => c.id !== card.id);
+        renderTray();
+      });
+
+      trayCarousel.appendChild(tile);
+    }
+  }
+}
+
+function makeTrayTile(card) {
+  const tile = document.createElement("div");
+  tile.className = "trayTile";
+
+  const img = document.createElement("div");
+  img.className = "trayTileImg";
+  img.style.backgroundImage = `url('${card.img || ""}')`;
+
+  const label = document.createElement("div");
+  label.className = "trayTileLabel";
+  label.textContent = card.name || "Card";
+
+  tile.appendChild(img);
+  tile.appendChild(label);
+  return tile;
+}
+
+// Drag from tray -> board (public)
+function makeTrayTileDraggable(tile, card, onCommitToBoard) {
+  let dragging = false;
+  let ghost = null;
+  let start = { x:0, y:0 };
+
+  tile.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    e.preventDefault();
+    dragging = true;
+    tile.__justDragged = false;
+    start = { x: e.clientX, y: e.clientY };
+    tile.setPointerCapture(e.pointerId);
+
+    // ghost follows pointer (UI layer)
+    ghost = document.createElement("div");
+    ghost.style.position = "fixed";
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top = `${e.clientY - 75}px`;
+    ghost.style.width = "108px";
+    ghost.style.height = "151px";
+    ghost.style.borderRadius = "12px";
+    ghost.style.border = "2px solid rgba(255,255,255,0.85)";
+    ghost.style.background = "rgba(20,20,22,0.92)";
+    ghost.style.zIndex = "170000";
+    ghost.style.pointerEvents = "none";
+    ghost.style.boxSizing = "border-box";
+    ghost.style.display = "flex";
+    ghost.style.alignItems = "center";
+    ghost.style.justifyContent = "center";
+    ghost.style.color = "#fff";
+    ghost.style.fontWeight = "900";
+    ghost.style.textAlign = "center";
+    ghost.style.padding = "10px";
+    ghost.textContent = card.name || "Card";
+    document.body.appendChild(ghost);
+  });
+
+  tile.addEventListener("pointermove", (e) => {
+    if (!dragging || !ghost) return;
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top  = `${e.clientY - 75}px`;
+  });
+
+  tile.addEventListener("pointerup", (e) => {
+    if (!dragging) return;
+    dragging = false;
+
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
+    tile.__justDragged = moved;
+
+    if (ghost) { ghost.remove(); ghost = null; }
+
+    const trayRect = tray.getBoundingClientRect();
+    const releasedOverTray = (e.clientY >= trayRect.top);
+
+    if (!releasedOverTray) {
+      // Spawn on board at drop location (design coords)
+      const p = viewportToDesign(e.clientX, e.clientY);
+      const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
+      const el = makeCardEl(card, kind);
+
+      // center at drop point
+      const w = kind === "base" ? BASE_W : CARD_W;
+      const h = kind === "base" ? BASE_H : CARD_H;
+
+      el.style.left = `${p.x - w / 2}px`;
+      el.style.top  = `${p.y - h / 2}px`;
+      el.style.zIndex = kind === "base" ? "12000" : "15000";
+
+      stage.appendChild(el);
+
+      if (kind === "base") snapBaseAutoFill(el);
+      else snapCardToNearestZone(el);
+
+      onCommitToBoard();
+    }
+  });
+
+  tile.addEventListener("pointercancel", () => {
+    dragging = false;
+    if (ghost) { ghost.remove(); ghost = null; }
+  });
+}
+
+// ---------- pile zone click bindings ----------
+function getZoneEl(id) {
+  return stage.querySelector(`.zone[data-zone-id="${id}"]`);
+}
+
+function bindPileZoneClicks() {
+  // Clear previous listeners by cloning nodes (safe & simple)
+  for (const id of ["p1_draw","p2_draw","p1_discard","p2_discard","p1_exile_draw","p1_exile_perm","p2_exile_draw","p2_exile_perm"]) {
+    const el = getZoneEl(id);
+    if (!el) continue;
+    const clone = el.cloneNode(true);
+    el.parentNode.replaceChild(clone, el);
+  }
+
+  // Re-grab after clone
+  const zP1Draw = getZoneEl("p1_draw");
+  const zP2Draw = getZoneEl("p2_draw");
+  const zP1Discard = getZoneEl("p1_discard");
+  const zP2Discard = getZoneEl("p2_discard");
+  const zP1ExD = getZoneEl("p1_exile_draw");
+  const zP1ExP = getZoneEl("p1_exile_perm");
+  const zP2ExD = getZoneEl("p2_exile_draw");
+  const zP2ExP = getZoneEl("p2_exile_perm");
+
+  // Draw: 1 per click into tray
+  function handleDraw(owner, pileKey) {
+    if (previewOpen) return;
+
+    // If tray is open in SEARCH mode, ignore draw clicks to avoid confusion
+    if (trayState.open && trayState.mode === "search") return;
+
+    openTrayDraw();
+    const card = piles[pileKey].pop();
+    if (!card) return;
+
+    trayState.drawItems.push({ owner, pileKey, card });
+
+    setDrawCount(owner, trayState.drawItems.filter(x => x.owner === owner).length);
+    renderTray();
+  }
+
+  zP1Draw?.addEventListener("click", () => handleDraw("p1", "p1_deck"));
+  zP2Draw?.addEventListener("click", () => handleDraw("p2", "p2_deck"));
+
+  // Search: discard/exile opens tray in search mode
+  zP1Discard?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p1", "p1_discard", "P1 DISCARD"); });
+  zP2Discard?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p2", "p2_discard", "P2 DISCARD"); });
+
+  // Exile draw + exile perm both open same exile pile
+  zP1ExD?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p1", "p1_exile", "P1 EXILE"); });
+  zP1ExP?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p1", "p1_exile", "P1 EXILE"); });
+
+  zP2ExD?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p2", "p2_exile", "P2 EXILE"); });
+  zP2ExP?.addEventListener("click", () => { if (!previewOpen) openTraySearch("p2", "p2_exile", "P2 EXILE"); });
+}
+
+// ---------- spawn a couple test cards (kept from your original intent) ----------
+const unitCard = makeCardEl(
+  {
+    id: "obiwan_test",
+    img: "./cards/test/obiwan.jpg",
+    name: "Obi-Wan Kenobi",
+    type: "Unit",
+    subtype: "Jedi",
+    cost: "6",
+    attack: "4",
+    resources: "—",
+    force: "2",
+    effect: "When you reveal Obi-Wan Kenobi from the top of your deck, add him to your hand and reveal the next card instead.",
+    reward: "Gain 3 Resources and 3 Force.",
+    kind: "unit",
+  },
+  "unit"
+);
 unitCard.style.left = `${DESIGN_W * 0.42}px`;
 unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
@@ -951,14 +1589,30 @@ stage.appendChild(unitCard);
 
 const BASE_TEST_COUNT = 10;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
+  const baseCard = makeCardEl(
+    {
+      id: `base_test_${i}`,
+      img: "./cards/test/base.jpg",
+      name: "Test Base",
+      type: "Base",
+      subtype: "Location",
+      cost: "—",
+      attack: "—",
+      resources: "—",
+      force: "—",
+      effect: "Test base card for captured-base auto-fill.",
+      reward: "—",
+      kind: "base",
+    },
+    "base"
+  );
   baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
   baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
 
-// keyboard rotate for unit
+// keyboard rotate for the first unit (kept)
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") toggleRotate(unitCard);
 });
