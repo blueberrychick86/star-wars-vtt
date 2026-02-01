@@ -89,10 +89,7 @@ const hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
 
-const fitBtn = document.createElement("button");
-fitBtn.className = "hudBtn";
-fitBtn.textContent = "FIT";
-hud.appendChild(fitBtn);
+// (FIT button removed on purpose — you have zoom/pan now)
 
 const stage = document.createElement("div");
 stage.id = "stage";
@@ -180,8 +177,8 @@ const BASE_H = CARD_W;
 const GAP = 18;
 const BIG_GAP = 28;
 
-// ✅ NEW: single tuning knob for base distance from Galaxy Row
-const BASE_ROW_GAP = 140;
+// ✅ ONE knob: distance between Galaxy Rows and base stacks
+const BASE_ROW_GAP = 120;
 
 const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
@@ -227,29 +224,30 @@ function computeZones() {
   const yRow1 = 220;
   const yRow2 = yRow1 + CARD_H + GAP;
 
-  // ✅ KEEP THESE (crash-safe + used by multiple zones)
+  // ✅ required (do not delete)
   const yForceTrack = yRow1;
   const forceTrackW = 52;
   const forceTrackH = (CARD_H * 2) + GAP;
 
-  // ✅ ONLY CHANGE: move base stacks away from Galaxy Row
-  // P2 base goes UP; allow it to go to 0 if needed (no longer stuck at 20)
+  // ✅ ONLY base stacks move (symmetrical)
   const yTopBase = Math.max(0, yRow1 - BASE_H - BASE_ROW_GAP);
+  const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
 
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
   const yBottomPiles = yRow2 + CARD_H + 110;
 
-  // P1 base goes DOWN; do not allow it to move ABOVE its old safe position (prevents overlap surprises)
-  const oldBottomBase = yBottomPiles + CARD_H + 30;
-  const yBottomBase = Math.max(oldBottomBase, (yRow2 + CARD_H) + BASE_ROW_GAP);
-
   const yCapTop = 45;
   const yCapBottom = yRow2 + CARD_H + 35;
 
   DESIGN_W = xCaptured + CAP_W + 18;
   DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
+
+  // ✅ FIX: Galaxy draw pile centered between the two Galaxy rows
+  // Center line between rows is: yRow1 + CARD_H + GAP/2
+  // So top-left y is: that - CARD_H/2
+  const yGalaxyDeck = yRow1 + Math.round(CARD_H / 2) + Math.round(GAP / 2);
 
   return {
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
@@ -261,12 +259,7 @@ function computeZones() {
 
     p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
 
-    galaxy_deck: rect(
-      xGalaxyDeck,
-      yRow1 + Math.round((CARD_H + GAP) / 2) - Math.round(CARD_H / 2),
-      CARD_W,
-      CARD_H
-    ),
+    galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
 
     ...(() => {
       const out = {};
@@ -277,6 +270,7 @@ function computeZones() {
       return out;
     })(),
 
+    // these stay centered relative to force track height (already correct)
     outer_rim: rect(xOuterRim, yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)), CARD_W, CARD_H),
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2)), CARD_W, CARD_H),
@@ -293,7 +287,7 @@ function computeZones() {
 }
 
 // ---------- camera ----------
-const camera = { scale: 1, tx: 0, ty: 0 };
+const camera = { scale: 1, tx: 40, ty: 40 }; // small offset so you don’t spawn at hard 0,0
 
 function viewportSize() {
   const vv = window.visualViewport;
@@ -302,19 +296,6 @@ function viewportSize() {
 function applyCamera() {
   stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
 }
-function fitToScreen() {
-  const { w, h } = viewportSize();
-  const margin = 16;
-
-  const s = Math.min((w - margin * 2) / DESIGN_W, (h - margin * 2) / DESIGN_H);
-  camera.scale = s;
-  camera.tx = Math.round((w - DESIGN_W * s) / 2);
-  camera.ty = Math.round((h - DESIGN_H * s) / 2);
-
-  applyCamera();
-  refreshSnapRects();
-}
-fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
 
 const BOARD_MIN_SCALE = 0.25;
 const BOARD_MAX_SCALE = 4.0;
@@ -384,6 +365,7 @@ table.addEventListener("pointermove", (e) => {
     setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
   }
 });
+
 function endBoardPointer(e){
   boardPointers.delete(e.pointerId);
   if (boardPointers.size === 1){
@@ -619,7 +601,7 @@ function placeBaseAtSlot(baseEl, side, idx) {
 
   baseEl.style.left = `${s.x - w / 2}px`;
   baseEl.style.top  = `${s.y - h / 2}px`;
-  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx); // ✅ stable layering
 
   baseEl.dataset.capSide = side;
   baseEl.dataset.capIndex = String(idx);
@@ -785,12 +767,20 @@ function build() {
 
   applyCamera();
   refreshSnapRects();
-  fitToScreen();
 }
 build();
 
-window.addEventListener("resize", () => fitToScreen());
-if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
+// ✅ No auto-fit; just keep zoom/pan and refresh snapping on resize
+window.addEventListener("resize", () => {
+  applyCamera();
+  refreshSnapRects();
+});
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", () => {
+    applyCamera();
+    refreshSnapRects();
+  });
+}
 
 // ---------- card factory ----------
 function makeCardEl(cardData, kind) {
