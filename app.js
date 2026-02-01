@@ -230,7 +230,8 @@ function computeZones() {
   const forceTrackH = (CARD_H * 2) + GAP;
 
   // ✅ ONLY base stacks move (symmetrical)
-  const yTopBase = Math.max(0, yRow1 - BASE_H - BASE_ROW_GAP);
+  const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;  // P2 mirrors freely (can go negative)
+
   const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
 
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
