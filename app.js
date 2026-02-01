@@ -733,7 +733,8 @@ function bindPileZoneClicks() {
   ];
 
   for (const m of clickMap) {
-    const el = stage.querySelector(\`.zone[data-zone-id='\${m.id}']\`);
+    const el = stage.querySelector(`.zone[data-zone-id='${m.id}']`);
+
     if (!el) continue;
     el.classList.add("clickable");
 
