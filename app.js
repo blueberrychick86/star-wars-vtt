@@ -90,14 +90,15 @@ style.textContent = `
 
   /* -------- TRAY (RIGHT DRAWER ALWAYS) -------- */
   #trayShell{
-    position: fixed;
-    top: 0; bottom: 0; right: 0;
-    width: min(440px, 46vw);
-    padding: 8px;
-    box-sizing: border-box;
-    z-index: 150000;
-    pointer-events: none;
-  }
+  position: fixed;
+  top: 0; bottom: 0; right: 0;
+  width: min(320px, 36vw);   /* narrower drawer */
+  padding: 8px;
+  box-sizing: border-box;
+  z-index: 150000;
+  pointer-events: none;
+}
+
   #tray{
     width: 100%;
     height: calc(100vh - 16px);
@@ -159,7 +160,8 @@ style.textContent = `
   }
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
 
-  #trayBody{ flex:1; padding: 10px 12px; overflow:hidden; }
+  #trayBody{ flex:1; padding: 12px 12px 10px 12px; overflow:hidden; }
+
   #trayCarousel{
     height: 100%;
     display:flex;
@@ -171,20 +173,31 @@ style.textContent = `
     touch-action: pan-y; /* swipe up/down */
     padding-right: 4px;
   }
+  #trayCarousel{
+  /* ...keep your existing properties... */
+  padding-bottom: 20px;
+}
+
 
   .trayTile{
-    flex: 0 0 auto;
-    width: 100%;
-    height: 112px;
-    border-radius: 12px;
-    border: 2px solid rgba(255,255,255,0.45);
-    background: rgba(255,255,255,0.04);
-    position: relative;
-    overflow: hidden;
-    cursor: grab;
-    user-select:none;
-    touch-action:none;
-  }
+  flex: 0 0 auto;
+
+  /* full vertical card */
+  width: 100%;
+  max-width: 240px;              /* keeps cards from getting giant */
+  aspect-ratio: 2.5 / 3.5;       /* true card ratio */
+  margin: 0 auto;                /* center in drawer */
+
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.04);
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  user-select:none;
+  touch-action:none;
+}
+
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
   .trayTileLabel{
@@ -1505,41 +1518,41 @@ const TEST_BASE = {
     return { ...base, ...overrides, id };
   }
 
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
   piles = {
+    // Big draw piles for scroll testing
     p1_draw: [
-      cloneCard(OBIWAN, { name: "Rebel Trooper" }),
-      cloneCard(OBIWAN, { name: "X-Wing" }),
-      cloneCard(OBIWAN, { name: "Leia Organa" }),
-      cloneCard(OBIWAN, { name: "Rebel Trooper" }),
-      cloneCard(OBIWAN, { name: "Y-Wing" }),
-      cloneCard(OBIWAN, { name: "Luke Skywalker" }),
+      ...makeMany("P1 Draw Card", 30),
     ],
     p2_draw: [
-      cloneCard(OBIWAN, { name: "TIE Fighter" }),
-      cloneCard(OBIWAN, { name: "Stormtrooper" }),
-      cloneCard(OBIWAN, { name: "Darth Vader" }),
-      cloneCard(OBIWAN, { name: "Stormtrooper" }),
-      cloneCard(OBIWAN, { name: "TIE Fighter" }),
-      cloneCard(OBIWAN, { name: "Imperial Officer" }),
+      ...makeMany("P2 Draw Card", 30),
     ],
+
+    // Big discard piles for search + scroll testing
     p1_discard: [
-      cloneCard(OBIWAN, { name: "Discard Example A" }),
-      cloneCard(OBIWAN, { name: "Discard Example B" }),
+      ...makeMany("Discard Example", 25),
     ],
     p2_discard: [
-      cloneCard(OBIWAN, { name: "Discard Example C" }),
-      cloneCard(OBIWAN, { name: "Discard Example D" }),
+      ...makeMany("Discard Example", 25),
     ],
+
+    // Optional: bigger exile too
     p1_exile: [
-      cloneCard(OBIWAN, { name: "Exiled Example A" }),
-      cloneCard(OBIWAN, { name: "Exiled Example B" }),
+      ...makeMany("Exiled Example", 18),
     ],
     p2_exile: [
-      cloneCard(OBIWAN, { name: "Exiled Example C" }),
-      cloneCard(OBIWAN, { name: "Exiled Example D" }),
+      ...makeMany("Exiled Example", 18),
     ],
   };
 })();
+
 
 // ---------- spawn test cards ----------
 const unitCard = makeCardEl(OBIWAN, "unit");
