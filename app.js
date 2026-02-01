@@ -898,12 +898,19 @@ function fitToScreen() {
 
   const s = Math.min((w - margin * 2) / DESIGN_W, (h - margin * 2) / DESIGN_H);
   camera.scale = s;
-  camera.tx = Math.round((w - DESIGN_W * s) / 2);
-  camera.ty = Math.round((h - DESIGN_H * s) / 2);
+
+  const centerTx = Math.round((w - DESIGN_W * s) / 2);
+  const centerTy = Math.round((h - DESIGN_H * s) / 2);
+
+  // shift board left a bit (safe, only affects initial framing)
+  const leftBias = Math.min(90, Math.round(w * 0.18));
+  camera.tx = centerTx - leftBias;
+  camera.ty = centerTy;
 
   applyCamera();
   refreshSnapRects();
 }
+
 fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
 
 const BOARD_MIN_SCALE = 0.25;
