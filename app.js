@@ -32,7 +32,7 @@ const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
 const CAP_Z_BASE = 20000;
 
 // Layout knobs
-const BASE_ROW_GAP = 300;      // ✅ bases farther from galaxy row (mirrored)
+const BASE_ROW_GAP = 350;      // ✅ bases farther from galaxy row (mirrored)
 const CAP_DISCARD_GAP = 26;    // ✅ captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
