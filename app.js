@@ -231,7 +231,7 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    touch-action:none;
+    touch-action: pan-y; /* allow vertical scroll gesture */
   }
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
@@ -565,26 +565,28 @@ function makeTrayTile(card) {
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let dragging = false;
   let ghost = null;
+
   let start = { x:0, y:0 };
+  let lastPt = { x:0, y:0 };
 
-  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
+  // Touch-only: hold-to-drag
+  let holdTimer = null;
+  let holdArmed = false;      // pointer is down, waiting to see if hold happens
+  let dragEnabled = false;    // hold fired; we can now drag
+  const HOLD_MS = 220;
+  const MOVE_CANCEL_PX = 10;
 
-  tile.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    if (previewOpen) return;
+  function clearHold() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    holdArmed = false;
+    dragEnabled = false;
+  }
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    dragging = true;
-    tile.__justDragged = false;
-    start = { x: e.clientX, y: e.clientY };
-    tile.setPointerCapture(e.pointerId);
-
+  function makeGhost(x, y) {
     ghost = document.createElement("div");
     ghost.style.position = "fixed";
-    ghost.style.left = `${e.clientX - 54}px`;
-    ghost.style.top = `${e.clientY - 75}px`;
+    ghost.style.left = `${x - 54}px`;
+    ghost.style.top = `${y - 75}px`;
     ghost.style.width = "108px";
     ghost.style.height = "151px";
     ghost.style.borderRadius = "12px";
@@ -602,13 +604,146 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     ghost.style.padding = "10px";
     ghost.textContent = card.name || "Card";
     document.body.appendChild(ghost);
+  }
+
+  function moveGhost(x, y) {
+    if (!ghost) return;
+    ghost.style.left = `${x - 54}px`;
+    ghost.style.top  = `${y - 75}px`;
+  }
+
+  function killGhost() {
+    if (ghost) { ghost.remove(); ghost = null; }
+  }
+
+  function commitDrop(clientX, clientY) {
+    const trayRect = tray.getBoundingClientRect();
+    const releasedOverTray =
+      clientX >= trayRect.left && clientX <= trayRect.right &&
+      clientY >= trayRect.top  && clientY <= trayRect.bottom;
+
+    // Only spawn if released outside tray
+    if (!releasedOverTray) {
+      const p = viewportToDesign(clientX, clientY);
+      const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
+      const el = makeCardEl(card, kind);
+
+      const w = kind === "base" ? BASE_W : CARD_W;
+      const h = kind === "base" ? BASE_H : CARD_H;
+
+      el.style.left = `${p.x - w / 2}px`;
+      el.style.top  = `${p.y - h / 2}px`;
+      el.style.zIndex = kind === "base" ? "12000" : "15000";
+
+      stage.appendChild(el);
+
+      if (kind === "base") snapBaseAutoFill(el);
+      else snapCardToNearestZone(el);
+
+      onCommitToBoard();
+    }
+  }
+
+  // Right-click preview on desktop
+  tile.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showPreview(card);
+  });
+
+  tile.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (previewOpen) return;
+
+    // Let the tray scroll unless/ until we enter drag mode
+    // For mouse: drag immediately. For touch: hold-to-drag.
+    dragging = false;
+    tile.__justDragged = false;
+
+    start = { x: e.clientX, y: e.clientY };
+    lastPt = { x: e.clientX, y: e.clientY };
+
+    if (e.pointerType === "touch") {
+      holdArmed = true;
+      dragEnabled = false;
+
+      // Do NOT preventDefault here; we want native scrolling in tray
+      // until the hold triggers.
+      holdTimer = setTimeout(() => {
+        if (!holdArmed) return;
+        dragEnabled = true;
+        dragging = true;
+
+        // Now we are dragging: stop scroll + capture pointer
+        try { tile.setPointerCapture(e.pointerId); } catch {}
+        e.preventDefault();
+        e.stopPropagation();
+
+        makeGhost(lastPt.x, lastPt.y);
+      }, HOLD_MS);
+
+      return;
+    }
+
+    // Mouse / pen: immediate drag
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragging = true;
+    try { tile.setPointerCapture(e.pointerId); } catch {}
+    makeGhost(e.clientX, e.clientY);
   });
 
   tile.addEventListener("pointermove", (e) => {
+    lastPt = { x: e.clientX, y: e.clientY };
+
+    // Touch: if user moves before hold triggers, cancel hold (scroll wins)
+    if (e.pointerType === "touch" && holdArmed && !dragEnabled) {
+      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+      if (moved > MOVE_CANCEL_PX) {
+        clearHold();
+      }
+      return;
+    }
+
     if (!dragging || !ghost) return;
-    ghost.style.left = `${e.clientX - 54}px`;
-    ghost.style.top  = `${e.clientY - 75}px`;
+    e.preventDefault();
+    e.stopPropagation();
+    moveGhost(e.clientX, e.clientY);
   });
+
+  tile.addEventListener("pointerup", (e) => {
+    // If we were waiting for hold and never dragged, treat as tap/click
+    if (e.pointerType === "touch" && holdArmed && !dragEnabled) {
+      clearHold();
+      tile.__justDragged = false;
+      return;
+    }
+
+    if (!dragging) {
+      clearHold();
+      return;
+    }
+
+    dragging = false;
+    clearHold();
+
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
+    tile.__justDragged = moved;
+
+    killGhost();
+    try { tile.releasePointerCapture(e.pointerId); } catch {}
+
+    commitDrop(e.clientX, e.clientY);
+  });
+
+  tile.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearHold();
+    killGhost();
+  });
+}
+
 
   tile.addEventListener("pointerup", (e) => {
     if (!dragging) return;
