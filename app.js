@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (red/blue/gold cubes) + end-turn return (blue+gold)");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (red/blue/gold cubes) + end-turn return (blue+gold) + UI sizing tweaks");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -62,10 +62,30 @@ function rect(x, y, w, h) { return { x, y, w, h }; }
 const style = document.createElement("style");
 style.textContent = `
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
-  #hud { position: fixed; left: 12px; top: 12px; z-index: 100000; display:flex; gap:8px; flex-wrap:wrap; pointer-events:auto; }
-  .hudBtn { background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.25);
-    border-radius:10px; padding:10px 12px; font-weight:900; letter-spacing:0.5px;
-    user-select:none; touch-action:manipulation; cursor:pointer; }
+  #hud {
+    position: fixed;
+    left: 10px;
+    top: 10px;
+    z-index: 100000;
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    pointer-events:auto;
+  }
+  .hudBtn {
+    background: rgba(255,255,255,0.10);
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.22);
+    border-radius:8px;
+    padding:6px 8px;
+    font-weight:900;
+    letter-spacing:0.4px;
+    font-size:11px;
+    line-height:1;
+    user-select:none;
+    touch-action:manipulation;
+    cursor:pointer;
+  }
 
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
@@ -286,13 +306,14 @@ style.textContent = `
 
   .trayCountBadge{
     position:absolute;
-    width: 42px; height: 42px;
+    width: 34px; height: 34px;
     border-radius: 999px;
-    border: 2px solid rgba(255,255,255,0.22);
+    border: 2px solid rgba(255,255,255,0.20);
     background: rgba(255,255,255,0.06);
     display:flex; align-items:center; justify-content:center;
     color: rgba(255,255,255,0.92);
     font-weight: 900;
+    font-size: 12px;
     box-shadow: 0 10px 20px rgba(0,0,0,0.45);
     pointer-events:none;
     user-select:none;
@@ -309,24 +330,24 @@ style.textContent = `
     box-sizing: border-box;
   }
   .tokenBankTitle{
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.6px;
-    color: rgba(255,255,255,0.92);
+    color: rgba(255,255,255,0.85);
     margin: 0 0 8px 0;
     user-select:none;
     text-transform: uppercase;
   }
   .tokenBinsRow{
     display:flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
     justify-content: space-between;
   }
   .tokenBin{
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
+    width: 78px;          /* bigger buckets */
+    height: 78px;         /* bigger buckets */
+    border-radius: 14px;
     border: 1px dashed rgba(255,255,255,0.18);
     background: rgba(0,0,0,0.18);
     position: relative;
@@ -336,23 +357,12 @@ style.textContent = `
     touch-action:none;
   }
   .tokenBin:active{ cursor: grabbing; }
-  .tokenBinLabel{
-    position:absolute;
-    left: 7px;
-    bottom: 7px;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.3px;
-    color: rgba(255,255,255,0.85);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
-    pointer-events:none;
-  }
   .tokenBinCount{
     position:absolute;
-    right: 7px;
-    top: 7px;
-    width: 22px;
-    height: 22px;
+    right: 8px;
+    top: 8px;
+    width: 24px;
+    height: 24px;
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.22);
     background: rgba(255,255,255,0.08);
@@ -387,8 +397,8 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98));
   }
   .tokenGold{
-    background: linear-gradient(145deg, rgba(255,230,150,0.98), rgba(155,110,20,0.98));
-    border-color: rgba(255,255,255,0.28);
+    background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
+    border-color: rgba(255,255,255,0.30);
   }
 `;
 document.head.appendChild(style);
@@ -409,17 +419,17 @@ hud.appendChild(fitBtn);
 
 const endP1Btn = document.createElement("button");
 endP1Btn.className = "hudBtn";
-endP1Btn.textContent = "END TURN (P1)";
+endP1Btn.textContent = "END P1";
 hud.appendChild(endP1Btn);
 
 const endP2Btn = document.createElement("button");
 endP2Btn.className = "hudBtn";
-endP2Btn.textContent = "END TURN (P2)";
+endP2Btn.textContent = "END P2";
 hud.appendChild(endP2Btn);
 
 const resetTokensBtn = document.createElement("button");
 resetTokensBtn.className = "hudBtn";
-resetTokensBtn.textContent = "RESET TOKENS";
+resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
 
 const stage = document.createElement("div");
@@ -959,10 +969,10 @@ function ensureDrawCountBadges() {
   }
 
   drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
-  drawCountBadges.p1.style.top  = `${Math.round(z1.y + z1.h/2 - 21)}px`;
+  drawCountBadges.p1.style.top  = `${Math.round(z1.y + z1.h/2 - 17)}px`;
 
   drawCountBadges.p2.style.left = `${Math.round(z2.x + z2.w + 10)}px`;
-  drawCountBadges.p2.style.top  = `${Math.round(z2.y + z2.h/2 - 21)}px`;
+  drawCountBadges.p2.style.top  = `${Math.round(z2.y + z2.h/2 - 17)}px`;
 
   setDrawCount("p1", 0);
   setDrawCount("p2", 0);
@@ -1071,8 +1081,8 @@ function computeZones() {
 
   // Token banks: under P1 piles, above P2 piles (mirrored)
   const bankW = (CARD_W * 2) + GAP; // same width as piles pair
-  const bankH = 96;
-  const bankX = xPiles; // align with piles left edge
+  const bankH = 118;               // slightly taller to match bigger bins
+  const bankX = xPiles;            // align with piles left edge
   const bankGap = 18;
 
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles (toward bottom)
@@ -1108,7 +1118,7 @@ function computeZones() {
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
 
-    // token bank anchors (not snap zones; we just want them in design bounds)
+    // token bank anchors
     p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
     p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
   };
@@ -1607,10 +1617,6 @@ function toggleFlip(cardEl) {
 
 // ---------- TOKEN BANKS ----------
 let tokenBankEls = { p1: null, p2: null };
-let tokenBinEls = {
-  p1: { damage: null, attack: null, resource: null },
-  p2: { damage: null, attack: null, resource: null },
-};
 let tokenCountEls = {
   p1: { damage: null, attack: null, resource: null },
   p2: { damage: null, attack: null, resource: null },
@@ -1718,7 +1724,7 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
     tok.style.left = `${px2 - offX}px`;
     tok.style.top  = `${py2 - offY}px`;
   }
-  function up(e) {
+  function up() {
     try { tok.releasePointerCapture(pointerId); } catch {}
     tok.style.zIndex = "16000";
     window.removeEventListener("pointermove", move, true);
@@ -1732,7 +1738,6 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 }
 
 function buildTokenBank(owner, r) {
-  // container
   const bank = document.createElement("div");
   bank.className = "tokenBank";
   bank.style.left = `${r.x}px`;
@@ -1741,6 +1746,7 @@ function buildTokenBank(owner, r) {
   bank.style.height = `${r.h}px`;
   bank.dataset.owner = owner;
 
+  // Title kept subtle; if you want it gone too, tell me and I’ll remove it.
   const title = document.createElement("div");
   title.className = "tokenBankTitle";
   title.textContent = owner === "p1" ? "P1 TOKENS" : "P2 TOKENS";
@@ -1750,9 +1756,9 @@ function buildTokenBank(owner, r) {
   row.className = "tokenBinsRow";
 
   const bins = [
-    { type:"damage", label:"DMG" },
-    { type:"attack", label:"ATK" },
-    { type:"resource", label:"$" },
+    { type:"damage" },
+    { type:"attack" },
+    { type:"resource" },
   ];
 
   for (const b of bins) {
@@ -1761,46 +1767,38 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // a small "sample cube" in the bin to show color
+    // sample cube (shows color)
     const sample = document.createElement("div");
     sample.className = `tokenCube ${tokenClassFor(b.type)}`;
-    sample.style.left = "10px";
-    sample.style.top = "10px";
+    sample.style.left = "12px";
+    sample.style.top = "12px";
     sample.style.zIndex = "1";
-    sample.style.width = "16px";
-    sample.style.height = "16px";
+    sample.style.width = "18px";
+    sample.style.height = "18px";
     sample.style.position = "absolute";
     sample.style.pointerEvents = "none";
     bin.appendChild(sample);
-
-    const lab = document.createElement("div");
-    lab.className = "tokenBinLabel";
-    lab.textContent = b.label;
-    bin.appendChild(lab);
 
     const cnt = document.createElement("div");
     cnt.className = "tokenBinCount";
     cnt.textContent = "0";
     bin.appendChild(cnt);
 
-    // click/drag to spawn
+    // spawn on press
     bin.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
       if (e.button !== 0) return;
       e.stopPropagation();
-      // spawn at pointer position; immediately drag
       spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
     });
 
-    tokenBinEls[owner][b.type] = bin;
     tokenCountEls[owner][b.type] = cnt;
-
     row.appendChild(bin);
   }
 
   bank.appendChild(row);
 
-  // ensure it doesn't bubble pan/zoom
+  // prevent board pan/zoom while interacting
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
@@ -1834,7 +1832,6 @@ function endTurn(owner) {
 }
 
 function resetAllTokens() {
-  // remove all tokens on board and restore pools
   for (const t of Array.from(tokenEls)) {
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
@@ -1864,7 +1861,7 @@ function build() {
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
-  // Draw standard zones (skip token bank anchors as actual "zones" so they don’t look like card slots)
+  // Draw standard zones (skip token bank anchors as actual "zones")
   for (const [id, r] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
 
@@ -1884,7 +1881,7 @@ function build() {
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
-  // Build token banks (mirrored)
+  // Token banks (mirrored)
   buildTokenBank("p2", zones.p2_token_bank);
   buildTokenBank("p1", zones.p1_token_bank);
   updateTokenCountsUI();
@@ -2151,7 +2148,6 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
-// (keep this if you still want a couple bases on the board for quick testing)
 const BASE_TEST_COUNT = 2;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
   const baseCard = makeCardEl(TEST_BASE, "base");
