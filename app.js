@@ -961,9 +961,10 @@ function computeZones() {
   // ---- build zones in local coords first ----
   let zones = {
     // P2 (top)
-    // P2 (top) — mirrored
-p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),                    // LEFT
-p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),  // RIGHT
+   // P2 (top) — SAME orientation as P1
+p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),              // LEFT
+p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),  // RIGHT
+
 
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
 
