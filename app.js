@@ -946,7 +946,7 @@ function computeZones() {
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
-  // ✅ CHANGE #2: align P1 draw/discard with P1 exile row
+  // ✅ align P1 draw/discard with P1 exile row
   const yBottomPiles = yBotExile;
 
   // captured stacks centered around galaxy discard
@@ -958,10 +958,8 @@ function computeZones() {
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  DESIGN_W = xCaptured + CAP_W + 18;
-  DESIGN_H = Math.max(yBottomBase + BASE_H + 18, yCapBottom + CAP_H + 18);
-
-  return {
+  // ---- build zones in local coords first ----
+  let zones = {
     // P2 (top)
     p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
@@ -974,22 +972,13 @@ function computeZones() {
 
     galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
 
-    ...(() => {
-      const out = {};
-      for (let c = 0; c < 6; c++) {
-        out["g1" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
-        out["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
-      }
-      return out;
-    })(),
-
     outer_rim: rect(xOuterRim, yGalaxyDiscard, CARD_W, CARD_H),
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
-    // P1 (bottom)
-    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    // P1 (bottom) ✅ match P2 ordering
+    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
     p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
@@ -997,7 +986,42 @@ function computeZones() {
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
   };
+
+  // galaxy row slots
+  for (let c = 0; c < 6; c++) {
+    zones["g1" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
+    zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
+  }
+
+  // ---- normalize so nothing is negative (fixes FIT top clipping) ----
+  const PAD = 18;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (const r of Object.values(zones)) {
+    minX = Math.min(minX, r.x);
+    minY = Math.min(minY, r.y);
+    maxX = Math.max(maxX, r.x + r.w);
+    maxY = Math.max(maxY, r.y + r.h);
+  }
+
+  const shiftX = (minX < PAD) ? (PAD - minX) : 0;
+  const shiftY = (minY < PAD) ? (PAD - minY) : 0;
+
+  if (shiftX || shiftY) {
+    for (const r of Object.values(zones)) {
+      r.x += shiftX;
+      r.y += shiftY;
+    }
+    maxX += shiftX;
+    maxY += shiftY;
+  }
+
+  DESIGN_W = Math.ceil(maxX + PAD);
+  DESIGN_H = Math.ceil(maxY + PAD);
+
+  return zones;
 }
+
 
 // ---------- camera ----------
 const camera = { scale: 1, tx: 0, ty: 0 };
@@ -1035,8 +1059,8 @@ function fitToScreen() {
   camera.tx = centerTx - leftBias;
 
   // ✅ CHANGE #1: push board down slightly so the top never clips on FIT
-  const TOP_SAFE_BIAS = 24;
-  camera.ty = Math.max(margin, centerTy + TOP_SAFE_BIAS);
+  camera.ty = centerTy;
+
 
   applyCamera();
   refreshSnapRects();
