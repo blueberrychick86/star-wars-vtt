@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (red/blue/gold cubes) + end-turn return (blue+gold) + UI sizing tweaks");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes) + end-turn return (blue+gold) + UI sizing tweaks");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -52,7 +52,9 @@ const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
 
 // Cube look / size (small enough to sit on cards)
 const TOKEN_SIZE = 18;      // px in design space (scales with zoom)
-const TOKEN_STACK_MAX_ON_CARD = 10; // concept target; not enforced, just design intent
+
+// FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
+const TOKEN_BIN_HIT = 96;   // <- bigger invisible tap/drag zone for each cube
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -256,7 +258,6 @@ style.textContent = `
     padding-bottom: 20px;
   }
 
-  /* while dragging a tile, lock the tray scroll to avoid iOS "fight" */
   #trayShell.dragging #trayCarousel{
     overflow: hidden;
     touch-action: none;
@@ -275,7 +276,6 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    /* IMPORTANT: allow vertical scrolling gestures by default */
     touch-action: pan-y;
   }
   .trayTile:active{ cursor: grabbing; }
@@ -290,7 +290,6 @@ style.textContent = `
     pointer-events:none;
   }
 
-  /* ---- tray tile border glow by player color ---- */
   #trayShell[data-player="blue"] .trayTile{
     border-color: rgba(120,180,255,0.80);
     box-shadow: 0 0 0 2px rgba(120,180,255,0.20), 0 10px 22px rgba(0,0,0,0.45);
@@ -319,37 +318,29 @@ style.textContent = `
     user-select:none;
   }
 
-  /* -------- TOKEN BANKS -------- */
+  /* -------- TOKENS (FREEFORM LOOK) -------- */
   .tokenBank{
     position:absolute;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: rgba(255,255,255,0.04);
-    box-shadow: 0 10px 26px rgba(0,0,0,0.42);
-    padding: 10px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
     box-sizing: border-box;
-  }
-  .tokenBankTitle{
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.6px;
-    color: rgba(255,255,255,0.85);
-    margin: 0 0 8px 0;
-    user-select:none;
-    text-transform: uppercase;
+    pointer-events:auto;
   }
   .tokenBinsRow{
     display:flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
+    gap: 18px;
+    align-items:center;
+    justify-content:flex-start;
   }
+
+  /* Invisible large hit area (no border/box). The cube sits centered. */
   .tokenBin{
-    width: 78px;          /* bigger buckets */
-    height: 78px;         /* bigger buckets */
-    border-radius: 14px;
-    border: 1px dashed rgba(255,255,255,0.18);
-    background: rgba(0,0,0,0.18);
+    width: ${TOKEN_BIN_HIT}px;
+    height:${TOKEN_BIN_HIT}px;
+    border: none;
+    background: transparent;
     position: relative;
     box-sizing: border-box;
     cursor: grab;
@@ -357,15 +348,18 @@ style.textContent = `
     touch-action:none;
   }
   .tokenBin:active{ cursor: grabbing; }
+
+  /* Count badge: small, floating, minimal */
   .tokenBinCount{
     position:absolute;
-    right: 8px;
-    top: 8px;
-    width: 24px;
-    height: 24px;
+    right: 10px;
+    top: 10px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.55);
     color: rgba(255,255,255,0.92);
     display:flex;
     align-items:center;
@@ -375,6 +369,7 @@ style.textContent = `
     pointer-events:none;
   }
 
+  /* Actual cubes you drag */
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -1013,7 +1008,6 @@ function bindPileZoneClicks() {
       if (previewOpen) return;
       e.stopPropagation();
 
-      // Draw piles: draw 1 into tray (hidden hand)
       if (m.id === "p1_draw" || m.id === "p2_draw") {
         if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
 
@@ -1025,7 +1019,6 @@ function bindPileZoneClicks() {
         return;
       }
 
-      // Everything else: search view
       openTraySearch(m.owner, m.pileKey, m.label);
     });
   }
@@ -1042,7 +1035,6 @@ function computeZones() {
 
   const xOuterRim = xRowStart + rowWidth + BIG_GAP;
 
-  // force column + discard + captured column
   const xForce = xOuterRim + CARD_W + GAP;
   const forceTrackW = 52;
 
@@ -1057,38 +1049,33 @@ function computeZones() {
   const yForceTrack = yRow1;
   const forceTrackH = (CARD_H * 2) + GAP;
 
-  // Galaxy deck centered between the two rows
   const yGalaxyDeck = yRow1 + Math.round(CARD_H / 2) + Math.round(GAP / 2);
 
-  // Bases mirrored far from galaxy rows
   const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
   const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
 
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
-  // ✅ align P1 draw/discard with P1 exile row
   const yBottomPiles = yBotExile;
 
-  // captured stacks centered around galaxy discard
   const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
   const yCapTop = yGalaxyDiscard - CAP_DISCARD_GAP - CAP_H;
   const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;
 
-  // Exile piles: gap centered on force track center
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: under P1 piles, above P2 piles (mirrored)
-  const bankW = (CARD_W * 2) + GAP; // same width as piles pair
-  const bankH = 118;               // slightly taller to match bigger bins
-  const bankX = xPiles;            // align with piles left edge
+  // Now that banks are "freeform", we only need an anchor row location.
+  const bankW = (TOKEN_BIN_HIT * 3) + (18 * 2); // 3 bins + gaps
+  const bankH = TOKEN_BIN_HIT;
+  const bankX = xPiles; // align near piles
   const bankGap = 18;
 
-  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles (toward bottom)
-  const yP2TokenBank = yTopPiles - bankGap - bankH;        // above P2 piles (toward top)
+  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
+  const yP2TokenBank = yTopPiles - bankGap - bankH;
 
-  // ---- build zones in local coords first ----
   let zones = {
     // P2 (top) — discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
@@ -1118,18 +1105,17 @@ function computeZones() {
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
 
-    // token bank anchors
+    // token bank anchors (no visible zone)
     p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
     p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
   };
 
-  // galaxy row slots
   for (let c = 0; c < 6; c++) {
     zones["g1" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
     zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
   }
 
-  // ---- normalize so nothing is negative (fixes FIT top clipping) ----
+  // normalize so nothing is negative (FIT-safe)
   const PAD = 18;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -1173,11 +1159,8 @@ function fitToScreen() {
   const { w, h } = viewportSize();
   const margin = 16;
 
-  // Reserve tray width if open so FIT doesn't center under it
   let trayW = 0;
-  try {
-    if (trayShell && trayShell.style.display !== "none") trayW = trayShell.getBoundingClientRect().width;
-  } catch {}
+  try { if (trayShell && trayShell.style.display !== "none") trayW = trayShell.getBoundingClientRect().width; } catch {}
 
   const usableW = Math.max(200, w - trayW);
   const s = Math.min(
@@ -1306,7 +1289,6 @@ const SNAP_ZONE_IDS = new Set([
   "p2_base_stack","p1_base_stack",
 ]);
 
-// Units can snap to these:
 const UNIT_SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
@@ -1315,11 +1297,7 @@ const UNIT_SNAP_ZONE_IDS = new Set([
   "g21","g22","g23","g24","g25","g26",
 ]);
 
-// Bases can snap to these
-const BASE_SNAP_ZONE_IDS = new Set([
-  "p1_base_stack",
-  "p2_base_stack",
-]);
+const BASE_SNAP_ZONE_IDS = new Set(["p1_base_stack","p2_base_stack"]);
 
 let zonesMeta = [];
 function refreshSnapRects() {
@@ -1372,7 +1350,6 @@ function snapCardToNearestZone(cardEl) {
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
 }
 
-// Bases: if NOT captured, allow snapping to the nearest base-stack zone
 function snapBaseToNearestBaseStack(baseEl) {
   if (!zonesMeta.length) return;
 
@@ -1589,13 +1566,10 @@ function snapBaseAutoFill(baseEl){
 // ---------- rotation + flip ----------
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-
   cardEl.style.width = `${CARD_W}px`;
   cardEl.style.height = `${CARD_H}px`;
-
   cardEl.style.transformOrigin = "50% 50%";
   cardEl.style.transform = `rotate(${rot}deg)`;
-
   const face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
@@ -1603,10 +1577,8 @@ function applyRotationSize(cardEl) {
 function toggleRotate(cardEl) {
   const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
   const next = (cur + 90) % 360;
-
   cardEl.dataset.rot = String(next);
   applyRotationSize(cardEl);
-
   refreshSnapRects();
 }
 
@@ -1615,7 +1587,7 @@ function toggleFlip(cardEl) {
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
 }
 
-// ---------- TOKEN BANKS ----------
+// ---------- TOKEN BANKS (FREEFORM CUBES) ----------
 let tokenBankEls = { p1: null, p2: null };
 let tokenCountEls = {
   p1: { damage: null, attack: null, resource: null },
@@ -1703,10 +1675,8 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   const p = viewportToDesign(clientX, clientY);
   const tok = createTokenCube(owner, type, p.x, p.y);
 
-  // Start dragging immediately
   try { tok.setPointerCapture(pointerId); } catch {}
 
-  // Manually initialize drag offsets so it doesn't "jump"
   const stageRect = stage.getBoundingClientRect();
   const px = (clientX - stageRect.left) / camera.scale;
   const py = (clientY - stageRect.top) / camera.scale;
@@ -1746,12 +1716,6 @@ function buildTokenBank(owner, r) {
   bank.style.height = `${r.h}px`;
   bank.dataset.owner = owner;
 
-  // Title kept subtle; if you want it gone too, tell me and I’ll remove it.
-  const title = document.createElement("div");
-  title.className = "tokenBankTitle";
-  title.textContent = owner === "p1" ? "P1 TOKENS" : "P2 TOKENS";
-  bank.appendChild(title);
-
   const row = document.createElement("div");
   row.className = "tokenBinsRow";
 
@@ -1767,15 +1731,13 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // sample cube (shows color)
+    // visible cube centered
     const sample = document.createElement("div");
     sample.className = `tokenCube ${tokenClassFor(b.type)}`;
-    sample.style.left = "12px";
-    sample.style.top = "12px";
-    sample.style.zIndex = "1";
-    sample.style.width = "18px";
-    sample.style.height = "18px";
     sample.style.position = "absolute";
+    sample.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
+    sample.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
+    sample.style.zIndex = "1";
     sample.style.pointerEvents = "none";
     bin.appendChild(sample);
 
@@ -1784,7 +1746,6 @@ function buildTokenBank(owner, r) {
     cnt.textContent = "0";
     bin.appendChild(cnt);
 
-    // spawn on press
     bin.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
       if (e.button !== 0) return;
@@ -1798,7 +1759,6 @@ function buildTokenBank(owner, r) {
 
   bank.appendChild(row);
 
-  // prevent board pan/zoom while interacting
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
@@ -1827,7 +1787,6 @@ function returnTokensForOwner(owner, typesToReturn) {
 }
 
 function endTurn(owner) {
-  // Blue (attack) + Gold (resource) return; Red stays.
   returnTokensForOwner(owner, ["attack","resource"]);
 }
 
@@ -1861,17 +1820,17 @@ function build() {
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
-  // Draw standard zones (skip token bank anchors as actual "zones")
-  for (const [id, r] of Object.entries(zones)) {
+  // Draw standard zones (skip token bank anchors)
+  for (const [id, rr] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
 
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
-    el.style.left = `${r.x}px`;
-    el.style.top = `${r.y}px`;
-    el.style.width = `${r.w}px`;
-    el.style.height = `${r.h}px`;
+    el.style.left = `${rr.x}px`;
+    el.style.top = `${rr.y}px`;
+    el.style.width = `${rr.w}px`;
+    el.style.height = `${rr.h}px`;
     stage.appendChild(el);
   }
 
@@ -1881,7 +1840,7 @@ function build() {
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
-  // Token banks (mirrored)
+  // Token banks (freeform cubes only)
   buildTokenBank("p2", zones.p2_token_bank);
   buildTokenBank("p1", zones.p1_token_bank);
   updateTokenCountsUI();
