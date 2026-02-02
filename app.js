@@ -745,7 +745,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       // prevent “ghost click” after a tiny scroll
       if (!moved && wasHoldArmed) {
-        // let your existing click handler handle preview, but guard against duplicates
         tile.__tapJustHappened = true;
         setTimeout(() => { tile.__tapJustHappened = false; }, 0);
       }
@@ -779,9 +778,7 @@ function renderTray() {
       const tile = makeTrayTile(item.card);
 
       tile.addEventListener("click", () => {
-        // if this click came from drag, ignore
         if (tile.__justDragged) { tile.__justDragged = false; return; }
-        // if we just processed a pointerup tap, still ok
         showPreview(item.card);
       });
 
@@ -949,7 +946,8 @@ function computeZones() {
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
   const yBotExile = yRow2 + CARD_H + BIG_GAP;
 
-  const yBottomPiles = yRow2 + CARD_H + 110;
+  // ✅ CHANGE #2: align P1 draw/discard with P1 exile row
+  const yBottomPiles = yBotExile;
 
   // captured stacks centered around galaxy discard
   const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
@@ -1035,7 +1033,10 @@ function fitToScreen() {
 
   const leftBias = Math.min(90, Math.round(w * 0.10));
   camera.tx = centerTx - leftBias;
-  camera.ty = centerTy;
+
+  // ✅ CHANGE #1: push board down slightly so the top never clips on FIT
+  const TOP_SAFE_BIAS = 24;
+  camera.ty = Math.max(margin, centerTy + TOP_SAFE_BIAS);
 
   applyCamera();
   refreshSnapRects();
