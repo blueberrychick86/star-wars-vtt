@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes) + end-turn return (blue+gold) + UI sizing tweaks");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -50,11 +50,14 @@ const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
 const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temporary per turn)
 const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
 
-// Cube look / size (small enough to sit on cards)
-const TOKEN_SIZE = 18;      // px in design space (scales with zoom)
+// Spawned cube size (small enough to sit on cards)
+const TOKEN_SIZE = 18;
+
+// Source cube visual size (bigger target to pull from)
+const TOKEN_BANK_CUBE_SIZE = 30;
 
 // FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
-const TOKEN_BIN_HIT = 96;   // <- bigger invisible tap/drag zone for each cube
+const TOKEN_BIN_HIT = 120;
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -330,12 +333,12 @@ style.textContent = `
   }
   .tokenBinsRow{
     display:flex;
-    gap: 18px;
+    gap: 22px;
     align-items:center;
     justify-content:flex-start;
   }
 
-  /* Invisible large hit area (no border/box). The cube sits centered. */
+  /* Invisible large hit area (no border/box). The big source cube sits centered. */
   .tokenBin{
     width: ${TOKEN_BIN_HIT}px;
     height:${TOKEN_BIN_HIT}px;
@@ -349,27 +352,7 @@ style.textContent = `
   }
   .tokenBin:active{ cursor: grabbing; }
 
-  /* Count badge: small, floating, minimal */
-  .tokenBinCount{
-    position:absolute;
-    right: 10px;
-    top: 10px;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(0,0,0,0.55);
-    color: rgba(255,255,255,0.92);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight: 900;
-    font-size: 11px;
-    pointer-events:none;
-  }
-
-  /* Actual cubes you drag */
+  /* Actual cubes you drag (spawned on table) */
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -383,6 +366,19 @@ style.textContent = `
     user-select:none;
   }
   .tokenCube:active{ cursor: grabbing; }
+
+  /* Big source cubes (visual only, not draggable) */
+  .tokenSourceCube{
+    position:absolute;
+    width:${TOKEN_BANK_CUBE_SIZE}px;
+    height:${TOKEN_BANK_CUBE_SIZE}px;
+    border-radius: 6px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.60);
+    pointer-events:none;
+    user-select:none;
+  }
 
   /* cube color styles */
   .tokenRed{
@@ -1066,11 +1062,10 @@ function computeZones() {
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  // Token banks: under P1 piles, above P2 piles (mirrored)
-  // Now that banks are "freeform", we only need an anchor row location.
-  const bankW = (TOKEN_BIN_HIT * 3) + (18 * 2); // 3 bins + gaps
+  // Token banks: anchors (no visible zone)
+  const bankW = (TOKEN_BIN_HIT * 3) + (22 * 2);
   const bankH = TOKEN_BIN_HIT;
-  const bankX = xPiles; // align near piles
+  const bankX = xPiles;
   const bankGap = 18;
 
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
@@ -1105,7 +1100,7 @@ function computeZones() {
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
 
-    // token bank anchors (no visible zone)
+    // token bank anchors
     p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
     p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
   };
@@ -1589,19 +1584,6 @@ function toggleFlip(cardEl) {
 
 // ---------- TOKEN BANKS (FREEFORM CUBES) ----------
 let tokenBankEls = { p1: null, p2: null };
-let tokenCountEls = {
-  p1: { damage: null, attack: null, resource: null },
-  p2: { damage: null, attack: null, resource: null },
-};
-
-function updateTokenCountsUI() {
-  for (const owner of ["p1","p2"]) {
-    for (const type of ["damage","attack","resource"]) {
-      const el = tokenCountEls[owner][type];
-      if (el) el.textContent = String(tokenPools[owner][type]);
-    }
-  }
-}
 
 function tokenClassFor(type) {
   if (type === "damage") return "tokenRed";
@@ -1670,7 +1652,6 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   if (tokenPools[owner][type] <= 0) return;
 
   tokenPools[owner][type] -= 1;
-  updateTokenCountsUI();
 
   const p = viewportToDesign(clientX, clientY);
   const tok = createTokenCube(owner, type, p.x, p.y);
@@ -1731,20 +1712,12 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // visible cube centered
-    const sample = document.createElement("div");
-    sample.className = `tokenCube ${tokenClassFor(b.type)}`;
-    sample.style.position = "absolute";
-    sample.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
-    sample.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
-    sample.style.zIndex = "1";
-    sample.style.pointerEvents = "none";
-    bin.appendChild(sample);
-
-    const cnt = document.createElement("div");
-    cnt.className = "tokenBinCount";
-    cnt.textContent = "0";
-    bin.appendChild(cnt);
+    // big source cube centered (visual only)
+    const source = document.createElement("div");
+    source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
+    source.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
+    source.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
+    bin.appendChild(source);
 
     bin.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
@@ -1753,7 +1726,6 @@ function buildTokenBank(owner, r) {
       spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
     });
 
-    tokenCountEls[owner][b.type] = cnt;
     row.appendChild(bin);
   }
 
@@ -1782,8 +1754,6 @@ function returnTokensForOwner(owner, typesToReturn) {
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
   }
-
-  updateTokenCountsUI();
 }
 
 function endTurn(owner) {
@@ -1802,8 +1772,6 @@ function resetAllTokens() {
   tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
   tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
   tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
-
-  updateTokenCountsUI();
 }
 
 endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); });
@@ -1843,7 +1811,6 @@ function build() {
   // Token banks (freeform cubes only)
   buildTokenBank("p2", zones.p2_token_bank);
   buildTokenBank("p1", zones.p1_token_bank);
-  updateTokenCountsUI();
 
   applyCamera();
   refreshSnapRects();
