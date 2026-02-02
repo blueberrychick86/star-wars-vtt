@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units)");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + faction borders + auto reshuffle draw");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -36,22 +36,101 @@ const BASE_ROW_GAP = 480;      // bases farther from galaxy row (mirrored)
 const CAP_DISCARD_GAP = 26;    // captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
-// -------- tray drag tuning (mobile-friendly) --------
-const TRAY_HOLD_TO_DRAG_MS = 260;   // hold this long to start dragging out of tray
-const TRAY_MOVE_CANCEL_PX = 8;      // if you move more than this before hold triggers, it's treated as scroll
-const TRAY_TAP_MOVE_PX = 6;         // tap threshold
-
-// -------- player color (for tray border glow) --------
-// (You said default/testing should be BLUE because you play blue and view from bottom.)
-let PLAYER_COLOR = "blue"; // "blue" | "red" | "green"
+// For testing right now (you said you play blue from bottom)
+const ACTIVE_PLAYER_COLOR = "blue";
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
+// ---------- helpers ----------
+function normalize(s) { return (s || "").toLowerCase().trim(); }
+
+function shuffleInPlace(arr){
+  for (let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Given a draw pile key, return its matching discard pile key
+function discardKeyForDraw(drawKey){
+  if (drawKey === "p1_draw") return "p1_discard";
+  if (drawKey === "p2_draw") return "p2_discard";
+  return null;
+}
+
+// If draw is empty, reshuffle discard into draw (then clear discard)
+function maybeReshuffleDrawFromDiscard(drawKey){
+  const dkey = discardKeyForDraw(drawKey);
+  if (!dkey) return false;
+
+  const draw = piles[drawKey] || [];
+  if (draw.length > 0) return false;
+
+  const disc = piles[dkey] || [];
+  if (disc.length === 0) return false;
+
+  // move discard -> draw, shuffle, clear discard
+  piles[drawKey] = shuffleInPlace(disc.slice());
+  piles[dkey] = [];
+  return true;
+}
+
+// ---------- Faction/type border color helpers ----------
+function factionKey(cardData){
+  // Prefer explicit fields if you add them later:
+  // cardData.faction: "empire"|"rebels"|"republic"|"separatists"|"mandalorian"|"neutral"
+  // cardData.teamColor: "blue"|"red"|"green"|"neutral"
+  const f = normalize(cardData?.faction);
+  const t = normalize(cardData?.teamColor);
+
+  if (t === "blue" || t === "red" || t === "green") return t;
+  if (t === "neutral") return "neutral";
+
+  if (f.includes("empire")) return "blue";
+  if (f.includes("separat") || f.includes("separatist")) return "blue";
+
+  if (f.includes("rebel")) return "red";
+  if (f.includes("republic")) return "red";
+
+  if (f.includes("mandal")) return "green";
+
+  // neutrals
+  if (f.includes("neutral")) return "neutral";
+
+  // fallback: if nothing is set, treat as neutral so you don't misread it as yours
+  return "neutral";
+}
+
+function applyFactionClass(el, cardData, baseClass){
+  // baseClass is "card" or "trayTile"
+  const key = factionKey(cardData);
+  el.classList.remove(
+    `${baseClass}--blue`,
+    `${baseClass}--red`,
+    `${baseClass}--green`,
+    `${baseClass}--neutral`
+  );
+  el.classList.add(`${baseClass}--${key}`);
+}
+
 // ---------- CSS ----------
 const style = document.createElement("style");
 style.textContent = `
+  :root{
+    --c-blue: rgba(80,170,255,0.95);
+    --c-red: rgba(255,90,90,0.95);
+    --c-green: rgba(80,255,160,0.95);
+    --c-neutral: rgba(255,255,255,0.60);
+
+    --c-blue-soft: rgba(80,170,255,0.35);
+    --c-red-soft: rgba(255,90,90,0.35);
+    --c-green-soft: rgba(80,255,160,0.35);
+    --c-neutral-soft: rgba(255,255,255,0.20);
+  }
+
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
   #hud { position: fixed; left: 12px; top: 12px; z-index: 100000; display:flex; gap:8px; pointer-events:auto; }
   .hudBtn { background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.25);
@@ -64,8 +143,15 @@ style.textContent = `
   .zone.clickable{ cursor:pointer; }
   .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
+  /* ----- Cards on board ----- */
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
+
+  /* faction borders */
+  .card--blue{ border-color: var(--c-blue); box-shadow: 0 0 0 2px var(--c-blue-soft) inset; }
+  .card--red{ border-color: var(--c-red); box-shadow: 0 0 0 2px var(--c-red-soft) inset; }
+  .card--green{ border-color: var(--c-green); box-shadow: 0 0 0 2px var(--c-green-soft) inset; }
+  .card--neutral{ border-color: var(--c-neutral); box-shadow: 0 0 0 2px var(--c-neutral-soft) inset; }
 
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
 
@@ -227,12 +313,6 @@ style.textContent = `
     padding-bottom: 20px;
   }
 
-  /* while dragging a tile, lock the tray scroll to avoid iOS "fight" */
-  #trayShell.dragging #trayCarousel{
-    overflow: hidden;
-    touch-action: none;
-  }
-
   .trayTile{
     flex: 0 0 auto;
     width: 100%;
@@ -246,10 +326,16 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    /* IMPORTANT: allow vertical scrolling gestures by default */
     touch-action: pan-y;
   }
   .trayTile:active{ cursor: grabbing; }
+
+  /* tray faction borders */
+  .trayTile--blue{ border-color: var(--c-blue); }
+  .trayTile--red{ border-color: var(--c-red); }
+  .trayTile--green{ border-color: var(--c-green); }
+  .trayTile--neutral{ border-color: var(--c-neutral); }
+
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
   .trayTileLabel{
     position:absolute; left:10px; right:10px; bottom:10px;
@@ -259,20 +345,6 @@ style.textContent = `
     line-height: 1.05;
     text-shadow: 0 1px 2px rgba(0,0,0,0.70);
     pointer-events:none;
-  }
-
-  /* ---- tray tile border glow by player color ---- */
-  #trayShell[data-player="blue"] .trayTile{
-    border-color: rgba(120,180,255,0.80);
-    box-shadow: 0 0 0 2px rgba(120,180,255,0.20), 0 10px 22px rgba(0,0,0,0.45);
-  }
-  #trayShell[data-player="red"] .trayTile{
-    border-color: rgba(255,110,110,0.80);
-    box-shadow: 0 0 0 2px rgba(255,110,110,0.20), 0 10px 22px rgba(0,0,0,0.45);
-  }
-  #trayShell[data-player="green"] .trayTile{
-    border-color: rgba(140,255,170,0.80);
-    box-shadow: 0 0 0 2px rgba(140,255,170,0.18), 0 10px 22px rgba(0,0,0,0.45);
   }
 
   .trayCountBadge{
@@ -363,7 +435,6 @@ const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
 trayShell.style.display = "none";
-trayShell.dataset.player = PLAYER_COLOR; // glow
 
 const tray = document.createElement("div");
 tray.id = "tray";
@@ -485,17 +556,10 @@ const trayState = {
   searchQuery: "",
 };
 
-function setTrayPlayerColor(color) {
-  PLAYER_COLOR = color;
-  trayShell.dataset.player = color;
-}
-
 function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
-  // ensure glow applied (default blue)
-  trayShell.dataset.player = PLAYER_COLOR;
 }
 
 function closeTray() {
@@ -539,14 +603,12 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
 
-  trayShell.classList.remove("dragging");
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
 
-function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
   const q = normalize(query);
   if (!q) return true;
@@ -587,6 +649,7 @@ function openTraySearch(owner, pileKey, title) {
 function makeTrayTile(card) {
   const tile = document.createElement("div");
   tile.className = "trayTile";
+  applyFactionClass(tile, card, "trayTile");
 
   const img = document.createElement("div");
   img.className = "trayTileImg";
@@ -601,43 +664,41 @@ function makeTrayTile(card) {
   return tile;
 }
 
-/**
- * Mobile fix:
- * - Default behavior inside tray is SCROLL.
- * - To DRAG OUT to the board: press-and-hold (TRAY_HOLD_TO_DRAG_MS), then drag.
- * - This avoids iPhone "it scrolls but starts dragging" glitch.
- */
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
-  let holdTimer = null;
-  let holdArmed = false;      // true while we are waiting to see if hold fires
-  let dragging = false;       // true after hold fires
+  let dragging = false;
   let ghost = null;
-  let start = { x: 0, y: 0 };
-  let last = { x: 0, y: 0 };
-  let pid = null;
+  let start = { x:0, y:0 };
 
-  function clearHold() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    holdArmed = false;
-  }
+  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
 
-  function startDragNow() {
-    if (dragging) return;
+  tile.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (previewOpen) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
     dragging = true;
     tile.__justDragged = false;
-    trayShell.classList.add("dragging");
-
-    // capture AFTER hold triggers (so scrolling gesture is not hijacked on tap/scroll)
-    try { tile.setPointerCapture(pid); } catch {}
+    start = { x: e.clientX, y: e.clientY };
+    tile.setPointerCapture(e.pointerId);
 
     ghost = document.createElement("div");
     ghost.style.position = "fixed";
-    ghost.style.left = `${last.x - 54}px`;
-    ghost.style.top  = `${last.y - 75}px`;
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top = `${e.clientY - 75}px`;
     ghost.style.width = "108px";
     ghost.style.height = "151px";
     ghost.style.borderRadius = "12px";
     ghost.style.border = "2px solid rgba(255,255,255,0.85)";
+
+    // match faction in ghost outline for quick confirmation
+    const fk = factionKey(card);
+    if (fk === "blue") ghost.style.borderColor = "var(--c-blue)";
+    else if (fk === "red") ghost.style.borderColor = "var(--c-red)";
+    else if (fk === "green") ghost.style.borderColor = "var(--c-green)";
+    else ghost.style.borderColor = "var(--c-neutral)";
+
     ghost.style.background = "rgba(20,20,22,0.92)";
     ghost.style.zIndex = "170000";
     ghost.style.pointerEvents = "none";
@@ -651,19 +712,31 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     ghost.style.padding = "10px";
     ghost.textContent = card.name || "Card";
     document.body.appendChild(ghost);
-  }
+  });
 
-  function finishDrag(clientX, clientY) {
+  tile.addEventListener("pointermove", (e) => {
+    if (!dragging || !ghost) return;
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top  = `${e.clientY - 75}px`;
+  });
+
+  tile.addEventListener("pointerup", (e) => {
+    if (!dragging) return;
+    dragging = false;
+
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
+    tile.__justDragged = moved;
+
     if (ghost) { ghost.remove(); ghost = null; }
-    trayShell.classList.remove("dragging");
+    try { tile.releasePointerCapture(e.pointerId); } catch {}
 
     const trayRect = tray.getBoundingClientRect();
     const releasedOverTray =
-      clientX >= trayRect.left && clientX <= trayRect.right &&
-      clientY >= trayRect.top  && clientY <= trayRect.bottom;
+      e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
+      e.clientY >= trayRect.top  && e.clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
-      const p = viewportToDesign(clientX, clientY);
+      const p = viewportToDesign(e.clientX, e.clientY);
       const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
       const el = makeCardEl(card, kind);
 
@@ -685,88 +758,11 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       onCommitToBoard();
     }
-  }
-
-  // Right-click preview (PC)
-  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
-
-  // Pointer events
-  tile.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    if (previewOpen) return;
-
-    // IMPORTANT: do NOT preventDefault here — allow scroll to start naturally
-    e.stopPropagation();
-
-    pid = e.pointerId;
-    start = { x: e.clientX, y: e.clientY };
-    last  = { x: e.clientX, y: e.clientY };
-    holdArmed = true;
-    tile.__justDragged = false;
-
-    clearHold();
-    holdArmed = true;
-    holdTimer = setTimeout(() => {
-      // if still armed and not cancelled by movement, enter drag mode
-      if (!holdArmed) return;
-      startDragNow();
-    }, TRAY_HOLD_TO_DRAG_MS);
-  });
-
-  tile.addEventListener("pointermove", (e) => {
-    if (previewOpen) return;
-    last = { x: e.clientX, y: e.clientY };
-
-    if (holdArmed && !dragging) {
-      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-      if (moved > TRAY_MOVE_CANCEL_PX) {
-        // user is scrolling — cancel hold-to-drag
-        clearHold();
-      }
-      return;
-    }
-
-    if (dragging && ghost) {
-      // now we are dragging; prevent scrolling “fight”
-      e.preventDefault();
-      e.stopPropagation();
-      ghost.style.left = `${e.clientX - 54}px`;
-      ghost.style.top  = `${e.clientY - 75}px`;
-    }
-  });
-
-  tile.addEventListener("pointerup", (e) => {
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > TRAY_TAP_MOVE_PX;
-
-    // if hold never fired and it wasn't a scroll, it's a TAP (preview)
-    if (!dragging) {
-      const wasHoldArmed = holdArmed;
-      clearHold();
-
-      // prevent “ghost click” after a tiny scroll
-      if (!moved && wasHoldArmed) {
-        // let your existing click handler handle preview, but guard against duplicates
-        tile.__tapJustHappened = true;
-        setTimeout(() => { tile.__tapJustHappened = false; }, 0);
-      }
-      return;
-    }
-
-    // dragging case
-    dragging = false;
-    clearHold();
-    tile.__justDragged = true;
-
-    try { tile.releasePointerCapture(e.pointerId); } catch {}
-
-    finishDrag(e.clientX, e.clientY);
   });
 
   tile.addEventListener("pointercancel", () => {
-    clearHold();
-    if (ghost) { ghost.remove(); ghost = null; }
-    trayShell.classList.remove("dragging");
     dragging = false;
+    if (ghost) { ghost.remove(); ghost = null; }
   });
 }
 
@@ -779,9 +775,7 @@ function renderTray() {
       const tile = makeTrayTile(item.card);
 
       tile.addEventListener("click", () => {
-        // if this click came from drag, ignore
         if (tile.__justDragged) { tile.__justDragged = false; return; }
-        // if we just processed a pointerup tap, still ok
         showPreview(item.card);
       });
 
@@ -897,6 +891,9 @@ function bindPileZoneClicks() {
 
       // Draw piles: draw 1 into tray (hidden hand)
       if (m.id === "p1_draw" || m.id === "p2_draw") {
+        // NEW: auto reshuffle if draw empty
+        maybeReshuffleDrawFromDiscard(m.pileKey);
+
         if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
 
         openTrayDraw();
@@ -1139,7 +1136,6 @@ table.addEventListener("wheel", (e) => {
 
 // ---------- snapping (with zone acceptance) ----------
 const SNAP_ZONE_IDS = new Set([
-  // piles + market + base stacks
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
   "galaxy_deck","galaxy_discard","outer_rim",
@@ -1148,7 +1144,6 @@ const SNAP_ZONE_IDS = new Set([
   "p2_base_stack","p1_base_stack",
 ]);
 
-// Units can snap to these:
 const UNIT_SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
@@ -1157,7 +1152,6 @@ const UNIT_SNAP_ZONE_IDS = new Set([
   "g21","g22","g23","g24","g25","g26",
 ]);
 
-// Bases can snap to these (captured is handled by snapBaseAutoFill when dropped inside)
 const BASE_SNAP_ZONE_IDS = new Set([
   "p1_base_stack",
   "p2_base_stack",
@@ -1214,7 +1208,6 @@ function snapCardToNearestZone(cardEl) {
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
 }
 
-// Bases: if NOT captured, allow snapping to the nearest base-stack zone
 function snapBaseToNearestBaseStack(baseEl) {
   if (!zonesMeta.length) return;
 
@@ -1237,7 +1230,7 @@ function snapBaseToNearestBaseStack(baseEl) {
 
   const zoneDiag = Math.hypot(best.width, best.height);
   const baseDiag = Math.hypot(baseRect.width, baseRect.height);
-  const threshold = Math.max(zoneDiag, baseDiag) * 0.70; // a little more forgiving for bases
+  const threshold = Math.max(zoneDiag, baseDiag) * 0.70;
 
   if (bestDist > threshold) return;
 
@@ -1485,6 +1478,8 @@ function build() {
   }
 
   buildForceTrackSlots(zones.force_track);
+  // NOTE: you said Force track should start fully red at game start.
+  // We'll wire that in when we add the real setup/menu.
   ensureForceMarker(FORCE_NEUTRAL_INDEX);
 
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
@@ -1508,6 +1503,9 @@ function makeCardEl(cardData, kind) {
   el.dataset.kind = kind;
   el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
   el.dataset.face = "up";
+
+  // Apply faction border color class
+  applyFactionClass(el, cardData, "card");
 
   const face = document.createElement("div");
   face.className = "cardFace";
@@ -1703,7 +1701,24 @@ const OBIWAN = {
   force: 1,
   effect: "If you control the Force, draw 1 card.",
   reward: "Gain 1 Force.",
+  // Demo: make him BLUE so you can see borders
+  teamColor: "blue",
   img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_NEUTRAL = {
+  id: "neutral_test",
+  name: "Neutral Example",
+  type: "Unit",
+  subtype: "",
+  cost: 2,
+  attack: 1,
+  resources: 1,
+  force: 0,
+  effect: "Neutral test card.",
+  reward: "—",
+  teamColor: "neutral",
+  img: "https://picsum.photos/250/350?random=44"
 };
 
 const TEST_BASE = {
@@ -1717,6 +1732,7 @@ const TEST_BASE = {
   force: 0,
   effect: "This is a test base card.",
   reward: "—",
+  teamColor: "red",
   img: "https://picsum.photos/350/250?random=22"
 };
 
@@ -1727,21 +1743,21 @@ const TEST_BASE = {
     return { ...base, ...overrides, id };
   }
 
-  function makeMany(prefix, count){
+  function makeMany(prefix, count, color){
     const out = [];
     for (let i = 1; i <= count; i++){
-      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}`, teamColor: color }));
     }
     return out;
   }
 
   piles = {
-    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
-    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
-    p1_discard: [ ...makeMany("Discard Example", 25) ],
-    p2_discard: [ ...makeMany("Discard Example", 25) ],
-    p1_exile: [ ...makeMany("Exiled Example", 18) ],
-    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+    p1_draw: [ ...makeMany("P1 Draw Card", 10, "blue") ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 0, "red") ], // start empty to test reshuffle
+    p1_discard: [ ...makeMany("P1 Discard Example", 6, "blue") ],
+    p2_discard: [ ...makeMany("P2 Discard Example", 18, "red") ], // will reshuffle into p2_draw
+    p1_exile: [ ...makeMany("Exiled Example", 18, "neutral") ],
+    p2_exile: [ ...makeMany("Exiled Example", 18, "neutral") ],
   };
 })();
 
@@ -1752,6 +1768,12 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
+const neutralCard = makeCardEl(TEST_NEUTRAL, "unit");
+neutralCard.style.left = `${DESIGN_W * 0.52}px`;
+neutralCard.style.top  = `${DESIGN_H * 0.12}px`;
+neutralCard.style.zIndex = "15000";
+stage.appendChild(neutralCard);
+
 // (keep this if you still want a couple bases on the board for quick testing)
 const BASE_TEST_COUNT = 2;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
@@ -1761,6 +1783,3 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
-
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
