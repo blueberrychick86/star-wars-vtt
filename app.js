@@ -1461,32 +1461,31 @@ function snapBaseAutoFill(baseEl){
 // ---------- rotation + flip ----------
 function applyRotationSize(cardEl) {
   const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  const odd = (rot === 90 || rot === 270);
-  cardEl.style.width = odd ? `${CARD_H}px` : `${CARD_W}px`;
-  cardEl.style.height = odd ? `${CARD_W}px` : `${CARD_H}px`;
-  cardEl.querySelector(".cardFace").style.transform = `rotate(${rot}deg)`;
+
+  // Keep the card box constant (no width/height swap)
+  cardEl.style.width = `${CARD_W}px`;
+  cardEl.style.height = `${CARD_H}px`;
+
+  // Rotate the whole card (border + image + back overlay)
+  cardEl.style.transformOrigin = "50% 50%";
+  cardEl.style.transform = `rotate(${rot}deg)`;
+
+  // Parent is rotating, so the face should not also rotate
+  const face = cardEl.querySelector(".cardFace");
+  if (face) face.style.transform = "none";
 }
+
 
 function toggleRotate(cardEl) {
   const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
   const next = (cur + 90) % 360;
 
-  const beforeW = parseFloat(cardEl.style.width);
-  const beforeH = parseFloat(cardEl.style.height);
-
   cardEl.dataset.rot = String(next);
   applyRotationSize(cardEl);
 
-  const afterW = parseFloat(cardEl.style.width);
-  const afterH = parseFloat(cardEl.style.height);
-
-  const left = parseFloat(cardEl.style.left || "0");
-  const top = parseFloat(cardEl.style.top || "0");
-  cardEl.style.left = `${left + (beforeW - afterW) / 2}px`;
-  cardEl.style.top  = `${top + (beforeH - afterH) / 2}px`;
-
   refreshSnapRects();
 }
+
 
 function toggleFlip(cardEl) {
   const cur = cardEl.dataset.face || "up";
