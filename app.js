@@ -915,7 +915,10 @@ function fitToScreen() {
 
   const leftBias = Math.min(90, Math.round(w * 0.10));
   camera.tx = centerTx - leftBias;
-  camera.ty = centerTy;
+  // ✅ push the fitted layout DOWN a bit so top base slot stays visible
+const downBias = Math.min(140, Math.round(h * 0.12));
+camera.ty = centerTy + downBias;
+
 
   applyCamera();
   refreshSnapRects();
