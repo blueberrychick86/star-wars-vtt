@@ -1,4 +1,4 @@
-console.log("VTT: BASELINE OK — layout mirrored, BASE_ROW_GAP=300");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -32,8 +32,8 @@ const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
 const CAP_Z_BASE = 20000;
 
 // Layout knobs
-const BASE_ROW_GAP = 350;      // ✅ bases farther from galaxy row (mirrored)
-const CAP_DISCARD_GAP = 26;    // ✅ captured stacks centered around galaxy discard
+const BASE_ROW_GAP = 480;      // bases farther from galaxy row (mirrored)
+const CAP_DISCARD_GAP = 26;    // captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
 let DESIGN_W = 1;
@@ -639,8 +639,12 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       stage.appendChild(el);
 
-      if (kind === "base") snapBaseAutoFill(el);
-      else snapCardToNearestZone(el);
+      if (kind === "base") {
+        snapBaseAutoFill(el);
+        if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
+      } else {
+        snapCardToNearestZone(el);
+      }
 
       onCommitToBoard();
     }
@@ -819,11 +823,11 @@ function computeZones() {
   const yForceTrack = yRow1;
   const forceTrackH = (CARD_H * 2) + GAP;
 
-  // ✅ Galaxy deck centered between the two rows
+  // Galaxy deck centered between the two rows
   const yGalaxyDeck = yRow1 + Math.round(CARD_H / 2) + Math.round(GAP / 2);
 
-  // ✅ Bases mirrored far from galaxy rows
-  const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;          // no clamp (mirror always)
+  // Bases mirrored far from galaxy rows
+  const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
   const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
 
   const yTopExile = yRow1 - (CARD_H + BIG_GAP);
@@ -831,12 +835,12 @@ function computeZones() {
 
   const yBottomPiles = yRow2 + CARD_H + 110;
 
-  // ✅ captured stacks centered around galaxy discard
+  // captured stacks centered around galaxy discard
   const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
   const yCapTop = yGalaxyDiscard - CAP_DISCARD_GAP - CAP_H;
   const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;
 
-  // ✅ Exile piles: gap centered on force track center
+  // Exile piles: gap centered on force track center
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
@@ -915,10 +919,7 @@ function fitToScreen() {
 
   const leftBias = Math.min(90, Math.round(w * 0.10));
   camera.tx = centerTx - leftBias;
-  // ✅ push the fitted layout DOWN a bit so top base slot stays visible
-const downBias = Math.min(140, Math.round(h * 0.12));
-camera.ty = centerTy + downBias;
-
+  camera.ty = centerTy;
 
   applyCamera();
   refreshSnapRects();
@@ -1020,14 +1021,30 @@ table.addEventListener("wheel", (e) => {
   setScaleAround(newScale, e.clientX, e.clientY);
 }, { passive: false });
 
-// ---------- snapping ----------
+// ---------- snapping (with zone acceptance) ----------
 const SNAP_ZONE_IDS = new Set([
+  // piles + market + base stacks
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
   "galaxy_deck","galaxy_discard","outer_rim",
   "g11","g12","g13","g14","g15","g16",
   "g21","g22","g23","g24","g25","g26",
   "p2_base_stack","p1_base_stack",
+]);
+
+// Units can snap to these:
+const UNIT_SNAP_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26",
+]);
+
+// Bases can snap to these (captured is handled by snapBaseAutoFill when dropped inside)
+const BASE_SNAP_ZONE_IDS = new Set([
+  "p1_base_stack",
+  "p2_base_stack",
 ]);
 
 let zonesMeta = [];
@@ -1044,6 +1061,9 @@ function refreshSnapRects() {
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
+  const kind = cardEl.dataset.kind || "unit";
+  const allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
+
   const cardRect = cardEl.getBoundingClientRect();
   const cx = cardRect.left + cardRect.width / 2;
   const cy = cardRect.top + cardRect.height / 2;
@@ -1052,17 +1072,20 @@ function snapCardToNearestZone(cardEl) {
   let bestDist = Infinity;
 
   for (const z of zonesMeta) {
+    if (!allowed.has(z.id)) continue;
     const zx = z.left + z.width / 2;
     const zy = z.top + z.height / 2;
     const d = Math.hypot(cx - zx, cy - zy);
     if (d < bestDist) { bestDist = d; best = z; }
   }
 
+  if (!best) return;
+
   const cardDiag = Math.hypot(cardRect.width, cardRect.height);
-  const zoneDiag = best ? Math.hypot(best.width, best.height) : cardDiag;
+  const zoneDiag = Math.hypot(best.width, best.height);
   const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
 
-  if (!best || bestDist > threshold) return;
+  if (bestDist > threshold) return;
 
   const stageRect = stage.getBoundingClientRect();
   const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
@@ -1073,6 +1096,41 @@ function snapCardToNearestZone(cardEl) {
 
   cardEl.style.left = `${targetCenterX - w / 2}px`;
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
+}
+
+// Bases: if NOT captured, allow snapping to the nearest base-stack zone
+function snapBaseToNearestBaseStack(baseEl) {
+  if (!zonesMeta.length) return;
+
+  const baseRect = baseEl.getBoundingClientRect();
+  const cx = baseRect.left + baseRect.width / 2;
+  const cy = baseRect.top + baseRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) { bestDist = d; best = z; }
+  }
+
+  if (!best) return;
+
+  const zoneDiag = Math.hypot(best.width, best.height);
+  const baseDiag = Math.hypot(baseRect.width, baseRect.height);
+  const threshold = Math.max(zoneDiag, baseDiag) * 0.70; // a little more forgiving for bases
+
+  if (bestDist > threshold) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  baseEl.style.left = `${targetCenterX - BASE_W / 2}px`;
+  baseEl.style.top  = `${targetCenterY - BASE_H / 2}px`;
 }
 
 // ---------- force track ----------
@@ -1180,24 +1238,17 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
   const startX = capRect.x;
   const startY = capRect.y;
 
-  const reverse = (sideLabel === "p2"); // ✅ P2 fills from bottom upward
-
   for (let i = 0; i < CAP_SLOTS; i++) {
-    // If reverse, i=0 is bottom slot, i=CAP_SLOTS-1 is top slot
-    const visualIndex = reverse ? (CAP_SLOTS - 1 - i) : i;
-    const slotY = startY + visualIndex * CAP_OVERLAP;
-
+    const slotY = startY + i * CAP_OVERLAP;
     const cx = startX + CAP_W / 2;
     const cy = slotY + BASE_H / 2;
 
-    // ✅ capSlotCenters index i is the "fill order"
-    // For p2, index 0 corresponds to the BOTTOM slot
     capSlotCenters[sideLabel].push({ x: cx, y: cy });
 
     const slot = document.createElement("div");
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
-    slot.dataset.capIndex = String(i);   // ✅ capIndex matches fill order
+    slot.dataset.capIndex = String(i);
     slot.style.left = `${startX}px`;
     slot.style.top  = `${slotY}px`;
     slot.style.width = `${CAP_W}px`;
@@ -1205,7 +1256,6 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     stage.appendChild(slot);
   }
 }
-
 
 function clearCapturedAssignment(baseEl){
   const side = baseEl.dataset.capSide;
@@ -1507,7 +1557,10 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (kind === "base") {
       snapBaseAutoFill(el);
-      if (!el.dataset.capSide) el.style.zIndex = "12000";
+      if (!el.dataset.capSide) {
+        snapBaseToNearestBaseStack(el);
+        el.style.zIndex = "12000";
+      }
     } else {
       snapCardToNearestZone(el);
       el.style.zIndex = "15000";
@@ -1583,4 +1636,12 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
-
+// (keep this if you still want a couple bases on the board for quick testing)
+const BASE_TEST_COUNT = 2;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
