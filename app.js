@@ -231,7 +231,7 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    touch-action:none;
+    touch-action:touch-action: pan-y;
   }
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
