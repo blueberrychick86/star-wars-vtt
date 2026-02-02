@@ -1177,17 +1177,24 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
   const startX = capRect.x;
   const startY = capRect.y;
 
+  const reverse = (sideLabel === "p2"); // ✅ P2 fills from bottom upward
+
   for (let i = 0; i < CAP_SLOTS; i++) {
-    const slotY = startY + i * CAP_OVERLAP;
+    // If reverse, i=0 is bottom slot, i=CAP_SLOTS-1 is top slot
+    const visualIndex = reverse ? (CAP_SLOTS - 1 - i) : i;
+    const slotY = startY + visualIndex * CAP_OVERLAP;
+
     const cx = startX + CAP_W / 2;
     const cy = slotY + BASE_H / 2;
 
+    // ✅ capSlotCenters index i is the "fill order"
+    // For p2, index 0 corresponds to the BOTTOM slot
     capSlotCenters[sideLabel].push({ x: cx, y: cy });
 
     const slot = document.createElement("div");
     slot.className = "capSlot";
     slot.dataset.capSide = sideLabel;
-    slot.dataset.capIndex = String(i);
+    slot.dataset.capIndex = String(i);   // ✅ capIndex matches fill order
     slot.style.left = `${startX}px`;
     slot.style.top  = `${slotY}px`;
     slot.style.width = `${CAP_W}px`;
@@ -1195,6 +1202,7 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     stage.appendChild(slot);
   }
 }
+
 
 function clearCapturedAssignment(baseEl){
   const side = baseEl.dataset.capSide;
