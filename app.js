@@ -1583,11 +1583,4 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
-const BASE_TEST_COUNT = 10;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.03)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
-}
+
