@@ -961,8 +961,10 @@ function computeZones() {
   // ---- build zones in local coords first ----
   let zones = {
     // P2 (top)
-    p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),
-    p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
+    // P2 (top) — mirrored
+p2_draw: rect(xPiles, yTopPiles, CARD_W, CARD_H),                    // LEFT
+p2_discard: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),  // RIGHT
+
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
 
     p2_exile_draw: rect(xExileLeft, yTopExile, CARD_W, CARD_H),
@@ -977,8 +979,10 @@ function computeZones() {
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
     // P1 (bottom) ✅ match P2 ordering
-    p1_draw: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_discard: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+    // P1 (bottom) — your view
+p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),              // LEFT
+p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),  // RIGHT
+
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
 
     p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
