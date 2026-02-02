@@ -57,7 +57,9 @@ const TOKEN_SIZE = 18;
 const TOKEN_BANK_CUBE_SIZE = 30;
 
 // FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
-const TOKEN_BIN_HIT = 120;
+const TOKEN_BIN_HIT_W = 140; // wider grab area
+const TOKEN_BIN_HIT_H = 70;  // shorter height, more rectangular
+
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -332,16 +334,18 @@ style.textContent = `
     pointer-events:auto;
   }
   .tokenBinsRow{
-    display:flex;
-    gap: 22px;
-    align-items:center;
-    justify-content:flex-start;
-  }
+  display:flex;
+  gap: 10px; /* tighter spacing */
+  align-items:center;
+  justify-content:flex-start;
+}
+
 
   /* Invisible large hit area (no border/box). The big source cube sits centered. */
   .tokenBin{
-    width: ${TOKEN_BIN_HIT}px;
-    height:${TOKEN_BIN_HIT}px;
+  width: ${TOKEN_BIN_HIT_W}px;
+  height:${TOKEN_BIN_HIT_H}px;
+
     border: none;
     background: transparent;
     position: relative;
@@ -1063,9 +1067,13 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchors (no visible zone)
-  const bankW = (TOKEN_BIN_HIT * 3) + (22 * 2);
-  const bankH = TOKEN_BIN_HIT;
-  const bankX = xPiles;
+  const bankW = (TOKEN_BIN_HIT_W * 3) + (10 * 2);
+const bankH = TOKEN_BIN_HIT_H;
+
+// center under discard + draw piles
+const pilesCenterX = xPiles + (CARD_W * 2 + GAP) / 2;
+const bankX = Math.round(pilesCenterX - bankW / 2);
+
   const bankGap = 18;
 
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
