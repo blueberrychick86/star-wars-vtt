@@ -1067,8 +1067,10 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchors (no visible zone)
-  const bankW = (TOKEN_BIN_HIT_W * 3) + (10 * 2);
+  const BIN_GAP = 10; // must match .tokenBinsRow gap in CSS
+const bankW = (TOKEN_BIN_HIT_W * 3) + (BIN_GAP * 2);
 const bankH = TOKEN_BIN_HIT_H;
+
 
 // center under discard + draw piles
 const pilesCenterX = xPiles + (CARD_W * 2 + GAP) / 2;
@@ -1723,8 +1725,9 @@ function buildTokenBank(owner, r) {
     // big source cube centered (visual only)
     const source = document.createElement("div");
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
-    source.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
-    source.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
+    source.style.left = `${Math.round((TOKEN_BIN_HIT_W - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
+source.style.top  = `${Math.round((TOKEN_BIN_HIT_H - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
+
     bin.appendChild(source);
 
     bin.addEventListener("pointerdown", (e) => {
