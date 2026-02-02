@@ -1,15 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Star Wars Deckbuilding VTT</title>
-</head>
-<body>
-  <div id="app"></div>
-
-  <script>
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + tray hold-to-drag (touch)");
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -153,7 +142,6 @@ style.textContent = `
     box-shadow: -10px 0 26px rgba(0,0,0,0.55);
     overflow: hidden;
     pointer-events: auto;
-    touch-action: pan-y;
   }
 
   #trayHeaderBar{
@@ -243,7 +231,7 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    touch-action: pan-y; /* scrolling default on touch */
+    touch-action:none;
   }
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
@@ -476,7 +464,6 @@ function closeTray() {
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
-    // Return any undropped draw cards back to their draw pile (front/top)
     for (let i = trayState.drawItems.length - 1; i >= 0; i--) {
       const it = trayState.drawItems[i];
       if (!piles[it.pileKey]) piles[it.pileKey] = [];
@@ -575,36 +562,29 @@ function makeTrayTile(card) {
   return tile;
 }
 
-/**
- * Tray drag rules:
- * - Mouse/pen: immediate drag
- * - Touch: HOLD to drag (so normal swipe scroll works). If user moves before HOLD fires, we cancel the drag.
- */
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let dragging = false;
   let ghost = null;
-
   let start = { x:0, y:0 };
-  let lastPt = { x:0, y:0 };
 
-  // Touch-only: hold-to-drag
-  let holdTimer = null;
-  let holdArmed = false;      // pointer is down, waiting for hold
-  let dragEnabled = false;    // hold fired; drag is allowed
-  const HOLD_MS = 220;
-  const MOVE_CANCEL_PX = 10;
+  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
 
-  function clearHold() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    holdArmed = false;
-    dragEnabled = false;
-  }
+  tile.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (previewOpen) return;
 
-  function makeGhost(x, y) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragging = true;
+    tile.__justDragged = false;
+    start = { x: e.clientX, y: e.clientY };
+    tile.setPointerCapture(e.pointerId);
+
     ghost = document.createElement("div");
     ghost.style.position = "fixed";
-    ghost.style.left = `${x - 54}px`;
-    ghost.style.top = `${y - 75}px`;
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top = `${e.clientY - 75}px`;
     ghost.style.width = "108px";
     ghost.style.height = "151px";
     ghost.style.borderRadius = "12px";
@@ -622,27 +602,31 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     ghost.style.padding = "10px";
     ghost.textContent = card.name || "Card";
     document.body.appendChild(ghost);
-  }
+  });
 
-  function moveGhost(x, y) {
-    if (!ghost) return;
-    ghost.style.left = `${x - 54}px`;
-    ghost.style.top  = `${y - 75}px`;
-  }
+  tile.addEventListener("pointermove", (e) => {
+    if (!dragging || !ghost) return;
+    ghost.style.left = `${e.clientX - 54}px`;
+    ghost.style.top  = `${e.clientY - 75}px`;
+  });
 
-  function killGhost() {
+  tile.addEventListener("pointerup", (e) => {
+    if (!dragging) return;
+    dragging = false;
+
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
+    tile.__justDragged = moved;
+
     if (ghost) { ghost.remove(); ghost = null; }
-  }
+    try { tile.releasePointerCapture(e.pointerId); } catch {}
 
-  function commitDrop(clientX, clientY) {
     const trayRect = tray.getBoundingClientRect();
     const releasedOverTray =
-      clientX >= trayRect.left && clientX <= trayRect.right &&
-      clientY >= trayRect.top  && clientY <= trayRect.bottom;
+      e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
+      e.clientY >= trayRect.top  && e.clientY <= trayRect.bottom;
 
-    // Only spawn if released outside tray
     if (!releasedOverTray) {
-      const p = viewportToDesign(clientX, clientY);
+      const p = viewportToDesign(e.clientX, e.clientY);
       const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
       const el = makeCardEl(card, kind);
 
@@ -655,107 +639,20 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       stage.appendChild(el);
 
-      if (kind === "base") snapBaseAutoFill(el);
-      else snapCardToNearestZone(el);
+      if (kind === "base") {
+        snapBaseAutoFill(el);
+        if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
+      } else {
+        snapCardToNearestZone(el);
+      }
 
       onCommitToBoard();
     }
-  }
-
-  // Right-click preview on desktop
-  tile.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showPreview(card);
-  });
-
-  tile.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    if (previewOpen) return;
-
-    dragging = false;
-    tile.__justDragged = false;
-
-    start = { x: e.clientX, y: e.clientY };
-    lastPt = { x: e.clientX, y: e.clientY };
-
-    if (e.pointerType === "touch") {
-      // Let scroll happen unless hold triggers
-      holdArmed = true;
-      dragEnabled = false;
-
-      holdTimer = setTimeout(() => {
-        if (!holdArmed) return;
-        dragEnabled = true;
-        dragging = true;
-
-        // Now we are dragging: capture + prevent scroll
-        try { tile.setPointerCapture(e.pointerId); } catch {}
-        e.preventDefault();
-        e.stopPropagation();
-
-        makeGhost(lastPt.x, lastPt.y);
-      }, HOLD_MS);
-
-      return;
-    }
-
-    // Mouse / pen: immediate drag
-    e.preventDefault();
-    e.stopPropagation();
-
-    dragging = true;
-    try { tile.setPointerCapture(e.pointerId); } catch {}
-    makeGhost(e.clientX, e.clientY);
-  });
-
-  tile.addEventListener("pointermove", (e) => {
-    lastPt = { x: e.clientX, y: e.clientY };
-
-    // Touch: if user moves before hold triggers, cancel hold (scroll wins)
-    if (e.pointerType === "touch" && holdArmed && !dragEnabled) {
-      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-      if (moved > MOVE_CANCEL_PX) {
-        clearHold();
-      }
-      return;
-    }
-
-    if (!dragging || !ghost) return;
-    e.preventDefault();
-    e.stopPropagation();
-    moveGhost(e.clientX, e.clientY);
-  });
-
-  tile.addEventListener("pointerup", (e) => {
-    // If we were waiting for hold and never dragged, treat as a tap/scroll end
-    if (e.pointerType === "touch" && holdArmed && !dragEnabled) {
-      clearHold();
-      tile.__justDragged = false;
-      return;
-    }
-
-    if (!dragging) {
-      clearHold();
-      return;
-    }
-
-    dragging = false;
-    clearHold();
-
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
-    tile.__justDragged = moved;
-
-    killGhost();
-    try { tile.releasePointerCapture(e.pointerId); } catch {}
-
-    commitDrop(e.clientX, e.clientY);
   });
 
   tile.addEventListener("pointercancel", () => {
     dragging = false;
-    clearHold();
-    killGhost();
+    if (ghost) { ghost.remove(); ghost = null; }
   });
 }
 
@@ -1126,6 +1023,7 @@ table.addEventListener("wheel", (e) => {
 
 // ---------- snapping (with zone acceptance) ----------
 const SNAP_ZONE_IDS = new Set([
+  // piles + market + base stacks
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
   "galaxy_deck","galaxy_discard","outer_rim",
@@ -1134,6 +1032,7 @@ const SNAP_ZONE_IDS = new Set([
   "p2_base_stack","p1_base_stack",
 ]);
 
+// Units can snap to these:
 const UNIT_SNAP_ZONE_IDS = new Set([
   "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
   "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
@@ -1142,6 +1041,7 @@ const UNIT_SNAP_ZONE_IDS = new Set([
   "g21","g22","g23","g24","g25","g26",
 ]);
 
+// Bases can snap to these (captured is handled by snapBaseAutoFill when dropped inside)
 const BASE_SNAP_ZONE_IDS = new Set([
   "p1_base_stack",
   "p2_base_stack",
@@ -1198,7 +1098,7 @@ function snapCardToNearestZone(cardEl) {
   cardEl.style.top  = `${targetCenterY - h / 2}px`;
 }
 
-// Bases: if NOT captured, allow snapping to nearest base-stack zone
+// Bases: if NOT captured, allow snapping to the nearest base-stack zone
 function snapBaseToNearestBaseStack(baseEl) {
   if (!zonesMeta.length) return;
 
@@ -1221,7 +1121,7 @@ function snapBaseToNearestBaseStack(baseEl) {
 
   const zoneDiag = Math.hypot(best.width, best.height);
   const baseDiag = Math.hypot(baseRect.width, baseRect.height);
-  const threshold = Math.max(zoneDiag, baseDiag) * 0.70;
+  const threshold = Math.max(zoneDiag, baseDiag) * 0.70; // a little more forgiving for bases
 
   if (bestDist > threshold) return;
 
@@ -1690,6 +1590,20 @@ const OBIWAN = {
   img: "https://picsum.photos/250/350?random=12"
 };
 
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
 // ---------- pile data (demo) ----------
 (function initDemoPiles(){
   function cloneCard(base, overrides){
@@ -1722,11 +1636,12 @@ unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
 stage.appendChild(unitCard);
 
-// IMPORTANT: sample bases removed (set to 0)
-const BASE_TEST_COUNT = 0;
+// (keep this if you still want a couple bases on the board for quick testing)
+const BASE_TEST_COUNT = 2;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  // (left intentionally blank)
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
 }
-  </script>
-</body>
-</html>
