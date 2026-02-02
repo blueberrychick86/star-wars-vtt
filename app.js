@@ -36,6 +36,15 @@ const BASE_ROW_GAP = 480;      // bases farther from galaxy row (mirrored)
 const CAP_DISCARD_GAP = 26;    // captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
+// -------- tray drag tuning (mobile-friendly) --------
+const TRAY_HOLD_TO_DRAG_MS = 260;   // hold this long to start dragging out of tray
+const TRAY_MOVE_CANCEL_PX = 8;      // if you move more than this before hold triggers, it's treated as scroll
+const TRAY_TAP_MOVE_PX = 6;         // tap threshold
+
+// -------- player color (for tray border glow) --------
+// (You said default/testing should be BLUE because you play blue and view from bottom.)
+let PLAYER_COLOR = "blue"; // "blue" | "red" | "green"
+
 let DESIGN_W = 1;
 let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
@@ -218,6 +227,12 @@ style.textContent = `
     padding-bottom: 20px;
   }
 
+  /* while dragging a tile, lock the tray scroll to avoid iOS "fight" */
+  #trayShell.dragging #trayCarousel{
+    overflow: hidden;
+    touch-action: none;
+  }
+
   .trayTile{
     flex: 0 0 auto;
     width: 100%;
@@ -231,7 +246,8 @@ style.textContent = `
     overflow: hidden;
     cursor: grab;
     user-select:none;
-    touch-action:touch-action: pan-y;
+    /* IMPORTANT: allow vertical scrolling gestures by default */
+    touch-action: pan-y;
   }
   .trayTile:active{ cursor: grabbing; }
   .trayTileImg{ position:absolute; inset:0; background-size:cover; background-position:center; }
@@ -243,6 +259,20 @@ style.textContent = `
     line-height: 1.05;
     text-shadow: 0 1px 2px rgba(0,0,0,0.70);
     pointer-events:none;
+  }
+
+  /* ---- tray tile border glow by player color ---- */
+  #trayShell[data-player="blue"] .trayTile{
+    border-color: rgba(120,180,255,0.80);
+    box-shadow: 0 0 0 2px rgba(120,180,255,0.20), 0 10px 22px rgba(0,0,0,0.45);
+  }
+  #trayShell[data-player="red"] .trayTile{
+    border-color: rgba(255,110,110,0.80);
+    box-shadow: 0 0 0 2px rgba(255,110,110,0.20), 0 10px 22px rgba(0,0,0,0.45);
+  }
+  #trayShell[data-player="green"] .trayTile{
+    border-color: rgba(140,255,170,0.80);
+    box-shadow: 0 0 0 2px rgba(140,255,170,0.18), 0 10px 22px rgba(0,0,0,0.45);
   }
 
   .trayCountBadge{
@@ -333,6 +363,7 @@ const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
 trayShell.style.display = "none";
+trayShell.dataset.player = PLAYER_COLOR; // glow
 
 const tray = document.createElement("div");
 tray.id = "tray";
@@ -454,10 +485,17 @@ const trayState = {
   searchQuery: "",
 };
 
+function setTrayPlayerColor(color) {
+  PLAYER_COLOR = color;
+  trayShell.dataset.player = color;
+}
+
 function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
+  // ensure glow applied (default blue)
+  trayShell.dataset.player = PLAYER_COLOR;
 }
 
 function closeTray() {
@@ -501,6 +539,7 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
 
+  trayShell.classList.remove("dragging");
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
 }
@@ -562,29 +601,39 @@ function makeTrayTile(card) {
   return tile;
 }
 
+/**
+ * Mobile fix:
+ * - Default behavior inside tray is SCROLL.
+ * - To DRAG OUT to the board: press-and-hold (TRAY_HOLD_TO_DRAG_MS), then drag.
+ * - This avoids iPhone "it scrolls but starts dragging" glitch.
+ */
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
-  let dragging = false;
+  let holdTimer = null;
+  let holdArmed = false;      // true while we are waiting to see if hold fires
+  let dragging = false;       // true after hold fires
   let ghost = null;
-  let start = { x:0, y:0 };
+  let start = { x: 0, y: 0 };
+  let last = { x: 0, y: 0 };
+  let pid = null;
 
-  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
+  function clearHold() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    holdArmed = false;
+  }
 
-  tile.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    if (previewOpen) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
+  function startDragNow() {
+    if (dragging) return;
     dragging = true;
     tile.__justDragged = false;
-    start = { x: e.clientX, y: e.clientY };
-    tile.setPointerCapture(e.pointerId);
+    trayShell.classList.add("dragging");
+
+    // capture AFTER hold triggers (so scrolling gesture is not hijacked on tap/scroll)
+    try { tile.setPointerCapture(pid); } catch {}
 
     ghost = document.createElement("div");
     ghost.style.position = "fixed";
-    ghost.style.left = `${e.clientX - 54}px`;
-    ghost.style.top = `${e.clientY - 75}px`;
+    ghost.style.left = `${last.x - 54}px`;
+    ghost.style.top  = `${last.y - 75}px`;
     ghost.style.width = "108px";
     ghost.style.height = "151px";
     ghost.style.borderRadius = "12px";
@@ -602,31 +651,19 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     ghost.style.padding = "10px";
     ghost.textContent = card.name || "Card";
     document.body.appendChild(ghost);
-  });
+  }
 
-  tile.addEventListener("pointermove", (e) => {
-    if (!dragging || !ghost) return;
-    ghost.style.left = `${e.clientX - 54}px`;
-    ghost.style.top  = `${e.clientY - 75}px`;
-  });
-
-  tile.addEventListener("pointerup", (e) => {
-    if (!dragging) return;
-    dragging = false;
-
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6;
-    tile.__justDragged = moved;
-
+  function finishDrag(clientX, clientY) {
     if (ghost) { ghost.remove(); ghost = null; }
-    try { tile.releasePointerCapture(e.pointerId); } catch {}
+    trayShell.classList.remove("dragging");
 
     const trayRect = tray.getBoundingClientRect();
     const releasedOverTray =
-      e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
-      e.clientY >= trayRect.top  && e.clientY <= trayRect.bottom;
+      clientX >= trayRect.left && clientX <= trayRect.right &&
+      clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
-      const p = viewportToDesign(e.clientX, e.clientY);
+      const p = viewportToDesign(clientX, clientY);
       const kind = (card.kind === "base" || (card.type || "").toLowerCase() === "base") ? "base" : "unit";
       const el = makeCardEl(card, kind);
 
@@ -648,11 +685,88 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       onCommitToBoard();
     }
+  }
+
+  // Right-click preview (PC)
+  tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
+
+  // Pointer events
+  tile.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (previewOpen) return;
+
+    // IMPORTANT: do NOT preventDefault here — allow scroll to start naturally
+    e.stopPropagation();
+
+    pid = e.pointerId;
+    start = { x: e.clientX, y: e.clientY };
+    last  = { x: e.clientX, y: e.clientY };
+    holdArmed = true;
+    tile.__justDragged = false;
+
+    clearHold();
+    holdArmed = true;
+    holdTimer = setTimeout(() => {
+      // if still armed and not cancelled by movement, enter drag mode
+      if (!holdArmed) return;
+      startDragNow();
+    }, TRAY_HOLD_TO_DRAG_MS);
+  });
+
+  tile.addEventListener("pointermove", (e) => {
+    if (previewOpen) return;
+    last = { x: e.clientX, y: e.clientY };
+
+    if (holdArmed && !dragging) {
+      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+      if (moved > TRAY_MOVE_CANCEL_PX) {
+        // user is scrolling — cancel hold-to-drag
+        clearHold();
+      }
+      return;
+    }
+
+    if (dragging && ghost) {
+      // now we are dragging; prevent scrolling “fight”
+      e.preventDefault();
+      e.stopPropagation();
+      ghost.style.left = `${e.clientX - 54}px`;
+      ghost.style.top  = `${e.clientY - 75}px`;
+    }
+  });
+
+  tile.addEventListener("pointerup", (e) => {
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > TRAY_TAP_MOVE_PX;
+
+    // if hold never fired and it wasn't a scroll, it's a TAP (preview)
+    if (!dragging) {
+      const wasHoldArmed = holdArmed;
+      clearHold();
+
+      // prevent “ghost click” after a tiny scroll
+      if (!moved && wasHoldArmed) {
+        // let your existing click handler handle preview, but guard against duplicates
+        tile.__tapJustHappened = true;
+        setTimeout(() => { tile.__tapJustHappened = false; }, 0);
+      }
+      return;
+    }
+
+    // dragging case
+    dragging = false;
+    clearHold();
+    tile.__justDragged = true;
+
+    try { tile.releasePointerCapture(e.pointerId); } catch {}
+
+    finishDrag(e.clientX, e.clientY);
   });
 
   tile.addEventListener("pointercancel", () => {
-    dragging = false;
+    clearHold();
     if (ghost) { ghost.remove(); ghost = null; }
+    trayShell.classList.remove("dragging");
+    dragging = false;
   });
 }
 
@@ -665,7 +779,9 @@ function renderTray() {
       const tile = makeTrayTile(item.card);
 
       tile.addEventListener("click", () => {
+        // if this click came from drag, ignore
         if (tile.__justDragged) { tile.__justDragged = false; return; }
+        // if we just processed a pointerup tap, still ok
         showPreview(item.card);
       });
 
@@ -1645,3 +1761,6 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
+
+// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
+setTrayPlayerColor("blue");
