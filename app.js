@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment");
+console.log("VTT: BASELINE OK — layout mirrored, BASE_ROW_GAP=300");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
