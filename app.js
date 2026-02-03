@@ -53,11 +53,12 @@ const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
 // Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
 
-// Source cube visual size (bigger target to pull from)
-const TOKEN_BANK_CUBE_SIZE = 30;
-
-// FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
-const TOKEN_BIN_HIT = 120;
+// Token bank bins: 3 big source cubes in a row.
+// IMPORTANT: hit area == visible cube size (no oversized invisible bins).
+const TOKEN_BANK_CUBE_SIZE = 44;      // visible source cube
+const TOKEN_BIN_W = TOKEN_BANK_CUBE_SIZE;
+const TOKEN_BIN_H = TOKEN_BANK_CUBE_SIZE;
+const TOKEN_BIN_GAP = 10;
 
 let DESIGN_W = 1;
 let DESIGN_H = 1;
@@ -321,7 +322,7 @@ style.textContent = `
     user-select:none;
   }
 
-  /* -------- TOKENS (FREEFORM LOOK) -------- */
+  /* -------- TOKENS (3 big sources, tight hitboxes) -------- */
   .tokenBank{
     position:absolute;
     background: transparent;
@@ -333,24 +334,23 @@ style.textContent = `
   }
   .tokenBinsRow{
     display:flex;
-    gap: 22px;
+    gap: ${TOKEN_BIN_GAP}px;
     align-items:center;
     justify-content:flex-start;
   }
 
-  /* Invisible large hit area (no border/box). The big source cube sits centered. */
+  /* Bin == visible cube size (click + drag starts immediately) */
   .tokenBin{
-    width: ${TOKEN_BIN_HIT}px;
-    height:${TOKEN_BIN_HIT}px;
+    width: ${TOKEN_BIN_W}px;
+    height:${TOKEN_BIN_H}px;
     border: none;
     background: transparent;
     position: relative;
     box-sizing: border-box;
-    cursor: grab;
+    cursor: pointer;
     user-select:none;
     touch-action:none;
   }
-  .tokenBin:active{ cursor: grabbing; }
 
   /* Actual cubes you drag (spawned on table) */
   .tokenCube{
@@ -372,7 +372,8 @@ style.textContent = `
     position:absolute;
     width:${TOKEN_BANK_CUBE_SIZE}px;
     height:${TOKEN_BANK_CUBE_SIZE}px;
-    border-radius: 6px;
+    left:0; top:0;
+    border-radius: 8px;
     box-sizing: border-box;
     border: 1px solid rgba(255,255,255,0.25);
     box-shadow: 0 10px 22px rgba(0,0,0,0.60);
@@ -1063,10 +1064,17 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchors (no visible zone)
-  const bankW = (TOKEN_BIN_HIT * 3) + (22 * 2);
-  const bankH = TOKEN_BIN_HIT;
-  const bankX = xPiles;
-  const bankGap = 18;
+  // 3 source cubes tucked under each player's draw/discard piles.
+  const pilesW = (CARD_W * 2) + GAP;              // discard + gap + draw
+  const pilesCenterX = xPiles + (pilesW / 2);
+
+  const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
+  const bankH = TOKEN_BIN_H;
+
+  // center the bank under the two piles
+  const bankX = Math.round(pilesCenterX - bankW / 2);
+
+  const bankGap = 14;
 
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
   const yP2TokenBank = yTopPiles - bankGap - bankH;
@@ -1653,29 +1661,26 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 
   tokenPools[owner][type] -= 1;
 
-  const p = viewportToDesign(clientX, clientY);
-  const tok = createTokenCube(owner, type, p.x, p.y);
+  // Spawn token centered under the pointer, then immediately drag it (single click-drag).
+  const stageRect0 = stage.getBoundingClientRect();
+  const px0 = (clientX - stageRect0.left) / camera.scale;
+  const py0 = (clientY - stageRect0.top)  / camera.scale;
 
-  try { tok.setPointerCapture(pointerId); } catch {}
-
-  const stageRect = stage.getBoundingClientRect();
-  const px = (clientX - stageRect.left) / camera.scale;
-  const py = (clientY - stageRect.top) / camera.scale;
-
-  const left = parseFloat(tok.style.left || "0");
-  const top  = parseFloat(tok.style.top || "0");
-  const offX = px - left;
-  const offY = py - top;
-
+  const tok = createTokenCube(owner, type, px0, py0);
   tok.style.zIndex = "60000";
 
+  // Make sure the same pointer is controlling the token right away.
+  try { tok.setPointerCapture(pointerId); } catch {}
+
   function move(e) {
-    const px2 = (e.clientX - stageRect.left) / camera.scale;
-    const py2 = (e.clientY - stageRect.top) / camera.scale;
-    tok.style.left = `${px2 - offX}px`;
-    tok.style.top  = `${py2 - offY}px`;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top)  / camera.scale;
+    tok.style.left = `${px - TOKEN_SIZE/2}px`;
+    tok.style.top  = `${py - TOKEN_SIZE/2}px`;
   }
-  function up() {
+
+  function up(e) {
     try { tok.releasePointerCapture(pointerId); } catch {}
     tok.style.zIndex = "16000";
     window.removeEventListener("pointermove", move, true);
@@ -1683,6 +1688,7 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
     window.removeEventListener("pointercancel", up, true);
   }
 
+  // Track movement even if pointer drifts outside the bin.
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerup", up, true);
   window.addEventListener("pointercancel", up, true);
@@ -1712,16 +1718,17 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // big source cube centered (visual only)
+    // big source cube (visual only)
     const source = document.createElement("div");
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
-    source.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
-    source.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
+    source.style.left = `0px`;
+    source.style.top  = `0px`;
     bin.appendChild(source);
 
     bin.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
       if (e.button !== 0) return;
+      e.preventDefault();
       e.stopPropagation();
       spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
     });
