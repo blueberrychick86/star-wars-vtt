@@ -276,10 +276,14 @@ function computeZones() {
   // Token banks: anchored under discard+draw piles (both players)
   const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
   const bankH = TOKEN_BIN_H;
-  const bankX = xPiles; // left-aligned to discard pile
+  const pilesW = (CARD_W * 2) + GAP;
+const pilesCenterX = xPiles + (pilesW / 2);
+const bankX = Math.round(pilesCenterX - (bankW / 2));
+
   const bankGap = 14;
 
-  const yP2TokenBank = yTopPiles + CARD_H + bankGap;       // below P2 piles
+  const yP2TokenBank = yTopPiles - bankGap - bankH;        // above P2 piles (mirrored)
+       // below P2 piles
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles
 
   let zones = {
