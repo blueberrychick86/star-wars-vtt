@@ -25,9 +25,6 @@ const FORCE_SLOTS = 7;
 const FORCE_NEUTRAL_INDEX = 3;
 const FORCE_MARKER_SIZE = 28;
 
-// Far red end: user plays BLUE from bottom, so RED end is "away" (top of track)
-const FORCE_RED_END_INDEX = 0;
-
 const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
 const CAP_W = BASE_W;
@@ -42,51 +39,6 @@ let DESIGN_W = 1;
 let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
 
-// ---------- START MENU CONFIG ----------
-const gameConfig = {
-  setMode: "mixed",      // "og" | "cw" | "mixed"
-  mandoNeutrals: true,   // include Mandalorian as neutrals
-  p1Side: "blue"         // "blue" | "red" (Player 1 choice; Player 2 is the other side)
-};
-
-function applySetModeDefaults() {
-  // Set determines factions automatically (no manual faction picks)
-  // mixed => All Blue vs All Red
-  // og    => Empire vs Rebels
-  // cw    => Separatists vs Republic
-  // (We keep these as derived values for later deck-loading logic.)
-  if (gameConfig.setMode === "mixed") {
-    gameConfig.blueFaction = "all_blue";
-    gameConfig.redFaction = "all_red";
-  } else if (gameConfig.setMode === "og") {
-    gameConfig.blueFaction = "empire";
-    gameConfig.redFaction = "rebels";
-  } else {
-    gameConfig.blueFaction = "separatists";
-    gameConfig.redFaction = "republic";
-  }
-}
-
-function randomizeConfig() {
-  const sets = ["og", "cw", "mixed"];
-  gameConfig.setMode = sets[Math.floor(Math.random() * sets.length)];
-  gameConfig.mandoNeutrals = Math.random() < 0.6;
-  gameConfig.p1Side = Math.random() < 0.5 ? "blue" : "red";
-  applySetModeDefaults();
-}
-
-function describeAutoFactionsHTML() {
-  if (gameConfig.setMode === "mixed") {
-    return `Blue = <b>All Blue</b> (Empire + Separatists), Red = <b>All Red</b> (Rebels + Republic).`;
-  }
-  if (gameConfig.setMode === "og") {
-    return `Blue = <b>Empire</b>, Red = <b>Rebels</b>.`;
-  }
-  return `Blue = <b>Separatists</b>, Red = <b>Republic</b>.`;
-}
-
-applySetModeDefaults();
-
 // ---------- TOKENS ----------
 const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
 const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temp per turn)
@@ -95,10 +47,12 @@ const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temp per turn)
 // Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
 
-// Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
-const TOKEN_BANK_CUBE_SIZE = 44;
+// ✅ Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
+const TOKEN_BANK_CUBE_SIZE = 44;   // visual + hit size for each bin (bigger target)
 const TOKEN_BIN_W = TOKEN_BANK_CUBE_SIZE;
 const TOKEN_BIN_H = TOKEN_BANK_CUBE_SIZE;
+
+// spacing between the 3 bins
 const TOKEN_BIN_GAP = 10;
 
 // ---------- CSS ----------
@@ -134,6 +88,26 @@ style.textContent = `
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
 
+  .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
+    box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
+
+  .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
+
+  .cardBack {
+    position:absolute; inset:0;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+  }
+  .card[data-face='down'] .cardBack { display:flex; }
+  .card[data-face='down'] .cardFace { filter: brightness(0.35); }
+
   .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.02); pointer-events:none; }
   .forceSlot.neutral { border:1px dashed rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); }
@@ -162,6 +136,7 @@ style.textContent = `
     justify-content:flex-start;
   }
 
+  /* Bin is the hit area (no border/box shown) */
   .tokenBin{
     width: ${TOKEN_BIN_W}px;
     height:${TOKEN_BIN_H}px;
@@ -174,6 +149,7 @@ style.textContent = `
     touch-action:none;
   }
 
+  /* Small cubes you place on cards */
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -188,6 +164,7 @@ style.textContent = `
   }
   .tokenCube:active{ cursor: grabbing; }
 
+  /* Big source cube inside the bin (this is the only visible "bin") */
   .tokenSourceCube{
     position:absolute;
     width:${TOKEN_BANK_CUBE_SIZE}px;
@@ -212,128 +189,6 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
     border-color: rgba(255,255,255,0.30);
   }
-
-  /* ---------- START MENU (overlay) ---------- */
-  .startMenuOverlay{
-    position: fixed;
-    inset: 0;
-    z-index: 200000;
-    background: rgba(0,0,0,0.72);
-    backdrop-filter: blur(6px);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding: 18px;
-    box-sizing:border-box;
-  }
-  .startMenuPanel{
-    width: min(520px, 92vw);
-    max-height: 88vh;
-    overflow:auto;
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(15,15,15,0.92);
-    box-shadow: 0 18px 55px rgba(0,0,0,0.70);
-    padding: 14px 14px 12px;
-    color: rgba(255,255,255,0.92);
-  }
-  .smTitle{
-    font-weight: 900;
-    letter-spacing: 0.6px;
-    font-size: 16px;
-    margin-bottom: 10px;
-  }
-  .smSection{
-    border-top: 1px solid rgba(255,255,255,0.12);
-    padding-top: 10px;
-    margin-top: 10px;
-  }
-  .smSection:first-of-type{
-    border-top: none;
-    padding-top: 0;
-    margin-top: 0;
-  }
-  .smRow{
-    display:flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 8px 0;
-  }
-  .smLabel{
-    font-size: 12px;
-    opacity: 0.85;
-    font-weight: 900;
-    letter-spacing: 0.2px;
-  }
-  .smOptions{
-    display:flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .smOpt{
-    display:flex;
-    align-items:center;
-    gap: 6px;
-    padding: 8px 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: rgba(255,255,255,0.05);
-    user-select:none;
-    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
-  }
-  .smOpt input{ transform: translateY(1px); }
-  .smOpt:has(input:checked){
-    background: rgba(255,255,255,0.14);
-    border-color: rgba(255,255,255,0.35);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.55);
-    transform: translateY(-1px);
-  }
-  .smOptBlue:has(input:checked){
-    background: rgba(90,170,255,0.22);
-    border-color: rgba(120,200,255,0.55);
-    box-shadow: 0 0 0 2px rgba(120,200,255,0.18), 0 14px 30px rgba(0,0,0,0.65);
-  }
-  .smOptRed:has(input:checked){
-    background: rgba(255,90,90,0.18);
-    border-color: rgba(255,130,130,0.55);
-    box-shadow: 0 0 0 2px rgba(255,130,130,0.16), 0 14px 30px rgba(0,0,0,0.65);
-  }
-  /* ===== START: Mandalorian green selected glow ===== */
-.smOptGreen:has(input:checked){
-  background: rgba(90,255,140,0.18);
-  border-color: rgba(120,255,170,0.55);
-  box-shadow: 0 0 0 2px rgba(120,255,170,0.16), 0 14px 30px rgba(0,0,0,0.65);
-}
-/* ===== END: Mandalorian green selected glow ===== */
-
-
-  .smActions{
-    display:flex;
-    gap: 8px;
-    justify-content:flex-end;
-    margin-top: 12px;
-  }
-  .smBtn{
-    background: rgba(255,255,255,0.10);
-    color:#fff;
-    border:1px solid rgba(255,255,255,0.22);
-    border-radius:12px;
-    padding:10px 12px;
-    font-weight:900;
-    letter-spacing:0.4px;
-    font-size: 12px;
-    cursor:pointer;
-  }
-  .smBtnPrimary{
-    background: rgba(120,180,255,0.22);
-    border-color: rgba(120,180,255,0.40);
-  }
-  .smTiny{
-    font-size: 11px;
-    opacity: 0.78;
-    line-height: 1.25;
-    margin-top: 6px;
-  }
 `;
 document.head.appendChild(style);
 
@@ -355,7 +210,6 @@ function makeHudBtn(label) {
 }
 
 const fitBtn = makeHudBtn("FIT");
-const menuBtn = makeHudBtn("MENU");
 const endP1Btn = makeHudBtn("END P1");
 const endP2Btn = makeHudBtn("END P2");
 const resetTokensBtn = makeHudBtn("RESET");
@@ -419,16 +273,17 @@ function computeZones() {
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  // Token banks: centered under discard+draw piles (both players), mirrored for P2
+  // Token banks: anchored under discard+draw piles (both players)
   const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
   const bankH = TOKEN_BIN_H;
-
   const pilesW = (CARD_W * 2) + GAP;
-  const pilesCenterX = xPiles + (pilesW / 2);
-  const bankX = Math.round(pilesCenterX - (bankW / 2));
+const pilesCenterX = xPiles + (pilesW / 2);
+const bankX = Math.round(pilesCenterX - (bankW / 2));
 
   const bankGap = 14;
+
   const yP2TokenBank = yTopPiles - bankGap - bankH;        // above P2 piles (mirrored)
+       // below P2 piles
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles
 
   let zones = {
@@ -551,15 +406,6 @@ function buildForceTrackSlots(forceRect) {
     slot.style.height = `32px`;
     stage.appendChild(slot);
   }
-}
-
-function moveForceMarkerToIndex(index) {
-  if (!forceMarker) return;
-  if (!forceSlotCenters.length) return;
-  const i = Math.max(0, Math.min(FORCE_SLOTS - 1, index));
-  const c = forceSlotCenters[i];
-  forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
-  forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
 }
 
 function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
@@ -786,6 +632,7 @@ function buildTokenBank(owner, r) {
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
     bin.appendChild(source);
 
+    // ✅ hit area == visible cube (bin == cube size)
     bin.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -797,6 +644,7 @@ function buildTokenBank(owner, r) {
 
   bank.appendChild(row);
 
+  // keep tokens banks from dragging cards
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
@@ -821,6 +669,7 @@ function returnTokensForOwner(owner, typesToReturn) {
 }
 
 function endTurn(owner) {
+  // temp stuff returns automatically
   returnTokensForOwner(owner, ["attack","resource"]);
 }
 
@@ -852,8 +701,10 @@ function build() {
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
+  // Draw standard zones (skip token bank anchors)
   for (const [id, rr] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
+
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
@@ -878,127 +729,63 @@ function build() {
 }
 build();
 
-// ---------- START MENU ----------
-let startMenuOverlayEl = null;
-
-function closeStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
-  startMenuOverlayEl = null;
-
-  // Setup rule applied silently:
-  // Force track starts at far RED end.
-  moveForceMarkerToIndex(FORCE_RED_END_INDEX);
-}
-
-function renderStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
-
-  const overlay = document.createElement("div");
-  overlay.className = "startMenuOverlay";
-
-  const panel = document.createElement("div");
-  panel.className = "startMenuPanel";
-
-  panel.innerHTML = `
-    <div class="smTitle">Start Menu</div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Set</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG only</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars only</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed (OG + CW)</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Player 1 plays</div>
-        <div class="smOptions">
-          <label class="smOpt smOptBlue"><input type="radio" name="p1Side" value="blue"> Blue</label>
-          <label class="smOpt smOptRed"><input type="radio" name="p1Side" value="red"> Red</label>
-        </div>
-        
-    </div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Factions (auto)</div>
-        <div class="smTiny">${describeAutoFactionsHTML()}</div>
-      </div>
-    </div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Mandalorian</div>
-        <div class="smOptions">
-         <label class="smOpt smOptGreen">
-  <input type="checkbox" name="mandoNeutrals">
-  Include Mandalorian as neutrals
-</label>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="smActions">
-      <button class="smBtn" data-action="random">Random</button>
-      <button class="smBtn smBtnPrimary" data-action="start">START</button>
-    </div>
-  `;
-
-  overlay.appendChild(panel);
-  table.appendChild(overlay);
-  startMenuOverlayEl = overlay;
-
-  // initial UI values
-  panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
-  panel.querySelector(`input[name="p1Side"][value="${gameConfig.p1Side}"]`).checked = true;
-  panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
-
-  function readUIToConfig() {
-    gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
-    gameConfig.p1Side = panel.querySelector(`input[name="p1Side"]:checked`).value;
-    gameConfig.mandoNeutrals = !!panel.querySelector(`input[name="mandoNeutrals"]`).checked;
-    applySetModeDefaults();
-  }
-
-  panel.addEventListener("change", (e) => {
-    // Rebuild when set changes so auto-faction text updates
-    if (e.target && e.target.name === "setMode") {
-      readUIToConfig();
-      renderStartMenu();
-      return;
-    }
-    readUIToConfig();
-  });
-
-  panel.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-action]");
-    if (!btn) return;
-
-    if (btn.dataset.action === "random") {
-      randomizeConfig();
-      renderStartMenu();
-      return;
-    }
-
-    if (btn.dataset.action === "start") {
-      readUIToConfig();
-      closeStartMenu();
-    }
-  });
-}
-
-menuBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  renderStartMenu();
-});
-
-// Show menu on load
-renderStartMenu();
-
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
+
+// ---------- demo cards ----------
+function makeCardEl(imgUrl, w, h, x, y, z) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.style.width = `${w}px`;
+  el.style.height = `${h}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.zIndex = String(z || 15000);
+
+  const face = document.createElement("div");
+  face.className = "cardFace";
+  face.style.backgroundImage = `url('${imgUrl}')`;
+  el.appendChild(face);
+
+  const back = document.createElement("div");
+  back.className = "cardBack";
+  back.textContent = "Face Down";
+  el.appendChild(back);
+
+  el.dataset.face = "up";
+
+  // simple drag for demo
+  let dragging = false, offX = 0, offY = 0;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+    offX = px - parseFloat(el.style.left || "0");
+    offY = py - parseFloat(el.style.top || "0");
+    el.style.zIndex = "50000";
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+    el.style.left = `${px - offX}px`;
+    el.style.top  = `${py - offY}px`;
+  });
+  el.addEventListener("pointerup", (e) => {
+    dragging = false;
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    el.style.zIndex = String(z || 15000);
+  });
+
+  stage.appendChild(el);
+}
+
+// place a couple demo cards
+makeCardEl("https://picsum.photos/250/350?random=12", CARD_W, CARD_H, Math.round(DESIGN_W * 0.42), Math.round(DESIGN_H * 0.12), 15000);
+makeCardEl("https://picsum.photos/250/350?random=15", CARD_W, CARD_H, Math.round(DESIGN_W * 0.14), Math.round(DESIGN_H * 0.18), 15000);
+makeCardEl("https://picsum.photos/250/350?random=16", CARD_W, CARD_H, Math.round(DESIGN_W * 0.20), Math.round(DESIGN_H * 0.18), 15000);
