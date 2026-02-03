@@ -1,4 +1,4 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes) + end-turn return (blue+gold) + UI sizing tweaks");
+console.log("VTT: CLEAN BASELINE + PERSISTENT LAYERS + TRAY/CARDS RESTORED (no wipes)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -25,6 +25,9 @@ const FORCE_SLOTS = 7;
 const FORCE_NEUTRAL_INDEX = 3;
 const FORCE_MARKER_SIZE = 28;
 
+// Far red end: user plays BLUE from bottom, so RED end is "away" (top of track)
+const FORCE_RED_END_INDEX = 0;
+
 const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
 const CAP_W = BASE_W;
@@ -41,24 +44,64 @@ const TRAY_HOLD_TO_DRAG_MS = 260;   // hold this long to start dragging out of t
 const TRAY_MOVE_CANCEL_PX = 8;      // if you move more than this before hold triggers, it's treated as scroll
 const TRAY_TAP_MOVE_PX = 6;         // tap threshold
 
-// -------- player color (for tray border glow) --------
-let PLAYER_COLOR = "blue"; // "blue" | "red" | "green"
-
-// -------- token system --------
-// Per-player pools (you can tweak these any time)
+// ---------- TOKENS ----------
 const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
-const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temporary per turn)
-const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
+const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temp per turn)
+const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temp per turn)
 
-// Cube look / size (small enough to sit on cards)
-const TOKEN_SIZE = 18;      // px in design space (scales with zoom)
+// Spawned cube size (small enough to sit on cards)
+const TOKEN_SIZE = 18;
 
-// FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
-const TOKEN_BIN_HIT = 96;   // <- bigger invisible tap/drag zone for each cube
+// CLEAN BASELINE TOKEN BIN RULE:
+// Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
+const TOKEN_BANK_CUBE_SIZE = 44;
+const TOKEN_BIN_W = TOKEN_BANK_CUBE_SIZE;
+const TOKEN_BIN_H = TOKEN_BANK_CUBE_SIZE;
+const TOKEN_BIN_GAP = 10;
 
+// ---------- flags ----------
+const DEMO_MODE = true; // set false later when you load real decks
+
+// ---------- layout helpers ----------
 let DESIGN_W = 1;
 let DESIGN_H = 1;
 function rect(x, y, w, h) { return { x, y, w, h }; }
+
+// ---------- START MENU CONFIG ----------
+const gameConfig = {
+  setMode: "mixed",      // "og" | "cw" | "mixed"
+  mandoNeutrals: true,   // include Mandalorian as neutrals
+  p1Side: "blue"         // "blue" | "red" (Player 1 choice; Player 2 is the other side)
+};
+function applySetModeDefaults() {
+  if (gameConfig.setMode === "mixed") {
+    gameConfig.blueFaction = "all_blue";
+    gameConfig.redFaction = "all_red";
+  } else if (gameConfig.setMode === "og") {
+    gameConfig.blueFaction = "empire";
+    gameConfig.redFaction = "rebels";
+  } else {
+    gameConfig.blueFaction = "separatists";
+    gameConfig.redFaction = "republic";
+  }
+}
+function randomizeConfig() {
+  const sets = ["og", "cw", "mixed"];
+  gameConfig.setMode = sets[Math.floor(Math.random() * sets.length)];
+  gameConfig.mandoNeutrals = Math.random() < 0.6;
+  gameConfig.p1Side = Math.random() < 0.5 ? "blue" : "red";
+  applySetModeDefaults();
+}
+function describeAutoFactionsHTML() {
+  if (gameConfig.setMode === "mixed") {
+    return `Blue = <b>All Blue</b> (Empire + Separatists), Red = <b>All Red</b> (Rebels + Republic).`;
+  }
+  if (gameConfig.setMode === "og") {
+    return `Blue = <b>Empire</b>, Red = <b>Rebels</b>.`;
+  }
+  return `Blue = <b>Separatists</b>, Red = <b>Republic</b>.`;
+}
+applySetModeDefaults();
 
 // ---------- CSS ----------
 const style = document.createElement("style");
@@ -90,17 +133,32 @@ style.textContent = `
   }
 
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
+  .layer { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+  #zonesLayer { pointer-events:auto; }   /* zones need clicks */
+  #uiLayer { pointer-events:auto; }      /* force marker, badges */
+  #piecesLayer { pointer-events:auto; }  /* cards, tokens */
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
   .zone.clickable{ cursor:pointer; }
   .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
+  /* force track */
+  .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.02); pointer-events:none; }
+  .forceSlot.neutral { border:1px dashed rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); }
+
+  .forceMarker { position:absolute; width:${FORCE_MARKER_SIZE}px; height:${FORCE_MARKER_SIZE}px; border-radius:999px; border:2px solid rgba(255,255,255,0.9);
+    background: rgba(120,180,255,0.22); box-shadow:0 8px 20px rgba(0,0,0,0.6); box-sizing:border-box; z-index:99999;
+    touch-action:none; cursor:grab; }
+
+  /* captured base slots */
+  .capSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.01); pointer-events:none; }
+
+  /* cards */
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
-
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
-
-  /* Face-down overlay */
   .cardBack {
     position:absolute; inset:0;
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
@@ -116,47 +174,188 @@ style.textContent = `
   .card[data-face='down'] .cardBack { display:flex; }
   .card[data-face='down'] .cardFace { filter: brightness(0.35); }
 
-  /* force track */
-  .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.02); pointer-events:none; }
-  .forceSlot.neutral { border:1px dashed rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); }
-  .forceMarker { position:absolute; width:28px; height:28px; border-radius:999px; border:2px solid rgba(255,255,255,0.9);
-    background: rgba(120,180,255,0.22); box-shadow:0 8px 20px rgba(0,0,0,0.6); box-sizing:border-box; z-index:99999;
-    touch-action:none; cursor:grab; }
+  /* -------- TOKENS (CLEAN BASELINE: exact hit area = cube) -------- */
+  .tokenBank{
+    position:absolute;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    box-sizing: border-box;
+    pointer-events:auto;
+  }
+  .tokenBinsRow{
+    display:flex;
+    gap: ${TOKEN_BIN_GAP}px;
+    align-items:center;
+    justify-content:flex-start;
+  }
+  .tokenBin{
+    width: ${TOKEN_BIN_W}px;
+    height:${TOKEN_BIN_H}px;
+    border: none;
+    background: transparent;
+    position: relative;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select:none;
+    touch-action:none;
+  }
+  .tokenCube{
+    position:absolute;
+    width:${TOKEN_SIZE}px;
+    height:${TOKEN_SIZE}px;
+    border-radius: 4px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.55);
+    touch-action:none;
+    cursor: grab;
+    user-select:none;
+  }
+  .tokenCube:active{ cursor: grabbing; }
 
-  /* captured base slots */
-  .capSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.14);
-    background: rgba(255,255,255,0.01); pointer-events:none; }
+  .tokenSourceCube{
+    position:absolute;
+    width:${TOKEN_BANK_CUBE_SIZE}px;
+    height:${TOKEN_BANK_CUBE_SIZE}px;
+    border-radius: 8px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.60);
+    pointer-events:none;
+    user-select:none;
+    left: 0px;
+    top: 0px;
+  }
+  .tokenRed{
+    background: linear-gradient(145deg, rgba(255,120,120,0.95), rgba(160,20,20,0.98));
+  }
+  .tokenBlue{
+    background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98));
+  }
+  .tokenGold{
+    background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
+    border-color: rgba(255,255,255,0.30);
+  }
 
-  /* preview overlay */
-  #previewBackdrop { position:fixed; inset:0; background: rgba(0,0,0,0.62); z-index:200000; display:none;
-    align-items:center; justify-content:center; padding:12px; touch-action:none; }
-
-  #previewCard { width:min(96vw, 520px); max-height:92vh; border-radius:16px; border:1px solid rgba(255,255,255,0.22);
-    background: rgba(15,15,18,0.98); box-shadow:0 12px 40px rgba(0,0,0,0.7); overflow:hidden; color:#fff;
-    display:flex; flex-direction:column; }
-
-  #previewHeader { display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
-    border-bottom:1px solid rgba(255,255,255,0.10); }
-
-  #previewHeaderLeft { display:flex; flex-direction:column; gap:2px; }
-  #previewTitle { font-size:18px; font-weight:900; margin:0; line-height:1.1; }
-  #previewSub { opacity:0.9; font-size:13px; margin:0; }
-
-  #closePreviewBtn { border:1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color:#fff;
-    border-radius:12px; padding:8px 10px; font-weight:900; font-size:14px; user-select:none; touch-action:manipulation;
-    cursor:pointer; }
-
-  #previewScroll { overflow:auto; -webkit-overflow-scrolling:touch; padding:12px; }
-  #previewTop { display:grid; grid-template-columns:110px 1fr; gap:12px; align-items:start; }
-  #previewImg { width:110px; aspect-ratio:2.5 / 3.5; border-radius:10px; border:1px solid rgba(255,255,255,0.18);
-    background:#000; background-size:cover; background-position:center; }
-  .pillRow { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
-  .pill { font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.06); white-space:nowrap; }
-  .sectionLabel { font-size:12px; opacity:0.8; margin:12px 0 6px 0; letter-spacing:0.3px; text-transform:uppercase; }
-  .textBox { font-size:14px; line-height:1.3; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.06); }
+  /* ---------- START MENU (overlay) ---------- */
+  .startMenuOverlay{
+    position: fixed;
+    inset: 0;
+    z-index: 200000;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(6px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 18px;
+    box-sizing:border-box;
+  }
+  .startMenuPanel{
+    width: min(520px, 92vw);
+    max-height: 88vh;
+    overflow:auto;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(15,15,15,0.92);
+    box-shadow: 0 18px 55px rgba(0,0,0,0.70);
+    padding: 14px 14px 12px;
+    color: rgba(255,255,255,0.92);
+  }
+  .smTitle{
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  .smSection{
+    border-top: 1px solid rgba(255,255,255,0.12);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .smSection:first-of-type{
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .smRow{
+    display:flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0;
+  }
+  .smLabel{
+    font-size: 12px;
+    opacity: 0.85;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+  }
+  .smOptions{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .smOpt{
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.05);
+    user-select:none;
+    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  }
+  .smOpt input{ transform: translateY(1px); }
+  .smOpt:has(input:checked){
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.55);
+    transform: translateY(-1px);
+  }
+  .smOptBlue:has(input:checked){
+    background: rgba(90,170,255,0.22);
+    border-color: rgba(120,200,255,0.55);
+    box-shadow: 0 0 0 2px rgba(120,200,255,0.18), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smOptRed:has(input:checked){
+    background: rgba(255,90,90,0.18);
+    border-color: rgba(255,130,130,0.55);
+    box-shadow: 0 0 0 2px rgba(255,130,130,0.16), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smOptGreen:has(input:checked){
+    background: rgba(90,255,140,0.18);
+    border-color: rgba(120,255,170,0.55);
+    box-shadow: 0 0 0 2px rgba(120,255,170,0.16), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smActions{
+    display:flex;
+    gap: 8px;
+    justify-content:flex-end;
+    margin-top: 12px;
+  }
+  .smBtn{
+    background: rgba(255,255,255,0.10);
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.22);
+    border-radius:12px;
+    padding:10px 12px;
+    font-weight:900;
+    letter-spacing:0.4px;
+    font-size: 12px;
+    cursor:pointer;
+  }
+  .smBtnPrimary{
+    background: rgba(120,180,255,0.22);
+    border-color: rgba(120,180,255,0.40);
+  }
+  .smTiny{
+    font-size: 11px;
+    opacity: 0.78;
+    line-height: 1.25;
+    margin-top: 6px;
+  }
 
   /* -------- TRAY (RIGHT DRAWER) -------- */
   #trayShell{
@@ -169,7 +368,6 @@ style.textContent = `
     pointer-events: none;
     display: none;
   }
-
   #tray{
     width: 100%;
     height: 100%;
@@ -183,7 +381,6 @@ style.textContent = `
     overflow: hidden;
     pointer-events: auto;
   }
-
   #trayHeaderBar{
     display:flex; align-items:center; justify-content:space-between;
     padding: 6px 8px;
@@ -217,7 +414,6 @@ style.textContent = `
     touch-action:manipulation;
     line-height: 1;
   }
-
   #traySearchRow{
     display:none;
     padding: 6px 8px;
@@ -238,13 +434,11 @@ style.textContent = `
     outline: none;
   }
   #traySearchInput::placeholder{ color: rgba(255,255,255,0.55); font-weight: 700; }
-
   #trayBody{
     flex: 1;
     overflow: hidden;
     padding: 4px;
   }
-
   #trayCarousel{
     height: 100%;
     display: flex;
@@ -257,12 +451,10 @@ style.textContent = `
     padding-right: 2px;
     padding-bottom: 20px;
   }
-
   #trayShell.dragging #trayCarousel{
     overflow: hidden;
     touch-action: none;
   }
-
   .trayTile{
     flex: 0 0 auto;
     width: 100%;
@@ -289,7 +481,6 @@ style.textContent = `
     text-shadow: 0 1px 2px rgba(0,0,0,0.70);
     pointer-events:none;
   }
-
   #trayShell[data-player="blue"] .trayTile{
     border-color: rgba(120,180,255,0.80);
     box-shadow: 0 0 0 2px rgba(120,180,255,0.20), 0 10px 22px rgba(0,0,0,0.45);
@@ -302,7 +493,6 @@ style.textContent = `
     border-color: rgba(140,255,170,0.80);
     box-shadow: 0 0 0 2px rgba(140,255,170,0.18), 0 10px 22px rgba(0,0,0,0.45);
   }
-
   .trayCountBadge{
     position:absolute;
     width: 34px; height: 34px;
@@ -318,83 +508,30 @@ style.textContent = `
     user-select:none;
   }
 
-  /* -------- TOKENS (FREEFORM LOOK) -------- */
-  .tokenBank{
-    position:absolute;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    box-sizing: border-box;
-    pointer-events:auto;
-  }
-  .tokenBinsRow{
-    display:flex;
-    gap: 18px;
-    align-items:center;
-    justify-content:flex-start;
-  }
-
-  /* Invisible large hit area (no border/box). The cube sits centered. */
-  .tokenBin{
-    width: ${TOKEN_BIN_HIT}px;
-    height:${TOKEN_BIN_HIT}px;
-    border: none;
-    background: transparent;
-    position: relative;
-    box-sizing: border-box;
-    cursor: grab;
-    user-select:none;
-    touch-action:none;
-  }
-  .tokenBin:active{ cursor: grabbing; }
-
-  /* Count badge: small, floating, minimal */
-  .tokenBinCount{
-    position:absolute;
-    right: 10px;
-    top: 10px;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(0,0,0,0.55);
-    color: rgba(255,255,255,0.92);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight: 900;
-    font-size: 11px;
-    pointer-events:none;
-  }
-
-  /* Actual cubes you drag */
-  .tokenCube{
-    position:absolute;
-    width:${TOKEN_SIZE}px;
-    height:${TOKEN_SIZE}px;
-    border-radius: 4px;
-    box-sizing: border-box;
-    border: 1px solid rgba(255,255,255,0.25);
-    box-shadow: 0 8px 18px rgba(0,0,0,0.55);
-    touch-action:none;
-    cursor: grab;
-    user-select:none;
-  }
-  .tokenCube:active{ cursor: grabbing; }
-
-  /* cube color styles */
-  .tokenRed{
-    background: linear-gradient(145deg, rgba(255,120,120,0.95), rgba(160,20,20,0.98));
-  }
-  .tokenBlue{
-    background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98));
-  }
-  .tokenGold{
-    background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
-    border-color: rgba(255,255,255,0.30);
-  }
+  /* -------- PREVIEW OVERLAY -------- */
+  #previewBackdrop { position:fixed; inset:0; background: rgba(0,0,0,0.62); z-index:200000; display:none;
+    align-items:center; justify-content:center; padding:12px; touch-action:none; }
+  #previewCard { width:min(96vw, 520px); max-height:92vh; border-radius:16px; border:1px solid rgba(255,255,255,0.22);
+    background: rgba(15,15,18,0.98); box-shadow:0 12px 40px rgba(0,0,0,0.7); overflow:hidden; color:#fff;
+    display:flex; flex-direction:column; }
+  #previewHeader { display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
+    border-bottom:1px solid rgba(255,255,255,0.10); }
+  #previewHeaderLeft { display:flex; flex-direction:column; gap:2px; }
+  #previewTitle { font-size:18px; font-weight:900; margin:0; line-height:1.1; }
+  #previewSub { opacity:0.9; font-size:13px; margin:0; }
+  #closePreviewBtn { border:1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color:#fff;
+    border-radius:12px; padding:8px 10px; font-weight:900; font-size:14px; user-select:none; touch-action:manipulation;
+    cursor:pointer; }
+  #previewScroll { overflow:auto; -webkit-overflow-scrolling:touch; padding:12px; }
+  #previewTop { display:grid; grid-template-columns:110px 1fr; gap:12px; align-items:start; }
+  #previewImg { width:110px; aspect-ratio:2.5 / 3.5; border-radius:10px; border:1px solid rgba(255,255,255,0.18);
+    background:#000; background-size:cover; background-position:center; }
+  .pillRow { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .pill { font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06); white-space:nowrap; }
+  .sectionLabel { font-size:12px; opacity:0.8; margin:12px 0 6px 0; letter-spacing:0.3px; text-transform:uppercase; }
+  .textBox { font-size:14px; line-height:1.3; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06); }
 `;
 document.head.appendChild(style);
 
@@ -407,29 +544,40 @@ const hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
 
-const fitBtn = document.createElement("button");
-fitBtn.className = "hudBtn";
-fitBtn.textContent = "FIT";
-hud.appendChild(fitBtn);
+function makeHudBtn(label) {
+  const b = document.createElement("button");
+  b.className = "hudBtn";
+  b.textContent = label;
+  hud.appendChild(b);
+  return b;
+}
 
-const endP1Btn = document.createElement("button");
-endP1Btn.className = "hudBtn";
-endP1Btn.textContent = "END P1";
-hud.appendChild(endP1Btn);
-
-const endP2Btn = document.createElement("button");
-endP2Btn.className = "hudBtn";
-endP2Btn.textContent = "END P2";
-hud.appendChild(endP2Btn);
-
-const resetTokensBtn = document.createElement("button");
-resetTokensBtn.className = "hudBtn";
-resetTokensBtn.textContent = "RESET";
-hud.appendChild(resetTokensBtn);
+const fitBtn = makeHudBtn("FIT");
+const menuBtn = makeHudBtn("MENU");
+const endP1Btn = makeHudBtn("END P1");
+const endP2Btn = makeHudBtn("END P2");
+const resetTokensBtn = makeHudBtn("RESET");
 
 const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
+
+// ---------- persistent layers (THIS prevents wipes) ----------
+const zonesLayer = document.createElement("div");
+zonesLayer.id = "zonesLayer";
+zonesLayer.className = "layer";
+
+const uiLayer = document.createElement("div");
+uiLayer.id = "uiLayer";
+uiLayer.className = "layer";
+
+const piecesLayer = document.createElement("div");
+piecesLayer.id = "piecesLayer";
+piecesLayer.className = "layer";
+
+stage.appendChild(zonesLayer);
+stage.appendChild(piecesLayer);
+stage.appendChild(uiLayer);
 
 // ---------- preview overlay ----------
 const previewBackdrop = document.createElement("div");
@@ -481,11 +629,12 @@ table.appendChild(previewBackdrop);
 })();
 
 // ---------- tray ----------
+let PLAYER_COLOR = "blue"; // tray glow (matches your older build)
 const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
 trayShell.style.display = "none";
-trayShell.dataset.player = PLAYER_COLOR; // glow
+trayShell.dataset.player = PLAYER_COLOR;
 
 const tray = document.createElement("div");
 tray.id = "tray";
@@ -543,6 +692,7 @@ let forceMarker = null;
 
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
+
 let zonesCache = null;
 
 // token state
@@ -550,7 +700,576 @@ const tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
 };
-const tokenEls = new Set(); // live token elements on board
+const tokenEls = new Set();
+let zonesMeta = [];
+
+// ---------- camera + board pan/zoom ----------
+const camera = { scale: 1, tx: 0, ty: 0 };
+
+function viewportSize() {
+  const vv = window.visualViewport;
+  return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
+}
+function applyCamera() {
+  stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
+}
+function viewportToDesign(vx, vy){
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+}
+
+function fitToScreen() {
+  const { w, h } = viewportSize();
+  const margin = 16;
+
+  let trayW = 0;
+  try { if (trayShell && trayShell.style.display !== "none") trayW = trayShell.getBoundingClientRect().width; } catch {}
+
+  const usableW = Math.max(200, w - trayW);
+
+  const s = Math.min(
+    (usableW - margin * 2) / DESIGN_W,
+    (h - margin * 2) / DESIGN_H
+  );
+
+  camera.scale = s;
+
+  const centerTx = Math.round((usableW - DESIGN_W * s) / 2);
+  const centerTy = Math.round((h - DESIGN_H * s) / 2);
+
+  const leftBias = Math.min(90, Math.round(w * 0.10));
+  camera.tx = centerTx - leftBias;
+  camera.ty = centerTy;
+
+  applyCamera();
+  refreshSnapRects();
+}
+fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
+
+const BOARD_MIN_SCALE = 0.25;
+const BOARD_MAX_SCALE = 4.0;
+
+function setScaleAround(newScale, vx, vy){
+  const clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
+  const world = viewportToDesign(vx, vy);
+
+  camera.scale = clamped;
+  camera.tx = vx - world.x * camera.scale;
+  camera.ty = vy - world.y * camera.scale;
+
+  applyCamera();
+  refreshSnapRects();
+}
+function dist(a,b){ return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function mid(a,b){ return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 }; }
+
+const boardPointers = new Map();
+let boardLast = { x: 0, y: 0 };
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let pinchMid = { x: 0, y: 0 };
+
+// Board pan/zoom (ignore tray + preview + cards + tokens)
+table.addEventListener("pointerdown", (e) => {
+  if (previewOpen) return;
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+  if (e.target.closest(".card")) return;
+  if (e.target.closest(".forceMarker")) return;
+  if (e.target.closest(".tokenCube")) return;
+  if (e.target.closest(".tokenBin")) return;
+  if (e.target.closest("#hud")) return;
+
+  table.setPointerCapture(e.pointerId);
+  boardPointers.set(e.pointerId, e);
+  boardLast = { x: e.clientX, y: e.clientY };
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    pinchStartDist = dist(pts[0], pts[1]);
+    pinchStartScale = camera.scale;
+    pinchMid = mid(pts[0], pts[1]);
+  }
+});
+
+table.addEventListener("pointermove", (e) => {
+  if (previewOpen) return;
+  if (!boardPointers.has(e.pointerId)) return;
+  boardPointers.set(e.pointerId, e);
+
+  if (boardPointers.size === 1) {
+    const dx = e.clientX - boardLast.x;
+    const dy = e.clientY - boardLast.y;
+    camera.tx += dx;
+    camera.ty += dy;
+    boardLast = { x: e.clientX, y: e.clientY };
+    applyCamera();
+    refreshSnapRects();
+    return;
+  }
+
+  if (boardPointers.size === 2) {
+    const pts = [...boardPointers.values()];
+    const d = dist(pts[0], pts[1]);
+    const factor = d / pinchStartDist;
+    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+  }
+});
+
+function endBoardPointer(e){
+  boardPointers.delete(e.pointerId);
+  if (boardPointers.size === 1){
+    const p = [...boardPointers.values()][0];
+    boardLast = { x: p.clientX, y: p.clientY };
+  }
+}
+table.addEventListener("pointerup", endBoardPointer);
+table.addEventListener("pointercancel", () => boardPointers.clear());
+
+table.addEventListener("wheel", (e) => {
+  if (previewOpen) return;
+  if (e.target.closest("#tray")) return;
+  if (e.target.closest("#trayShell")) return;
+  if (e.target.closest("#previewBackdrop")) return;
+  e.preventDefault();
+  const zoomIntensity = 0.0018;
+  const delta = -e.deltaY;
+  const newScale = camera.scale * (1 + delta * zoomIntensity);
+  setScaleAround(newScale, e.clientX, e.clientY);
+}, { passive: false });
+
+// ---------- layout ----------
+function computeZones() {
+  const xPiles = 240;
+  const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
+
+  const xRowStart = xGalaxyDeck + CARD_W + BIG_GAP;
+  const rowSlotGap = GAP;
+  const rowWidth = (CARD_W * 6) + (rowSlotGap * 5);
+
+  const xOuterRim = xRowStart + rowWidth + BIG_GAP;
+
+  const xForce = xOuterRim + CARD_W + GAP;
+  const forceTrackW = 52;
+
+  const xGalaxyDiscard = xForce + forceTrackW + GAP;
+  const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
+
+  const yTopPiles = 90;
+
+  const yRow1 = 220;
+  const yRow2 = yRow1 + CARD_H + GAP;
+
+  const yForceTrack = yRow1;
+  const forceTrackH = (CARD_H * 2) + GAP;
+
+  const yGalaxyDeck = yRow1 + Math.round(CARD_H / 2) + Math.round(GAP / 2);
+
+  const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
+  const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
+
+  const yTopExile = yRow1 - (CARD_H + BIG_GAP);
+  const yBotExile = yRow2 + CARD_H + BIG_GAP;
+
+  const yBottomPiles = yBotExile;
+
+  const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
+  const yCapTop = yGalaxyDiscard - CAP_DISCARD_GAP - CAP_H;
+  const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;
+
+  const xForceCenter = xForce + (forceTrackW / 2);
+  const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
+
+  // Token banks: centered under discard+draw piles (both players), mirrored for P2
+  const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
+  const bankH = TOKEN_BIN_H;
+
+  const pilesW = (CARD_W * 2) + GAP;
+  const pilesCenterX = xPiles + (pilesW / 2);
+  const bankX = Math.round(pilesCenterX - (bankW / 2));
+
+  const bankGap = 14;
+  const yP2TokenBank = yTopPiles - bankGap - bankH;
+  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
+
+  let zones = {
+    // P2 (top) — discard LEFT, draw RIGHT
+    p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
+    p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
+
+    p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
+
+    p2_exile_draw: rect(xExileLeft, yTopExile, CARD_W, CARD_H),
+    p2_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yTopExile, CARD_W, CARD_H),
+
+    p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
+
+    galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
+
+    outer_rim: rect(xOuterRim, yGalaxyDiscard, CARD_W, CARD_H),
+    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
+    galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
+
+    // P1 (bottom) — discard LEFT, draw RIGHT
+    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
+    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
+
+    p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
+
+    p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
+    p1_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yBotExile, CARD_W, CARD_H),
+
+    p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
+
+    // token bank anchors
+    p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
+    p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
+  };
+
+  for (let c = 0; c < 6; c++) {
+    zones["g1" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
+    zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
+  }
+
+  // normalize so nothing is negative (FIT-safe)
+  const PAD = 18;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (const r of Object.values(zones)) {
+    minX = Math.min(minX, r.x);
+    minY = Math.min(minY, r.y);
+    maxX = Math.max(maxX, r.x + r.w);
+    maxY = Math.max(maxY, r.y + r.h);
+  }
+
+  const shiftX = (minX < PAD) ? (PAD - minX) : 0;
+  const shiftY = (minY < PAD) ? (PAD - minY) : 0;
+
+  if (shiftX || shiftY) {
+    for (const r of Object.values(zones)) {
+      r.x += shiftX;
+      r.y += shiftY;
+    }
+    maxX += shiftX;
+    maxY += shiftY;
+  }
+
+  DESIGN_W = Math.ceil(maxX + PAD);
+  DESIGN_H = Math.ceil(maxY + PAD);
+
+  return zones;
+}
+
+// ---------- snapping (with zone acceptance) ----------
+const SNAP_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26",
+  "p2_base_stack","p1_base_stack",
+]);
+const UNIT_SNAP_ZONE_IDS = new Set([
+  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
+  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
+  "galaxy_deck","galaxy_discard","outer_rim",
+  "g11","g12","g13","g14","g15","g16",
+  "g21","g22","g23","g24","g25","g26",
+]);
+const BASE_SNAP_ZONE_IDS = new Set(["p1_base_stack","p2_base_stack"]);
+
+function refreshSnapRects() {
+  zonesMeta = [];
+  zonesLayer.querySelectorAll(".zone").forEach((el) => {
+    const id = el.dataset.zoneId;
+    if (!SNAP_ZONE_IDS.has(id)) return;
+    const b = el.getBoundingClientRect();
+    zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
+  });
+}
+function snapCardToNearestZone(cardEl) {
+  if (!zonesMeta.length) return;
+
+  const kind = cardEl.dataset.kind || "unit";
+  const allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
+
+  const cardRect = cardEl.getBoundingClientRect();
+  const cx = cardRect.left + cardRect.width / 2;
+  const cy = cardRect.top + cardRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    if (!allowed.has(z.id)) continue;
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) { bestDist = d; best = z; }
+  }
+
+  if (!best) return;
+
+  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
+  const zoneDiag = Math.hypot(best.width, best.height);
+  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
+  if (bestDist > threshold) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  const w = parseFloat(cardEl.style.width);
+  const h = parseFloat(cardEl.style.height);
+
+  cardEl.style.left = `${targetCenterX - w / 2}px`;
+  cardEl.style.top  = `${targetCenterY - h / 2}px`;
+}
+function snapBaseToNearestBaseStack(baseEl) {
+  if (!zonesMeta.length) return;
+
+  const baseRect = baseEl.getBoundingClientRect();
+  const cx = baseRect.left + baseRect.width / 2;
+  const cy = baseRect.top + baseRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const z of zonesMeta) {
+    if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
+    const zx = z.left + z.width / 2;
+    const zy = z.top + z.height / 2;
+    const d = Math.hypot(cx - zx, cy - zy);
+    if (d < bestDist) { bestDist = d; best = z; }
+  }
+
+  if (!best) return;
+
+  const zoneDiag = Math.hypot(best.width, best.height);
+  const baseDiag = Math.hypot(baseRect.width, baseRect.height);
+  const threshold = Math.max(zoneDiag, baseDiag) * 0.70;
+  if (bestDist > threshold) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  baseEl.style.left = `${targetCenterX - BASE_W / 2}px`;
+  baseEl.style.top  = `${targetCenterY - BASE_H / 2}px`;
+}
+
+// ---------- force track ----------
+function buildForceTrackSlots(forceRect) {
+  zonesLayer.querySelectorAll(".forceSlot").forEach(el => el.remove());
+  forceSlotCenters = [];
+
+  const pad = 10;
+  const usableH = forceRect.h - pad * 2;
+
+  for (let i = 0; i < FORCE_SLOTS; i++) {
+    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
+    const cy = forceRect.y + pad + t * usableH;
+    const cx = forceRect.x + forceRect.w / 2;
+
+    forceSlotCenters.push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
+    slot.style.left = `${forceRect.x}px`;
+    slot.style.top = `${Math.round(cy - 16)}px`;
+    slot.style.width = `${forceRect.w}px`;
+    slot.style.height = `32px`;
+    zonesLayer.appendChild(slot);
+  }
+}
+
+function moveForceMarkerToIndex(index) {
+  if (!forceMarker) return;
+  if (!forceSlotCenters.length) return;
+  const i = Math.max(0, Math.min(FORCE_SLOTS - 1, index));
+  const c = forceSlotCenters[i];
+  forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
+  forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
+}
+
+function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
+  // recreate if missing (uiLayer is rebuilt each build)
+  if (forceMarker && forceMarker.isConnected) return;
+
+  forceMarker = document.createElement("div");
+  forceMarker.className = "forceMarker";
+  uiLayer.appendChild(forceMarker);
+
+  let draggingMarker = false;
+  let markerOffX = 0;
+  let markerOffY = 0;
+
+  function snapMarkerToNearestSlot() {
+    if (!forceSlotCenters.length) return;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    const cx = left + FORCE_MARKER_SIZE / 2;
+    const cy = top + FORCE_MARKER_SIZE / 2;
+
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < forceSlotCenters.length; i++) {
+      const s = forceSlotCenters[i];
+      const d = Math.hypot(cx - s.x, cy - s.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+
+    const target = forceSlotCenters[best];
+    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+
+  forceMarker.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+    forceMarker.setPointerCapture(e.pointerId);
+    draggingMarker = true;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(forceMarker.style.left || "0");
+    const top = parseFloat(forceMarker.style.top || "0");
+    markerOffX = px - left;
+    markerOffY = py - top;
+  });
+
+  forceMarker.addEventListener("pointermove", (e) => {
+    if (!draggingMarker) return;
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+    forceMarker.style.left = `${px - markerOffX}px`;
+    forceMarker.style.top  = `${py - markerOffY}px`;
+  });
+
+  forceMarker.addEventListener("pointerup", (e) => {
+    draggingMarker = false;
+    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
+    snapMarkerToNearestSlot();
+  });
+
+  if (forceSlotCenters.length) {
+    const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
+    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
+    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
+  }
+}
+
+// ---------- captured slots ----------
+function buildCapturedBaseSlots(capRect, sideLabel) {
+  zonesLayer.querySelectorAll(".capSlot[data-cap-side='" + sideLabel + "']").forEach(el => el.remove());
+  capSlotCenters[sideLabel] = [];
+
+  const startX = capRect.x;
+  const startY = capRect.y;
+
+  for (let i = 0; i < CAP_SLOTS; i++) {
+    const slotY = startY + i * CAP_OVERLAP;
+    const cx = startX + CAP_W / 2;
+    const cy = slotY + BASE_H / 2;
+
+    capSlotCenters[sideLabel].push({ x: cx, y: cy });
+
+    const slot = document.createElement("div");
+    slot.className = "capSlot";
+    slot.dataset.capSide = sideLabel;
+    slot.dataset.capIndex = String(i);
+    slot.style.left = `${startX}px`;
+    slot.style.top  = `${slotY}px`;
+    slot.style.width = `${CAP_W}px`;
+    slot.style.height = `${BASE_H}px`;
+    zonesLayer.appendChild(slot);
+  }
+}
+
+function clearCapturedAssignment(baseEl){
+  const side = baseEl.dataset.capSide;
+  const idx = Number(baseEl.dataset.capIndex || "-1");
+  if (!side || idx < 0) return;
+  if (capOccupied[side] && capOccupied[side][idx] === baseEl.dataset.cardId) {
+    capOccupied[side][idx] = null;
+  }
+  delete baseEl.dataset.capSide;
+  delete baseEl.dataset.capIndex;
+}
+
+function snapBaseAutoFill(baseEl){
+  if (!zonesCache) return;
+
+  const capP2 = zonesCache.p2_captured_bases;
+  const capP1 = zonesCache.p1_captured_bases;
+
+  const b = baseEl.getBoundingClientRect();
+  const cx = b.left + b.width/2;
+  const cy = b.top + b.height/2;
+
+  const inRect = (r) => (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
+
+  const stageRect = stage.getBoundingClientRect();
+
+  const rectFor = (capRect) => {
+    const l = stageRect.left + capRect.x * camera.scale;
+    const t = stageRect.top  + capRect.y * camera.scale;
+    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
+  };
+
+  const p2R = rectFor(capP2);
+  const p1R = rectFor(capP1);
+
+  let side = null;
+  if (inRect(p2R)) side = "p2";
+  else if (inRect(p1R)) side = "p1";
+
+  if (!side){
+    clearCapturedAssignment(baseEl);
+    return;
+  }
+
+  const occ = capOccupied[side];
+  let idx = occ.findIndex(v => v === null);
+  if (idx === -1) idx = CAP_SLOTS - 1;
+
+  occ[idx] = baseEl.dataset.cardId;
+  baseEl.dataset.capSide = side;
+  baseEl.dataset.capIndex = String(idx);
+
+  const target = capSlotCenters[side][idx];
+  baseEl.style.left = `${target.x - BASE_W/2}px`;
+  baseEl.style.top  = `${target.y - BASE_H/2}px`;
+  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
+}
+
+// ---------- rotation + flip ----------
+function applyRotationSize(cardEl) {
+  const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  cardEl.style.width = `${CARD_W}px`;
+  cardEl.style.height = `${CARD_H}px`;
+  cardEl.style.transformOrigin = "50% 50%";
+  cardEl.style.transform = `rotate(${rot}deg)`;
+  const face = cardEl.querySelector(".cardFace");
+  if (face) face.style.transform = "none";
+}
+
+function toggleRotate(cardEl) {
+  const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  const next = (cur + 90) % 360;
+  cardEl.dataset.rot = String(next);
+  applyRotationSize(cardEl);
+  refreshSnapRects();
+}
+
+function toggleFlip(cardEl) {
+  const cur = cardEl.dataset.face || "up";
+  cardEl.dataset.face = (cur === "up") ? "down" : "up";
+}
 
 // ---------- preview functions ----------
 function hidePreview() {
@@ -624,6 +1343,7 @@ function openTray() {
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
   trayShell.dataset.player = PLAYER_COLOR;
+  fitToScreen(); // keep board fit with tray open
 }
 
 function closeTray() {
@@ -670,6 +1390,8 @@ function closeTray() {
   trayShell.classList.remove("dragging");
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
+
+  fitToScreen(); // refit with tray closed
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
@@ -683,7 +1405,6 @@ function tokenMatch(query, target) {
   const t = normalize(target);
   return tokens.every(tok => t.includes(tok));
 }
-
 traySearchInput.addEventListener("input", () => { trayState.searchQuery = traySearchInput.value || ""; renderTray(); });
 
 function openTrayDraw() {
@@ -732,7 +1453,7 @@ function makeTrayTile(card) {
 /**
  * Mobile fix:
  * - Default behavior inside tray is SCROLL.
- * - To DRAG OUT to the board: press-and-hold (TRAY_HOLD_TO_DRAG_MS), then drag.
+ * - To DRAG OUT to the board: press-and-hold, then drag.
  */
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   let holdTimer = null;
@@ -800,7 +1521,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       el.style.top  = `${p.y - h / 2}px`;
       el.style.zIndex = kind === "base" ? "12000" : "15000";
 
-      stage.appendChild(el);
+      piecesLayer.appendChild(el);
 
       if (kind === "base") {
         snapBaseAutoFill(el);
@@ -952,15 +1673,15 @@ function ensureDrawCountBadges() {
   const z1 = zonesCache.p1_draw;
   const z2 = zonesCache.p2_draw;
 
-  if (!drawCountBadges.p1) {
+  if (!drawCountBadges.p1 || !drawCountBadges.p1.isConnected) {
     drawCountBadges.p1 = document.createElement("div");
     drawCountBadges.p1.className = "trayCountBadge";
-    stage.appendChild(drawCountBadges.p1);
+    uiLayer.appendChild(drawCountBadges.p1);
   }
-  if (!drawCountBadges.p2) {
+  if (!drawCountBadges.p2 || !drawCountBadges.p2.isConnected) {
     drawCountBadges.p2 = document.createElement("div");
     drawCountBadges.p2.className = "trayCountBadge";
-    stage.appendChild(drawCountBadges.p2);
+    uiLayer.appendChild(drawCountBadges.p2);
   }
 
   drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
@@ -997,10 +1718,11 @@ function bindPileZoneClicks() {
   ];
 
   for (const m of clickMap) {
-    const el = stage.querySelector(".zone[data-zone-id='" + m.id + "']");
+    const el = zonesLayer.querySelector(".zone[data-zone-id='" + m.id + "']");
     if (!el) continue;
     el.classList.add("clickable");
 
+    // replace listener cleanly
     const clone = el.cloneNode(true);
     el.replaceWith(clone);
 
@@ -1024,604 +1746,11 @@ function bindPileZoneClicks() {
   }
 }
 
-// ---------- zone math (ALIGNED + TRAY COMPATIBLE) ----------
-function computeZones() {
-  const xPiles = 240;
-  const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
-
-  const xRowStart = xGalaxyDeck + CARD_W + BIG_GAP;
-  const rowSlotGap = GAP;
-  const rowWidth = (CARD_W * 6) + (rowSlotGap * 5);
-
-  const xOuterRim = xRowStart + rowWidth + BIG_GAP;
-
-  const xForce = xOuterRim + CARD_W + GAP;
-  const forceTrackW = 52;
-
-  const xGalaxyDiscard = xForce + forceTrackW + GAP;
-  const xCaptured = xGalaxyDiscard + CARD_W + BIG_GAP;
-
-  const yTopPiles = 90;
-
-  const yRow1 = 220;
-  const yRow2 = yRow1 + CARD_H + GAP;
-
-  const yForceTrack = yRow1;
-  const forceTrackH = (CARD_H * 2) + GAP;
-
-  const yGalaxyDeck = yRow1 + Math.round(CARD_H / 2) + Math.round(GAP / 2);
-
-  const yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
-  const yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
-
-  const yTopExile = yRow1 - (CARD_H + BIG_GAP);
-  const yBotExile = yRow2 + CARD_H + BIG_GAP;
-
-  const yBottomPiles = yBotExile;
-
-  const yGalaxyDiscard = yRow1 + Math.round((forceTrackH / 2) - (CARD_H / 2));
-  const yCapTop = yGalaxyDiscard - CAP_DISCARD_GAP - CAP_H;
-  const yCapBottom = yGalaxyDiscard + CARD_H + CAP_DISCARD_GAP;
-
-  const xForceCenter = xForce + (forceTrackW / 2);
-  const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
-
-  // Token banks: under P1 piles, above P2 piles (mirrored)
-  // Now that banks are "freeform", we only need an anchor row location.
-  const bankW = (TOKEN_BIN_HIT * 3) + (18 * 2); // 3 bins + gaps
-  const bankH = TOKEN_BIN_HIT;
-  const bankX = xPiles; // align near piles
-  const bankGap = 18;
-
-  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
-  const yP2TokenBank = yTopPiles - bankGap - bankH;
-
-  let zones = {
-    // P2 (top) — discard LEFT, draw RIGHT
-    p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
-    p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
-
-    p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
-
-    p2_exile_draw: rect(xExileLeft, yTopExile, CARD_W, CARD_H),
-    p2_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yTopExile, CARD_W, CARD_H),
-
-    p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
-
-    galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
-
-    outer_rim: rect(xOuterRim, yGalaxyDiscard, CARD_W, CARD_H),
-    force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
-    galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
-
-    // P1 (bottom) — discard LEFT, draw RIGHT
-    p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
-    p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
-
-    p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
-
-    p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
-    p1_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yBotExile, CARD_W, CARD_H),
-
-    p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
-
-    // token bank anchors (no visible zone)
-    p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
-    p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
-  };
-
-  for (let c = 0; c < 6; c++) {
-    zones["g1" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow1, CARD_W, CARD_H);
-    zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
-  }
-
-  // normalize so nothing is negative (FIT-safe)
-  const PAD = 18;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-  for (const r of Object.values(zones)) {
-    minX = Math.min(minX, r.x);
-    minY = Math.min(minY, r.y);
-    maxX = Math.max(maxX, r.x + r.w);
-    maxY = Math.max(maxY, r.y + r.h);
-  }
-
-  const shiftX = (minX < PAD) ? (PAD - minX) : 0;
-  const shiftY = (minY < PAD) ? (PAD - minY) : 0;
-
-  if (shiftX || shiftY) {
-    for (const r of Object.values(zones)) {
-      r.x += shiftX;
-      r.y += shiftY;
-    }
-    maxX += shiftX;
-    maxY += shiftY;
-  }
-
-  DESIGN_W = Math.ceil(maxX + PAD);
-  DESIGN_H = Math.ceil(maxY + PAD);
-
-  return zones;
-}
-
-// ---------- camera ----------
-const camera = { scale: 1, tx: 0, ty: 0 };
-
-function viewportSize() {
-  const vv = window.visualViewport;
-  return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
-}
-function applyCamera() {
-  stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
-}
-
-function fitToScreen() {
-  const { w, h } = viewportSize();
-  const margin = 16;
-
-  let trayW = 0;
-  try { if (trayShell && trayShell.style.display !== "none") trayW = trayShell.getBoundingClientRect().width; } catch {}
-
-  const usableW = Math.max(200, w - trayW);
-  const s = Math.min(
-    (usableW - margin * 2) / DESIGN_W,
-    (h - margin * 2) / DESIGN_H
-  );
-
-  camera.scale = s;
-
-  const centerTx = Math.round((usableW - DESIGN_W * s) / 2);
-  const centerTy = Math.round((h - DESIGN_H * s) / 2);
-
-  const leftBias = Math.min(90, Math.round(w * 0.10));
-  camera.tx = centerTx - leftBias;
-  camera.ty = centerTy;
-
-  applyCamera();
-  refreshSnapRects();
-}
-
-fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
-
-const BOARD_MIN_SCALE = 0.25;
-const BOARD_MAX_SCALE = 4.0;
-
-function viewportToDesign(vx, vy){
-  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
-}
-function setScaleAround(newScale, vx, vy){
-  const clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
-  const world = viewportToDesign(vx, vy);
-
-  camera.scale = clamped;
-  camera.tx = vx - world.x * camera.scale;
-  camera.ty = vy - world.y * camera.scale;
-
-  applyCamera();
-  refreshSnapRects();
-}
-function dist(a,b){ return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
-function mid(a,b){ return { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 }; }
-
-const boardPointers = new Map();
-let boardLast = { x: 0, y: 0 };
-let pinchStartDist = 0;
-let pinchStartScale = 1;
-let pinchMid = { x: 0, y: 0 };
-
-// Board pan/zoom (ignore tray + preview + cards + tokens)
-table.addEventListener("pointerdown", (e) => {
-  if (previewOpen) return;
-  if (e.target.closest("#tray")) return;
-  if (e.target.closest("#trayShell")) return;
-  if (e.target.closest("#previewBackdrop")) return;
-  if (e.target.closest(".card")) return;
-  if (e.target.closest(".forceMarker")) return;
-  if (e.target.closest(".tokenCube")) return;
-  if (e.target.closest(".tokenBin")) return;
-  if (e.target.closest("#hud")) return;
-
-  table.setPointerCapture(e.pointerId);
-  boardPointers.set(e.pointerId, e);
-  boardLast = { x: e.clientX, y: e.clientY };
-
-  if (boardPointers.size === 2) {
-    const pts = [...boardPointers.values()];
-    pinchStartDist = dist(pts[0], pts[1]);
-    pinchStartScale = camera.scale;
-    pinchMid = mid(pts[0], pts[1]);
-  }
-});
-
-table.addEventListener("pointermove", (e) => {
-  if (previewOpen) return;
-  if (!boardPointers.has(e.pointerId)) return;
-  boardPointers.set(e.pointerId, e);
-
-  if (boardPointers.size === 1) {
-    const dx = e.clientX - boardLast.x;
-    const dy = e.clientY - boardLast.y;
-    camera.tx += dx;
-    camera.ty += dy;
-    boardLast = { x: e.clientX, y: e.clientY };
-    applyCamera();
-    refreshSnapRects();
-    return;
-  }
-
-  if (boardPointers.size === 2) {
-    const pts = [...boardPointers.values()];
-    const d = dist(pts[0], pts[1]);
-    const factor = d / pinchStartDist;
-    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
-  }
-});
-
-function endBoardPointer(e){
-  boardPointers.delete(e.pointerId);
-  if (boardPointers.size === 1){
-    const p = [...boardPointers.values()][0];
-    boardLast = { x: p.clientX, y: p.clientY };
-  }
-}
-table.addEventListener("pointerup", endBoardPointer);
-table.addEventListener("pointercancel", () => boardPointers.clear());
-
-table.addEventListener("wheel", (e) => {
-  if (previewOpen) return;
-  if (e.target.closest("#tray")) return;
-  if (e.target.closest("#trayShell")) return;
-  if (e.target.closest("#previewBackdrop")) return;
-  e.preventDefault();
-  const zoomIntensity = 0.0018;
-  const delta = -e.deltaY;
-  const newScale = camera.scale * (1 + delta * zoomIntensity);
-  setScaleAround(newScale, e.clientX, e.clientY);
-}, { passive: false });
-
-// ---------- snapping (with zone acceptance) ----------
-const SNAP_ZONE_IDS = new Set([
-  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
-  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
-  "galaxy_deck","galaxy_discard","outer_rim",
-  "g11","g12","g13","g14","g15","g16",
-  "g21","g22","g23","g24","g25","g26",
-  "p2_base_stack","p1_base_stack",
-]);
-
-const UNIT_SNAP_ZONE_IDS = new Set([
-  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
-  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
-  "galaxy_deck","galaxy_discard","outer_rim",
-  "g11","g12","g13","g14","g15","g16",
-  "g21","g22","g23","g24","g25","g26",
-]);
-
-const BASE_SNAP_ZONE_IDS = new Set(["p1_base_stack","p2_base_stack"]);
-
-let zonesMeta = [];
-function refreshSnapRects() {
-  zonesMeta = [];
-  stage.querySelectorAll(".zone").forEach((el) => {
-    const id = el.dataset.zoneId;
-    if (!SNAP_ZONE_IDS.has(id)) return;
-    const b = el.getBoundingClientRect();
-    zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
-  });
-}
-
-function snapCardToNearestZone(cardEl) {
-  if (!zonesMeta.length) return;
-
-  const kind = cardEl.dataset.kind || "unit";
-  const allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
-
-  const cardRect = cardEl.getBoundingClientRect();
-  const cx = cardRect.left + cardRect.width / 2;
-  const cy = cardRect.top + cardRect.height / 2;
-
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const z of zonesMeta) {
-    if (!allowed.has(z.id)) continue;
-    const zx = z.left + z.width / 2;
-    const zy = z.top + z.height / 2;
-    const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) { bestDist = d; best = z; }
-  }
-
-  if (!best) return;
-
-  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
-  const zoneDiag = Math.hypot(best.width, best.height);
-  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
-
-  if (bestDist > threshold) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  const w = parseFloat(cardEl.style.width);
-  const h = parseFloat(cardEl.style.height);
-
-  cardEl.style.left = `${targetCenterX - w / 2}px`;
-  cardEl.style.top  = `${targetCenterY - h / 2}px`;
-}
-
-function snapBaseToNearestBaseStack(baseEl) {
-  if (!zonesMeta.length) return;
-
-  const baseRect = baseEl.getBoundingClientRect();
-  const cx = baseRect.left + baseRect.width / 2;
-  const cy = baseRect.top + baseRect.height / 2;
-
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const z of zonesMeta) {
-    if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
-    const zx = z.left + z.width / 2;
-    const zy = z.top + z.height / 2;
-    const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) { bestDist = d; best = z; }
-  }
-
-  if (!best) return;
-
-  const zoneDiag = Math.hypot(best.width, best.height);
-  const baseDiag = Math.hypot(baseRect.width, baseRect.height);
-  const threshold = Math.max(zoneDiag, baseDiag) * 0.70;
-
-  if (bestDist > threshold) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  baseEl.style.left = `${targetCenterX - BASE_W / 2}px`;
-  baseEl.style.top  = `${targetCenterY - BASE_H / 2}px`;
-}
-
-// ---------- force track ----------
-function buildForceTrackSlots(forceRect) {
-  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
-  forceSlotCenters = [];
-
-  const pad = 10;
-  const usableH = forceRect.h - pad * 2;
-
-  for (let i = 0; i < FORCE_SLOTS; i++) {
-    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
-    const cy = forceRect.y + pad + t * usableH;
-    const cx = forceRect.x + forceRect.w / 2;
-
-    forceSlotCenters.push({ x: cx, y: cy });
-
-    const slot = document.createElement("div");
-    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
-    slot.style.left = `${forceRect.x}px`;
-    slot.style.top = `${Math.round(cy - 16)}px`;
-    slot.style.width = `${forceRect.w}px`;
-    slot.style.height = `32px`;
-    stage.appendChild(slot);
-  }
-}
-
-function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
-  if (forceMarker) return;
-
-  forceMarker = document.createElement("div");
-  forceMarker.className = "forceMarker";
-  stage.appendChild(forceMarker);
-
-  let draggingMarker = false;
-  let markerOffX = 0;
-  let markerOffY = 0;
-
-  function snapMarkerToNearestSlot() {
-    if (!forceSlotCenters.length) return;
-
-    const left = parseFloat(forceMarker.style.left || "0");
-    const top = parseFloat(forceMarker.style.top || "0");
-    const cx = left + FORCE_MARKER_SIZE / 2;
-    const cy = top + FORCE_MARKER_SIZE / 2;
-
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < forceSlotCenters.length; i++) {
-      const s = forceSlotCenters[i];
-      const d = Math.hypot(cx - s.x, cy - s.y);
-      if (d < bestD) { bestD = d; best = i; }
-    }
-
-    const target = forceSlotCenters[best];
-    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
-  }
-
-  forceMarker.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
-    if (e.button !== 0) return;
-    forceMarker.setPointerCapture(e.pointerId);
-    draggingMarker = true;
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    const left = parseFloat(forceMarker.style.left || "0");
-    const top = parseFloat(forceMarker.style.top || "0");
-    markerOffX = px - left;
-    markerOffY = py - top;
-  });
-
-  forceMarker.addEventListener("pointermove", (e) => {
-    if (!draggingMarker) return;
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-    forceMarker.style.left = `${px - markerOffX}px`;
-    forceMarker.style.top  = `${py - markerOffY}px`;
-  });
-
-  forceMarker.addEventListener("pointerup", (e) => {
-    draggingMarker = false;
-    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
-    snapMarkerToNearestSlot();
-  });
-
-  forceMarker.addEventListener("pointercancel", () => { draggingMarker = false; });
-
-  if (forceSlotCenters.length) {
-    const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
-    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
-  }
-}
-
-// ---------- captured slots ----------
-function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(".capSlot[data-cap-side='" + sideLabel + "']").forEach(el => el.remove());
-  capSlotCenters[sideLabel] = [];
-
-  const startX = capRect.x;
-  const startY = capRect.y;
-
-  for (let i = 0; i < CAP_SLOTS; i++) {
-    const slotY = startY + i * CAP_OVERLAP;
-    const cx = startX + CAP_W / 2;
-    const cy = slotY + BASE_H / 2;
-
-    capSlotCenters[sideLabel].push({ x: cx, y: cy });
-
-    const slot = document.createElement("div");
-    slot.className = "capSlot";
-    slot.dataset.capSide = sideLabel;
-    slot.dataset.capIndex = String(i);
-    slot.style.left = `${startX}px`;
-    slot.style.top  = `${slotY}px`;
-    slot.style.width = `${CAP_W}px`;
-    slot.style.height = `${BASE_H}px`;
-    stage.appendChild(slot);
-  }
-}
-
-function clearCapturedAssignment(baseEl){
-  const side = baseEl.dataset.capSide;
-  const idx = Number(baseEl.dataset.capIndex || "-1");
-  if (!side || idx < 0) return;
-  if (capOccupied[side] && capOccupied[side][idx] === baseEl.dataset.cardId) {
-    capOccupied[side][idx] = null;
-  }
-  delete baseEl.dataset.capSide;
-  delete baseEl.dataset.capIndex;
-}
-
-function snapBaseAutoFill(baseEl){
-  const capP2 = zonesCache.p2_captured_bases;
-  const capP1 = zonesCache.p1_captured_bases;
-
-  const b = baseEl.getBoundingClientRect();
-  const cx = b.left + b.width/2;
-  const cy = b.top + b.height/2;
-
-  const inRect = (r) => (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
-
-  const stageRect = stage.getBoundingClientRect();
-
-  const rectFor = (capRect) => {
-    const l = stageRect.left + capRect.x * camera.scale;
-    const t = stageRect.top  + capRect.y * camera.scale;
-    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
-  };
-
-  const p2R = rectFor(capP2);
-  const p1R = rectFor(capP1);
-
-  let side = null;
-  if (inRect(p2R)) side = "p2";
-  else if (inRect(p1R)) side = "p1";
-
-  if (!side){
-    clearCapturedAssignment(baseEl);
-    return;
-  }
-
-  const occ = capOccupied[side];
-  let idx = occ.findIndex(v => v === null);
-  if (idx === -1) idx = CAP_SLOTS - 1;
-
-  occ[idx] = baseEl.dataset.cardId;
-  baseEl.dataset.capSide = side;
-  baseEl.dataset.capIndex = String(idx);
-
-  const target = capSlotCenters[side][idx];
-  baseEl.style.left = `${target.x - BASE_W/2}px`;
-  baseEl.style.top  = `${target.y - BASE_H/2}px`;
-  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
-}
-
-// ---------- rotation + flip ----------
-function applyRotationSize(cardEl) {
-  const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  cardEl.style.width = `${CARD_W}px`;
-  cardEl.style.height = `${CARD_H}px`;
-  cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = `rotate(${rot}deg)`;
-  const face = cardEl.querySelector(".cardFace");
-  if (face) face.style.transform = "none";
-}
-
-function toggleRotate(cardEl) {
-  const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  const next = (cur + 90) % 360;
-  cardEl.dataset.rot = String(next);
-  applyRotationSize(cardEl);
-  refreshSnapRects();
-}
-
-function toggleFlip(cardEl) {
-  const cur = cardEl.dataset.face || "up";
-  cardEl.dataset.face = (cur === "up") ? "down" : "up";
-}
-
-// ---------- TOKEN BANKS (FREEFORM CUBES) ----------
-let tokenBankEls = { p1: null, p2: null };
-let tokenCountEls = {
-  p1: { damage: null, attack: null, resource: null },
-  p2: { damage: null, attack: null, resource: null },
-};
-
-function updateTokenCountsUI() {
-  for (const owner of ["p1","p2"]) {
-    for (const type of ["damage","attack","resource"]) {
-      const el = tokenCountEls[owner][type];
-      if (el) el.textContent = String(tokenPools[owner][type]);
-    }
-  }
-}
-
+// ---------- Tokens ----------
 function tokenClassFor(type) {
   if (type === "damage") return "tokenRed";
   if (type === "attack") return "tokenBlue";
   return "tokenGold";
-}
-
-function createTokenCube(owner, type, x, y) {
-  const t = document.createElement("div");
-  t.className = `tokenCube ${tokenClassFor(type)}`;
-  t.dataset.owner = owner;
-  t.dataset.type = type;
-  t.style.left = `${x - TOKEN_SIZE/2}px`;
-  t.style.top  = `${y - TOKEN_SIZE/2}px`;
-  t.style.zIndex = "16000";
-  stage.appendChild(t);
-  tokenEls.add(t);
-
-  attachTokenDragHandlers(t);
-  return t;
 }
 
 function attachTokenDragHandlers(el) {
@@ -1666,11 +1795,24 @@ function attachTokenDragHandlers(el) {
   el.addEventListener("pointercancel", () => { dragging = false; });
 }
 
+function createTokenCube(owner, type, x, y) {
+  const t = document.createElement("div");
+  t.className = `tokenCube ${tokenClassFor(type)}`;
+  t.dataset.owner = owner;
+  t.dataset.type = type;
+  t.style.left = `${x - TOKEN_SIZE/2}px`;
+  t.style.top  = `${y - TOKEN_SIZE/2}px`;
+  t.style.zIndex = "16000";
+  piecesLayer.appendChild(t);
+  tokenEls.add(t);
+
+  attachTokenDragHandlers(t);
+  return t;
+}
+
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   if (tokenPools[owner][type] <= 0) return;
-
   tokenPools[owner][type] -= 1;
-  updateTokenCountsUI();
 
   const p = viewportToDesign(clientX, clientY);
   const tok = createTokenCube(owner, type, p.x, p.y);
@@ -1731,20 +1873,9 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // visible cube centered
-    const sample = document.createElement("div");
-    sample.className = `tokenCube ${tokenClassFor(b.type)}`;
-    sample.style.position = "absolute";
-    sample.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
-    sample.style.top  = `${Math.round((TOKEN_BIN_HIT - TOKEN_SIZE)/2)}px`;
-    sample.style.zIndex = "1";
-    sample.style.pointerEvents = "none";
-    bin.appendChild(sample);
-
-    const cnt = document.createElement("div");
-    cnt.className = "tokenBinCount";
-    cnt.textContent = "0";
-    bin.appendChild(cnt);
+    const source = document.createElement("div");
+    source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
+    bin.appendChild(source);
 
     bin.addEventListener("pointerdown", (e) => {
       if (previewOpen) return;
@@ -1753,18 +1884,15 @@ function buildTokenBank(owner, r) {
       spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
     });
 
-    tokenCountEls[owner][b.type] = cnt;
     row.appendChild(bin);
   }
 
   bank.appendChild(row);
-
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
 
-  stage.appendChild(bank);
-  tokenBankEls[owner] = bank;
+  piecesLayer.appendChild(bank);
 }
 
 function returnTokensForOwner(owner, typesToReturn) {
@@ -1777,19 +1905,14 @@ function returnTokensForOwner(owner, typesToReturn) {
     toRemove.push(t);
     tokenPools[owner][type] += 1;
   }
-
   for (const t of toRemove) {
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
   }
-
-  updateTokenCountsUI();
 }
-
 function endTurn(owner) {
   returnTokensForOwner(owner, ["attack","resource"]);
 }
-
 function resetAllTokens() {
   for (const t of Array.from(tokenEls)) {
     if (t.isConnected) t.remove();
@@ -1802,59 +1925,11 @@ function resetAllTokens() {
   tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
   tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
   tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
-
-  updateTokenCountsUI();
 }
 
 endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); });
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
-
-// ---------- build ----------
-function build() {
-  stage.innerHTML = "";
-
-  const zones = computeZones();
-  zonesCache = zones;
-
-  stage.style.width = `${DESIGN_W}px`;
-  stage.style.height = `${DESIGN_H}px`;
-
-  // Draw standard zones (skip token bank anchors)
-  for (const [id, rr] of Object.entries(zones)) {
-    if (id === "p1_token_bank" || id === "p2_token_bank") continue;
-
-    const el = document.createElement("div");
-    el.className = "zone";
-    el.dataset.zoneId = id;
-    el.style.left = `${rr.x}px`;
-    el.style.top = `${rr.y}px`;
-    el.style.width = `${rr.w}px`;
-    el.style.height = `${rr.h}px`;
-    stage.appendChild(el);
-  }
-
-  buildForceTrackSlots(zones.force_track);
-  ensureForceMarker(FORCE_NEUTRAL_INDEX);
-
-  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
-  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
-
-  // Token banks (freeform cubes only)
-  buildTokenBank("p2", zones.p2_token_bank);
-  buildTokenBank("p1", zones.p1_token_bank);
-  updateTokenCountsUI();
-
-  applyCamera();
-  refreshSnapRects();
-  ensureDrawCountBadges();
-  bindPileZoneClicks();
-  fitToScreen();
-}
-build();
-
-window.addEventListener("resize", () => fitToScreen());
-if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
 // ---------- card factory ----------
 function makeCardEl(cardData, kind) {
@@ -2046,7 +2121,63 @@ function attachDragHandlers(el, cardData, kind) {
   });
 }
 
-// ---------- demo card data ----------
+// ---------- build (zones redraw ONLY; pieces never wiped) ----------
+function build() {
+  // Redraw zones + ui only
+  zonesLayer.innerHTML = "";
+  uiLayer.innerHTML = "";
+
+  const zones = computeZones();
+  zonesCache = zones;
+
+  stage.style.width = `${DESIGN_W}px`;
+  stage.style.height = `${DESIGN_H}px`;
+
+  // Keep layers sized
+  zonesLayer.style.width = `${DESIGN_W}px`;
+  zonesLayer.style.height = `${DESIGN_H}px`;
+  uiLayer.style.width = `${DESIGN_W}px`;
+  uiLayer.style.height = `${DESIGN_H}px`;
+  piecesLayer.style.width = `${DESIGN_W}px`;
+  piecesLayer.style.height = `${DESIGN_H}px`;
+
+  // Draw standard zones (skip token bank anchors)
+  for (const [id, rr] of Object.entries(zones)) {
+    if (id === "p1_token_bank" || id === "p2_token_bank") continue;
+
+    const el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = `${rr.x}px`;
+    el.style.top = `${rr.y}px`;
+    el.style.width = `${rr.w}px`;
+    el.style.height = `${rr.h}px`;
+    zonesLayer.appendChild(el);
+  }
+
+  buildForceTrackSlots(zones.force_track);
+  ensureForceMarker(FORCE_NEUTRAL_INDEX);
+
+  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
+  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
+
+  // Token banks get rebuilt fresh each build, but they live in piecesLayer.
+  // To prevent duplicates, remove any existing banks first:
+  piecesLayer.querySelectorAll(".tokenBank").forEach(el => el.remove());
+
+  buildTokenBank("p2", zones.p2_token_bank);
+  buildTokenBank("p1", zones.p1_token_bank);
+
+  ensureDrawCountBadges();
+  bindPileZoneClicks();
+
+  applyCamera();
+  refreshSnapRects();
+  fitToScreen();
+}
+build();
+
+// ---------- demo card data + piles ----------
 const OBIWAN = {
   id: "obiwan",
   name: "Obi-Wan Kenobi",
@@ -2060,7 +2191,6 @@ const OBIWAN = {
   reward: "Gain 1 Force.",
   img: "https://picsum.photos/250/350?random=12"
 };
-
 const TEST_BASE = {
   id: "base_test",
   name: "Test Base",
@@ -2075,13 +2205,11 @@ const TEST_BASE = {
   img: "https://picsum.photos/350/250?random=22"
 };
 
-// ---------- pile data (demo) ----------
 (function initDemoPiles(){
   function cloneCard(base, overrides){
     const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
     return { ...base, ...overrides, id };
   }
-
   function makeMany(prefix, count){
     const out = [];
     for (let i = 1; i <= count; i++){
@@ -2089,7 +2217,6 @@ const TEST_BASE = {
     }
     return out;
   }
-
   piles = {
     p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
     p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
@@ -2100,21 +2227,147 @@ const TEST_BASE = {
   };
 })();
 
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
+if (DEMO_MODE) {
+  const unitCard = makeCardEl(OBIWAN, "unit");
+  unitCard.style.left = `${DESIGN_W * 0.42}px`;
+  unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+  unitCard.style.zIndex = "15000";
+  piecesLayer.appendChild(unitCard);
 
-const BASE_TEST_COUNT = 2;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
+  const BASE_TEST_COUNT = 2;
+  for (let i = 0; i < BASE_TEST_COUNT; i++) {
+    const baseCard = makeCardEl(TEST_BASE, "base");
+    baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+    baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+    baseCard.style.zIndex = "12000";
+    piecesLayer.appendChild(baseCard);
+  }
 }
 
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
+// ---------- START MENU ----------
+let startMenuOverlayEl = null;
+
+function closeStartMenu() {
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+  startMenuOverlayEl = null;
+
+  // tie tray glow to Player 1 color (you can change later if you want)
+  setTrayPlayerColor(gameConfig.p1Side === "blue" ? "blue" : "red");
+
+  // Setup rule applied silently:
+  // Force track starts at far RED end.
+  moveForceMarkerToIndex(FORCE_RED_END_INDEX);
+}
+
+function renderStartMenu() {
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "startMenuOverlay";
+
+  const panel = document.createElement("div");
+  panel.className = "startMenuPanel";
+
+  panel.innerHTML = `
+    <div class="smTitle">Start Menu</div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Set</div>
+        <div class="smOptions">
+          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG only</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars only</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed (OG + CW)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Player 1 plays</div>
+        <div class="smOptions">
+          <label class="smOpt smOptBlue"><input type="radio" name="p1Side" value="blue"> Blue</label>
+          <label class="smOpt smOptRed"><input type="radio" name="p1Side" value="red"> Red</label>
+        </div>
+        <div class="smTiny">Player 2 automatically gets the other side.</div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Factions (auto)</div>
+        <div class="smTiny">${describeAutoFactionsHTML()}</div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Mandalorian</div>
+        <div class="smOptions">
+          <label class="smOpt smOptGreen">
+            <input type="checkbox" name="mandoNeutrals">
+_toggle_
+            Include Mandalorian as neutrals
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="smActions">
+      <button class="smBtn" data-action="random">Random</button>
+      <button class="smBtn smBtnPrimary" data-action="start">START</button>
+    </div>
+  `.replace("_toggle_", ""); // keep HTML stable
+
+  overlay.appendChild(panel);
+  table.appendChild(overlay);
+  startMenuOverlayEl = overlay;
+
+  // initial UI values
+  panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
+  panel.querySelector(`input[name="p1Side"][value="${gameConfig.p1Side}"]`).checked = true;
+  panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
+
+  function readUIToConfig() {
+    gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
+    gameConfig.p1Side = panel.querySelector(`input[name="p1Side"]:checked`).value;
+    gameConfig.mandoNeutrals = !!panel.querySelector(`input[name="mandoNeutrals"]`).checked;
+    applySetModeDefaults();
+  }
+
+  panel.addEventListener("change", (e) => {
+    if (e.target && e.target.name === "setMode") {
+      readUIToConfig();
+      renderStartMenu();
+      return;
+    }
+    readUIToConfig();
+  });
+
+  panel.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+
+    if (btn.dataset.action === "random") {
+      randomizeConfig();
+      renderStartMenu();
+      return;
+    }
+
+    if (btn.dataset.action === "start") {
+      readUIToConfig();
+      closeStartMenu();
+    }
+  });
+}
+
+menuBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  renderStartMenu();
+});
+
+// Show menu on load
+renderStartMenu();
+
+window.addEventListener("resize", () => fitToScreen());
+if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
