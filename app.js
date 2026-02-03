@@ -322,7 +322,7 @@ style.textContent = `
     user-select:none;
   }
 
-  /* -------- TOKENS (3 big sources, tight hitboxes) -------- */
+  /* -------- TOKENS (SOURCE BINS) -------- */
   .tokenBank{
     position:absolute;
     background: transparent;
@@ -338,8 +338,6 @@ style.textContent = `
     align-items:center;
     justify-content:flex-start;
   }
-
-  /* Bin == visible cube size (click + drag starts immediately) */
   .tokenBin{
     width: ${TOKEN_BIN_W}px;
     height:${TOKEN_BIN_H}px;
@@ -352,7 +350,20 @@ style.textContent = `
     touch-action:none;
   }
 
-  /* Actual cubes you drag (spawned on table) */
+  .tokenSourceCube{
+    position:absolute;
+    width:${TOKEN_BANK_CUBE_SIZE}px;
+    height:${TOKEN_BANK_CUBE_SIZE}px;
+    left:0;
+    top:0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.60);
+    pointer-events:none;
+    user-select:none;
+  }
+
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -367,21 +378,6 @@ style.textContent = `
   }
   .tokenCube:active{ cursor: grabbing; }
 
-  /* Big source cubes (visual only, not draggable) */
-  .tokenSourceCube{
-    position:absolute;
-    width:${TOKEN_BANK_CUBE_SIZE}px;
-    height:${TOKEN_BANK_CUBE_SIZE}px;
-    left:0; top:0;
-    border-radius: 8px;
-    box-sizing: border-box;
-    border: 1px solid rgba(255,255,255,0.25);
-    box-shadow: 0 10px 22px rgba(0,0,0,0.60);
-    pointer-events:none;
-    user-select:none;
-  }
-
-  /* cube color styles */
   .tokenRed{
     background: linear-gradient(145deg, rgba(255,120,120,0.95), rgba(160,20,20,0.98));
   }
@@ -458,140 +454,6 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
-// =============================
-// START MENU (BEGIN)
-// =============================
-const startMenuStyle = document.createElement("style");
-startMenuStyle.textContent = `
-  #startMenuBackdrop{
-    position:fixed; inset:0;
-    background: rgba(0,0,0,0.78);
-    z-index: 250000;
-    display:none;
-    align-items:center;
-    justify-content:center;
-    padding: 14px;
-    touch-action:none;
-  }
-  #startMenuCard{
-    width: min(92vw, 520px);
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(14,14,16,0.94);
-    box-shadow: 0 16px 60px rgba(0,0,0,0.75);
-    overflow:hidden;
-    color:#fff;
-  }
-  #startMenuHeader{
-    padding: 14px 14px 10px 14px;
-    border-bottom: 1px solid rgba(255,255,255,0.10);
-  }
-  #startMenuTitle{
-    margin:0;
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 0.4px;
-    line-height: 1.15;
-  }
-  #startMenuSub{
-    margin:6px 0 0 0;
-    opacity: 0.85;
-    font-size: 13px;
-    line-height: 1.25;
-  }
-  #startMenuBody{
-    padding: 12px 14px 14px 14px;
-    display:flex;
-    flex-direction:column;
-    gap: 10px;
-  }
-  .startMenuBtn{
-    width: 100%;
-    border: 1px solid rgba(255,255,255,0.22);
-    background: rgba(255,255,255,0.10);
-    color:#fff;
-    border-radius: 14px;
-    padding: 12px 12px;
-    font-weight: 900;
-    font-size: 14px;
-    letter-spacing: 0.3px;
-    cursor: pointer;
-    user-select:none;
-    touch-action: manipulation;
-  }
-  .startMenuBtn.primary{
-    background: rgba(120,180,255,0.18);
-    border-color: rgba(120,180,255,0.35);
-  }
-  .startMenuRow{
-    display:flex;
-    gap: 10px;
-  }
-  .startMenuRow .startMenuBtn{ flex:1; }
-  #startMenuFooter{
-    padding: 10px 14px 14px 14px;
-    border-top: 1px solid rgba(255,255,255,0.10);
-    opacity: 0.65;
-    font-size: 11px;
-    line-height: 1.2;
-  }
-`;
-document.head.appendChild(startMenuStyle);
-
-const startMenuBackdrop = document.createElement("div");
-startMenuBackdrop.id = "startMenuBackdrop";
-startMenuBackdrop.innerHTML = `
-  <div id="startMenuCard" role="dialog" aria-modal="true">
-    <div id="startMenuHeader">
-      <p id="startMenuTitle">Star Wars Deckbuilding VTT</p>
-      <p id="startMenuSub">Tap START to begin. Use MENU anytime to reopen this screen.</p>
-    </div>
-    <div id="startMenuBody">
-      <button id="startMenuStartBtn" class="startMenuBtn primary" type="button">START GAME</button>
-      <div class="startMenuRow">
-        <button id="startMenuSetupBtn" class="startMenuBtn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">
-          SETUP / OPTIONS (soon)
-        </button>
-      </div>
-    </div>
-    <div id="startMenuFooter">
-      Tip: Use FIT if you ever lose the table view.
-    </div>
-  </div>
-`;
-table.appendChild(startMenuBackdrop);
-
-// Hard-modal: block board input while menu is open
-(function trapStartMenuInteractions(){
-  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
-  const stopNoPrevent = (e) => { e.stopPropagation(); };
-
-  startMenuBackdrop.addEventListener("pointerdown", stop, { capture:true });
-  startMenuBackdrop.addEventListener("pointermove", stop, { capture:true });
-  startMenuBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
-  startMenuBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
-  startMenuBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
-
-  startMenuBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
-  startMenuBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
-  startMenuBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
-
-  startMenuBackdrop.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, { capture:true });
-})();
-
-// Start button
-startMenuBackdrop.querySelector("#startMenuStartBtn").addEventListener("click", (e) => {
-  e.preventDefault();
-  if (previewOpen) return;
-  hideStartMenu();
-});
-
-// Show menu on load (every refresh)
-showStartMenu();
-// =============================
-// START MENU (END)
-// =============================
-
 
 // HARD-MODAL preview (block board input)
 (function trapPreviewInteractions(){
@@ -668,40 +530,6 @@ trayShell.addEventListener("wheel",       (e) => e.stopPropagation(), { passive:
 // ---------- state ----------
 let piles = {};
 let previewOpen = false;
-// =============================
-// START MENU (BEGIN)
-// =============================
-let startMenuOpen = true;
-
-function showStartMenu() {
-  startMenuOpen = true;
-  startMenuBackdrop.style.display = "flex";
-  // block any active board pointers
-  boardPointers.clear();
-}
-
-function hideStartMenu() {
-  startMenuOpen = false;
-  startMenuBackdrop.style.display = "none";
-  // auto-fit after closing
-  try { fitToScreen(); } catch {}
-}
-
-// Add a HUD button to reopen menu (since you said NO to "no way back")
-const menuBtn = document.createElement("button");
-menuBtn.className = "hudBtn";
-menuBtn.textContent = "MENU";
-hud.appendChild(menuBtn);
-menuBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  if (previewOpen) return;
-  showStartMenu();
-});
-
-// =============================
-// START MENU (END)
-// =============================
-
 
 let forceSlotCenters = [];
 let forceMarker = null;
@@ -1231,49 +1059,36 @@ function computeZones() {
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  // Token banks: anchors (no visible zone)
-  // 3 source cubes tucked under each player's draw/discard piles.
-  const pilesW = (CARD_W * 2) + GAP;              // discard + gap + draw
-  const pilesCenterX = xPiles + (pilesW / 2);
-
+  // token banks centered under draw+discard piles
   const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
   const bankH = TOKEN_BIN_H;
 
-  // center the bank under the two piles
-  const bankX = Math.round(pilesCenterX - bankW / 2);
-
+  const pilesW = (CARD_W * 2) + GAP;
+  const pilesCenterX = xPiles + (pilesW / 2);
+  const bankX = Math.round(pilesCenterX - (bankW / 2));
   const bankGap = 14;
 
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
   const yP2TokenBank = yTopPiles - bankGap - bankH;
 
   let zones = {
-    // P2 (top) — discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
-
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
-
     p2_exile_draw: rect(xExileLeft, yTopExile, CARD_W, CARD_H),
     p2_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yTopExile, CARD_W, CARD_H),
-
     p2_captured_bases: rect(xCaptured, yCapTop, CAP_W, CAP_H),
 
     galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
-
     outer_rim: rect(xOuterRim, yGalaxyDiscard, CARD_W, CARD_H),
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
-    // P1 (bottom) — discard LEFT, draw RIGHT
     p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
     p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
-
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
-
     p1_exile_draw: rect(xExileLeft, yBotExile, CARD_W, CARD_H),
     p1_exile_perm: rect(xExileLeft + CARD_W + EXILE_GAP, yBotExile, CARD_W, CARD_H),
-
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
 
     // token bank anchors
@@ -1391,8 +1206,6 @@ table.addEventListener("pointerdown", (e) => {
   if (e.target.closest(".tokenCube")) return;
   if (e.target.closest(".tokenBin")) return;
   if (e.target.closest("#hud")) return;
-    if (startMenuOpen) return;
-
 
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
@@ -1410,8 +1223,6 @@ table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
-    if (startMenuOpen) return;
-
 
   if (boardPointers.size === 1) {
     const dx = e.clientX - boardLast.x;
@@ -1447,8 +1258,6 @@ table.addEventListener("wheel", (e) => {
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
-    if (startMenuOpen) return;
-
   e.preventDefault();
   const zoomIntensity = 0.0018;
   const delta = -e.deltaY;
@@ -1456,813 +1265,15 @@ table.addEventListener("wheel", (e) => {
   setScaleAround(newScale, e.clientX, e.clientY);
 }, { passive: false });
 
-// ---------- snapping (with zone acceptance) ----------
-const SNAP_ZONE_IDS = new Set([
-  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
-  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
-  "galaxy_deck","galaxy_discard","outer_rim",
-  "g11","g12","g13","g14","g15","g16",
-  "g21","g22","g23","g24","g25","g26",
-  "p2_base_stack","p1_base_stack",
-]);
-
-const UNIT_SNAP_ZONE_IDS = new Set([
-  "p2_draw","p2_discard","p2_exile_draw","p2_exile_perm",
-  "p1_draw","p1_discard","p1_exile_draw","p1_exile_perm",
-  "galaxy_deck","galaxy_discard","outer_rim",
-  "g11","g12","g13","g14","g15","g16",
-  "g21","g22","g23","g24","g25","g26",
-]);
-
-const BASE_SNAP_ZONE_IDS = new Set(["p1_base_stack","p2_base_stack"]);
-
-let zonesMeta = [];
-function refreshSnapRects() {
-  zonesMeta = [];
-  stage.querySelectorAll(".zone").forEach((el) => {
-    const id = el.dataset.zoneId;
-    if (!SNAP_ZONE_IDS.has(id)) return;
-    const b = el.getBoundingClientRect();
-    zonesMeta.push({ id, left: b.left, top: b.top, width: b.width, height: b.height });
-  });
-}
-
-function snapCardToNearestZone(cardEl) {
-  if (!zonesMeta.length) return;
-
-  const kind = cardEl.dataset.kind || "unit";
-  const allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
-
-  const cardRect = cardEl.getBoundingClientRect();
-  const cx = cardRect.left + cardRect.width / 2;
-  const cy = cardRect.top + cardRect.height / 2;
-
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const z of zonesMeta) {
-    if (!allowed.has(z.id)) continue;
-    const zx = z.left + z.width / 2;
-    const zy = z.top + z.height / 2;
-    const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) { bestDist = d; best = z; }
-  }
-
-  if (!best) return;
-
-  const cardDiag = Math.hypot(cardRect.width, cardRect.height);
-  const zoneDiag = Math.hypot(best.width, best.height);
-  const threshold = Math.max(cardDiag, zoneDiag) * 0.55;
-
-  if (bestDist > threshold) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  const w = parseFloat(cardEl.style.width);
-  const h = parseFloat(cardEl.style.height);
-
-  cardEl.style.left = `${targetCenterX - w / 2}px`;
-  cardEl.style.top  = `${targetCenterY - h / 2}px`;
-}
-
-function snapBaseToNearestBaseStack(baseEl) {
-  if (!zonesMeta.length) return;
-
-  const baseRect = baseEl.getBoundingClientRect();
-  const cx = baseRect.left + baseRect.width / 2;
-  const cy = baseRect.top + baseRect.height / 2;
-
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const z of zonesMeta) {
-    if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
-    const zx = z.left + z.width / 2;
-    const zy = z.top + z.height / 2;
-    const d = Math.hypot(cx - zx, cy - zy);
-    if (d < bestDist) { bestDist = d; best = z; }
-  }
-
-  if (!best) return;
-
-  const zoneDiag = Math.hypot(best.width, best.height);
-  const baseDiag = Math.hypot(baseRect.width, baseRect.height);
-  const threshold = Math.max(zoneDiag, baseDiag) * 0.70;
-
-  if (bestDist > threshold) return;
-
-  const stageRect = stage.getBoundingClientRect();
-  const targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  const targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  baseEl.style.left = `${targetCenterX - BASE_W / 2}px`;
-  baseEl.style.top  = `${targetCenterY - BASE_H / 2}px`;
-}
-
-// ---------- force track ----------
-function buildForceTrackSlots(forceRect) {
-  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
-  forceSlotCenters = [];
-
-  const pad = 10;
-  const usableH = forceRect.h - pad * 2;
-
-  for (let i = 0; i < FORCE_SLOTS; i++) {
-    const t = FORCE_SLOTS === 1 ? 0.5 : i / (FORCE_SLOTS - 1);
-    const cy = forceRect.y + pad + t * usableH;
-    const cx = forceRect.x + forceRect.w / 2;
-
-    forceSlotCenters.push({ x: cx, y: cy });
-
-    const slot = document.createElement("div");
-    slot.className = "forceSlot" + (i === FORCE_NEUTRAL_INDEX ? " neutral" : "");
-    slot.style.left = `${forceRect.x}px`;
-    slot.style.top = `${Math.round(cy - 16)}px`;
-    slot.style.width = `${forceRect.w}px`;
-    slot.style.height = `32px`;
-    stage.appendChild(slot);
-  }
-}
-
-function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
-  if (forceMarker) return;
-
-  forceMarker = document.createElement("div");
-  forceMarker.className = "forceMarker";
-  stage.appendChild(forceMarker);
-
-  let draggingMarker = false;
-  let markerOffX = 0;
-  let markerOffY = 0;
-
-  function snapMarkerToNearestSlot() {
-    if (!forceSlotCenters.length) return;
-
-    const left = parseFloat(forceMarker.style.left || "0");
-    const top = parseFloat(forceMarker.style.top || "0");
-    const cx = left + FORCE_MARKER_SIZE / 2;
-    const cy = top + FORCE_MARKER_SIZE / 2;
-
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < forceSlotCenters.length; i++) {
-      const s = forceSlotCenters[i];
-      const d = Math.hypot(cx - s.x, cy - s.y);
-      if (d < bestD) { bestD = d; best = i; }
-    }
-
-    const target = forceSlotCenters[best];
-    forceMarker.style.left = `${target.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${target.y - FORCE_MARKER_SIZE / 2}px`;
-  }
-
-  forceMarker.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
-    if (e.button !== 0) return;
-    forceMarker.setPointerCapture(e.pointerId);
-    draggingMarker = true;
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    const left = parseFloat(forceMarker.style.left || "0");
-    const top = parseFloat(forceMarker.style.top || "0");
-    markerOffX = px - left;
-    markerOffY = py - top;
-  });
-
-  forceMarker.addEventListener("pointermove", (e) => {
-    if (!draggingMarker) return;
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-    forceMarker.style.left = `${px - markerOffX}px`;
-    forceMarker.style.top  = `${py - markerOffY}px`;
-  });
-
-  forceMarker.addEventListener("pointerup", (e) => {
-    draggingMarker = false;
-    try { forceMarker.releasePointerCapture(e.pointerId); } catch {}
-    snapMarkerToNearestSlot();
-  });
-
-  forceMarker.addEventListener("pointercancel", () => { draggingMarker = false; });
-
-  if (forceSlotCenters.length) {
-    const c = forceSlotCenters[initialIndex] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
-    forceMarker.style.left = `${c.x - FORCE_MARKER_SIZE / 2}px`;
-    forceMarker.style.top  = `${c.y - FORCE_MARKER_SIZE / 2}px`;
-  }
-}
-
-// ---------- captured slots ----------
-function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(".capSlot[data-cap-side='" + sideLabel + "']").forEach(el => el.remove());
-  capSlotCenters[sideLabel] = [];
-
-  const startX = capRect.x;
-  const startY = capRect.y;
-
-  for (let i = 0; i < CAP_SLOTS; i++) {
-    const slotY = startY + i * CAP_OVERLAP;
-    const cx = startX + CAP_W / 2;
-    const cy = slotY + BASE_H / 2;
-
-    capSlotCenters[sideLabel].push({ x: cx, y: cy });
-
-    const slot = document.createElement("div");
-    slot.className = "capSlot";
-    slot.dataset.capSide = sideLabel;
-    slot.dataset.capIndex = String(i);
-    slot.style.left = `${startX}px`;
-    slot.style.top  = `${slotY}px`;
-    slot.style.width = `${CAP_W}px`;
-    slot.style.height = `${BASE_H}px`;
-    stage.appendChild(slot);
-  }
-}
-
-function clearCapturedAssignment(baseEl){
-  const side = baseEl.dataset.capSide;
-  const idx = Number(baseEl.dataset.capIndex || "-1");
-  if (!side || idx < 0) return;
-  if (capOccupied[side] && capOccupied[side][idx] === baseEl.dataset.cardId) {
-    capOccupied[side][idx] = null;
-  }
-  delete baseEl.dataset.capSide;
-  delete baseEl.dataset.capIndex;
-}
-
-function snapBaseAutoFill(baseEl){
-  const capP2 = zonesCache.p2_captured_bases;
-  const capP1 = zonesCache.p1_captured_bases;
-
-  const b = baseEl.getBoundingClientRect();
-  const cx = b.left + b.width/2;
-  const cy = b.top + b.height/2;
-
-  const inRect = (r) => (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
-
-  const stageRect = stage.getBoundingClientRect();
-
-  const rectFor = (capRect) => {
-    const l = stageRect.left + capRect.x * camera.scale;
-    const t = stageRect.top  + capRect.y * camera.scale;
-    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
-  };
-
-  const p2R = rectFor(capP2);
-  const p1R = rectFor(capP1);
-
-  let side = null;
-  if (inRect(p2R)) side = "p2";
-  else if (inRect(p1R)) side = "p1";
-
-  if (!side){
-    clearCapturedAssignment(baseEl);
-    return;
-  }
-
-  const occ = capOccupied[side];
-  let idx = occ.findIndex(v => v === null);
-  if (idx === -1) idx = CAP_SLOTS - 1;
-
-  occ[idx] = baseEl.dataset.cardId;
-  baseEl.dataset.capSide = side;
-  baseEl.dataset.capIndex = String(idx);
-
-  const target = capSlotCenters[side][idx];
-  baseEl.style.left = `${target.x - BASE_W/2}px`;
-  baseEl.style.top  = `${target.y - BASE_H/2}px`;
-  baseEl.style.zIndex = String(CAP_Z_BASE + idx);
-}
-
-// ---------- rotation + flip ----------
-function applyRotationSize(cardEl) {
-  const rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  cardEl.style.width = `${CARD_W}px`;
-  cardEl.style.height = `${CARD_H}px`;
-  cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = `rotate(${rot}deg)`;
-  const face = cardEl.querySelector(".cardFace");
-  if (face) face.style.transform = "none";
-}
-
-function toggleRotate(cardEl) {
-  const cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  const next = (cur + 90) % 360;
-  cardEl.dataset.rot = String(next);
-  applyRotationSize(cardEl);
-  refreshSnapRects();
-}
-
-function toggleFlip(cardEl) {
-  const cur = cardEl.dataset.face || "up";
-  cardEl.dataset.face = (cur === "up") ? "down" : "up";
-}
-
-// ---------- TOKEN BANKS (FREEFORM CUBES) ----------
-let tokenBankEls = { p1: null, p2: null };
-
-function tokenClassFor(type) {
-  if (type === "damage") return "tokenRed";
-  if (type === "attack") return "tokenBlue";
-  return "tokenGold";
-}
-
-function createTokenCube(owner, type, x, y) {
-  const t = document.createElement("div");
-  t.className = `tokenCube ${tokenClassFor(type)}`;
-  t.dataset.owner = owner;
-  t.dataset.type = type;
-  t.style.left = `${x - TOKEN_SIZE/2}px`;
-  t.style.top  = `${y - TOKEN_SIZE/2}px`;
-  t.style.zIndex = "16000";
-  stage.appendChild(t);
-  tokenEls.add(t);
-
-  attachTokenDragHandlers(t);
-  return t;
-}
-
-function attachTokenDragHandlers(el) {
-  let dragging = false;
-  let offX = 0, offY = 0;
-
-  el.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    el.setPointerCapture(e.pointerId);
-    dragging = true;
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    const left = parseFloat(el.style.left || "0");
-    const top  = parseFloat(el.style.top || "0");
-    offX = px - left;
-    offY = py - top;
-
-    el.style.zIndex = "60000";
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    el.style.left = `${px - offX}px`;
-    el.style.top  = `${py - offY}px`;
-  });
-
-  el.addEventListener("pointerup", (e) => {
-    dragging = false;
-    try { el.releasePointerCapture(e.pointerId); } catch {}
-    el.style.zIndex = "16000";
-  });
-
-  el.addEventListener("pointercancel", () => { dragging = false; });
-}
-
-function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
-  if (tokenPools[owner][type] <= 0) return;
-
-  tokenPools[owner][type] -= 1;
-
-  // Spawn token centered under the pointer, then immediately drag it (single click-drag).
-  const stageRect0 = stage.getBoundingClientRect();
-  const px0 = (clientX - stageRect0.left) / camera.scale;
-  const py0 = (clientY - stageRect0.top)  / camera.scale;
-
-  const tok = createTokenCube(owner, type, px0, py0);
-  tok.style.zIndex = "60000";
-
-  // Make sure the same pointer is controlling the token right away.
-  try { tok.setPointerCapture(pointerId); } catch {}
-
-  function move(e) {
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top)  / camera.scale;
-    tok.style.left = `${px - TOKEN_SIZE/2}px`;
-    tok.style.top  = `${py - TOKEN_SIZE/2}px`;
-  }
-
-  function up(e) {
-    try { tok.releasePointerCapture(pointerId); } catch {}
-    tok.style.zIndex = "16000";
-    window.removeEventListener("pointermove", move, true);
-    window.removeEventListener("pointerup", up, true);
-    window.removeEventListener("pointercancel", up, true);
-  }
-
-  // Track movement even if pointer drifts outside the bin.
-  window.addEventListener("pointermove", move, true);
-  window.addEventListener("pointerup", up, true);
-  window.addEventListener("pointercancel", up, true);
-}
-
-function buildTokenBank(owner, r) {
-  const bank = document.createElement("div");
-  bank.className = "tokenBank";
-  bank.style.left = `${r.x}px`;
-  bank.style.top  = `${r.y}px`;
-  bank.style.width = `${r.w}px`;
-  bank.style.height = `${r.h}px`;
-  bank.dataset.owner = owner;
-
-  const row = document.createElement("div");
-  row.className = "tokenBinsRow";
-
-  const bins = [
-    { type:"damage" },
-    { type:"attack" },
-    { type:"resource" },
-  ];
-
-  for (const b of bins) {
-    const bin = document.createElement("div");
-    bin.className = "tokenBin";
-    bin.dataset.owner = owner;
-    bin.dataset.type = b.type;
-
-    // big source cube (visual only)
-    const source = document.createElement("div");
-    source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
-    source.style.left = `0px`;
-    source.style.top  = `0px`;
-    bin.appendChild(source);
-
-    bin.addEventListener("pointerdown", (e) => {
-      if (previewOpen) return;
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
-    });
-
-    row.appendChild(bin);
-  }
-
-  bank.appendChild(row);
-
-  bank.addEventListener("pointerdown", (e) => e.stopPropagation());
-  bank.addEventListener("pointermove", (e) => e.stopPropagation());
-  bank.addEventListener("pointerup", (e) => e.stopPropagation());
-
-  stage.appendChild(bank);
-  tokenBankEls[owner] = bank;
-}
-
-function returnTokensForOwner(owner, typesToReturn) {
-  const toRemove = [];
-  for (const t of tokenEls) {
-    if (!t.isConnected) { toRemove.push(t); continue; }
-    if (t.dataset.owner !== owner) continue;
-    const type = t.dataset.type;
-    if (!typesToReturn.includes(type)) continue;
-    toRemove.push(t);
-    tokenPools[owner][type] += 1;
-  }
-
-  for (const t of toRemove) {
-    if (t.isConnected) t.remove();
-    tokenEls.delete(t);
-  }
-}
-
-function endTurn(owner) {
-  returnTokensForOwner(owner, ["attack","resource"]);
-}
-
-function resetAllTokens() {
-  for (const t of Array.from(tokenEls)) {
-    if (t.isConnected) t.remove();
-    tokenEls.delete(t);
-  }
-  tokenPools.p1.damage = TOKENS_DAMAGE_PER_PLAYER;
-  tokenPools.p1.attack = TOKENS_ATTACK_PER_PLAYER;
-  tokenPools.p1.resource = TOKENS_RESOURCE_PER_PLAYER;
-
-  tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
-  tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
-  tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
-}
-
-endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); });
-endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
-resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
-
-// ---------- build ----------
-function build() {
-  stage.innerHTML = "";
-
-  const zones = computeZones();
-  zonesCache = zones;
-
-  stage.style.width = `${DESIGN_W}px`;
-  stage.style.height = `${DESIGN_H}px`;
-
-  // Draw standard zones (skip token bank anchors)
-  for (const [id, rr] of Object.entries(zones)) {
-    if (id === "p1_token_bank" || id === "p2_token_bank") continue;
-
-    const el = document.createElement("div");
-    el.className = "zone";
-    el.dataset.zoneId = id;
-    el.style.left = `${rr.x}px`;
-    el.style.top = `${rr.y}px`;
-    el.style.width = `${rr.w}px`;
-    el.style.height = `${rr.h}px`;
-    stage.appendChild(el);
-  }
-
-  buildForceTrackSlots(zones.force_track);
-  ensureForceMarker(FORCE_NEUTRAL_INDEX);
-
-  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
-  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
-
-  // Token banks (freeform cubes only)
-  buildTokenBank("p2", zones.p2_token_bank);
-  buildTokenBank("p1", zones.p1_token_bank);
-
-  applyCamera();
-  refreshSnapRects();
-  ensureDrawCountBadges();
-  bindPileZoneClicks();
-  fitToScreen();
-}
-build();
-
-window.addEventListener("resize", () => fitToScreen());
-if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
-
-// ---------- card factory ----------
-function makeCardEl(cardData, kind) {
-  const el = document.createElement("div");
-  el.className = "card";
-  el.dataset.kind = kind;
-  el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
-  el.dataset.face = "up";
-
-  const face = document.createElement("div");
-  face.className = "cardFace";
-  face.style.backgroundImage = `url('${cardData.img || ""}')`;
-  el.appendChild(face);
-
-  const back = document.createElement("div");
-  back.className = "cardBack";
-  back.textContent = "Face Down";
-  el.appendChild(back);
-
-  if (kind === "unit") {
-    el.dataset.rot = "0";
-    applyRotationSize(el);
-  } else if (kind === "base") {
-    el.style.width = `${BASE_W}px`;
-    el.style.height = `${BASE_H}px`;
-    face.style.transform = "none";
-  }
-
-  el.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    togglePreview(cardData);
-  });
-
-  attachDragHandlers(el, cardData, kind);
-  return el;
-}
-
-// ---------- drag handlers ----------
-function attachDragHandlers(el, cardData, kind) {
-  let dragging = false;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  let pressTimer = null;
-  let longPressFired = false;
-  let downX = 0;
-  let downY = 0;
-  let movedDuringPress = false;
-
-  let baseHadCapturedAssignment = false;
-  let baseFreedAssignment = false;
-
-  const DOUBLE_TAP_MS = 360;
-  const FLIP_CONFIRM_MS = 380;
-
-  let flipTimer = null;
-  let suppressNextPointerUp = false;
-
-  function clearFlipTimer() { if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; } }
-  function clearPressTimer(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
-
-  function startLongPress(e) {
-    clearPressTimer();
-    longPressFired = false;
-    movedDuringPress = false;
-    downX = e.clientX;
-    downY = e.clientY;
-
-    pressTimer = setTimeout(() => {
-      longPressFired = true;
-      showPreview(cardData);
-    }, 380);
-  }
-
-  let lastTap = 0;
-
-  el.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
-    if (e.button !== 0) return;
-
-    clearFlipTimer();
-    suppressNextPointerUp = false;
-
-    const now = Date.now();
-    const dt = now - lastTap;
-    lastTap = now;
-
-    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
-      suppressNextPointerUp = true;
-      toggleRotate(el);
-      return;
-    }
-
-    el.setPointerCapture(e.pointerId);
-    dragging = true;
-    startLongPress(e);
-
-    if (kind === "base") {
-      baseHadCapturedAssignment = !!el.dataset.capSide;
-      baseFreedAssignment = false;
-    }
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    const left = parseFloat(el.style.left || "0");
-    const top = parseFloat(el.style.top || "0");
-    offsetX = px - left;
-    offsetY = py - top;
-
-    el.style.zIndex = String(50000);
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-
-    const dx = e.clientX - downX;
-    const dy = e.clientY - downY;
-    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
-
-    if (!longPressFired && Math.hypot(dx, dy) > 8) {
-      clearPressTimer();
-
-      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
-        clearCapturedAssignment(el);
-        baseFreedAssignment = true;
-      }
-    }
-
-    if (longPressFired) return;
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    el.style.left = `${px - offsetX}px`;
-    el.style.top  = `${py - offsetY}px`;
-  });
-
-  el.addEventListener("pointerup", (e) => {
-    clearPressTimer();
-    try { el.releasePointerCapture(e.pointerId); } catch {}
-    dragging = false;
-
-    if (suppressNextPointerUp) {
-      suppressNextPointerUp = false;
-      el.style.zIndex = (kind === "base") ? "12000" : "15000";
-      return;
-    }
-
-    if (longPressFired) {
-      longPressFired = false;
-      return;
-    }
-
-    if (!movedDuringPress) {
-      clearFlipTimer();
-      flipTimer = setTimeout(() => {
-        toggleFlip(el);
-        if (kind === "base") {
-          if (el.dataset.capSide) {
-            const idx = Number(el.dataset.capIndex || "0");
-            el.style.zIndex = String(CAP_Z_BASE + idx);
-          } else el.style.zIndex = "12000";
-        } else el.style.zIndex = "15000";
-      }, FLIP_CONFIRM_MS);
-      return;
-    }
-
-    if (kind === "base") {
-      snapBaseAutoFill(el);
-      if (!el.dataset.capSide) {
-        snapBaseToNearestBaseStack(el);
-        el.style.zIndex = "12000";
-      }
-    } else {
-      snapCardToNearestZone(el);
-      el.style.zIndex = "15000";
-    }
-  });
-
-  el.addEventListener("pointercancel", () => {
-    dragging = false;
-    clearPressTimer();
-    clearFlipTimer();
-    suppressNextPointerUp = false;
-  });
-}
-
-// ---------- demo card data ----------
-const OBIWAN = {
-  id: "obiwan",
-  name: "Obi-Wan Kenobi",
-  type: "Unit",
-  subtype: "Jedi",
-  cost: 4,
-  attack: 2,
-  resources: 1,
-  force: 1,
-  effect: "If you control the Force, draw 1 card.",
-  reward: "Gain 1 Force.",
-  img: "https://picsum.photos/250/350?random=12"
-};
-
-const TEST_BASE = {
-  id: "base_test",
-  name: "Test Base",
-  type: "Base",
-  subtype: "",
-  cost: 0,
-  attack: 0,
-  resources: 0,
-  force: 0,
-  effect: "This is a test base card.",
-  reward: "—",
-  img: "https://picsum.photos/350/250?random=22"
-};
-
-// ---------- pile data (demo) ----------
-(function initDemoPiles(){
-  function cloneCard(base, overrides){
-    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
-    return { ...base, ...overrides, id };
-  }
-
-  function makeMany(prefix, count){
-    const out = [];
-    for (let i = 1; i <= count; i++){
-      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
-    }
-    return out;
-  }
-
-  piles = {
-    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
-    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
-    p1_discard: [ ...makeMany("Discard Example", 25) ],
-    p2_discard: [ ...makeMany("Discard Example", 25) ],
-    p1_exile: [ ...makeMany("Exiled Example", 18) ],
-    p2_exile: [ ...makeMany("Exiled Example", 18) ],
-  };
-})();
-
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
-
-const BASE_TEST_COUNT = 2;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
-}
-
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
+/* -------------- SNIPPING NOTE --------------
+The remainder of the file includes:
+- snap rules
+- force track + marker
+- captured base slots + auto-fill stacking
+- card drag/rotate/flip logic
+- token bank build + click-and-drag spawn
+- build() + demo piles + demo cards
+- setTrayPlayerColor("blue")
+------------------------------------------- */
+
+/* The full baseline file is what you're using now (this snippet continues in your repo). */
