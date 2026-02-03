@@ -1,4 +1,4 @@
-console.log("VTT: CLEAN BASELINE (tokens fixed: 3 bins per player, bigger bins, tight spacing, anchored under draw/discard, no counters)");
+console.log("VTT: CLEAN BASELINE (token bins = hit area, no empty clickable space, 3 bins per player, anchored under draw/discard)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -29,22 +29,17 @@ const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
 const CAP_W = BASE_W;
 const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
-const CAP_Z_BASE = 20000;
 
 // Layout knobs
 const BASE_ROW_GAP = 480;      // bases farther from galaxy row (mirrored)
 const CAP_DISCARD_GAP = 26;    // captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
-// -------- tray drag tuning (mobile-friendly) --------
-const TRAY_HOLD_TO_DRAG_MS = 260;
-const TRAY_MOVE_CANCEL_PX = 8;
-const TRAY_TAP_MOVE_PX = 6;
+let DESIGN_W = 1;
+let DESIGN_H = 1;
+function rect(x, y, w, h) { return { x, y, w, h }; }
 
-// -------- player color (tray glow testing) --------
-let PLAYER_COLOR = "blue"; // "blue" | "red" | "green"
-
-// ---------- TOKEN SYSTEM ----------
+// ---------- TOKENS ----------
 const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
 const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temp per turn)
 const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temp per turn)
@@ -52,19 +47,13 @@ const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temp per turn)
 // Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
 
-// Token bank bin size (this IS the hit area too)
-const TOKEN_BIN_W = 120; // bigger bin
-const TOKEN_BIN_H = 70;
+// ✅ Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
+const TOKEN_BANK_CUBE_SIZE = 44;   // visual + hit size for each bin (bigger target)
+const TOKEN_BIN_W = TOKEN_BANK_CUBE_SIZE;
+const TOKEN_BIN_H = TOKEN_BANK_CUBE_SIZE;
 
-// tighter spacing
-const TOKEN_BIN_GAP = 6;
-
-// Big source cube shown inside the bin
-const TOKEN_BANK_CUBE_SIZE = 30;
-
-let DESIGN_W = 1;
-let DESIGN_H = 1;
-function rect(x, y, w, h) { return { x, y, w, h }; }
+// spacing between the 3 bins
+const TOKEN_BIN_GAP = 10;
 
 // ---------- CSS ----------
 const style = document.createElement("style");
@@ -98,8 +87,6 @@ style.textContent = `
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
-  .zone.clickable{ cursor:pointer; }
-  .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
   .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
@@ -124,7 +111,8 @@ style.textContent = `
   .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.02); pointer-events:none; }
   .forceSlot.neutral { border:1px dashed rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); }
-  .forceMarker { position:absolute; width:28px; height:28px; border-radius:999px; border:2px solid rgba(255,255,255,0.9);
+
+  .forceMarker { position:absolute; width:${FORCE_MARKER_SIZE}px; height:${FORCE_MARKER_SIZE}px; border-radius:999px; border:2px solid rgba(255,255,255,0.9);
     background: rgba(120,180,255,0.22); box-shadow:0 8px 20px rgba(0,0,0,0.6); box-sizing:border-box; z-index:99999;
     touch-action:none; cursor:grab; }
 
@@ -156,11 +144,10 @@ style.textContent = `
     background: transparent;
     position: relative;
     box-sizing: border-box;
-    cursor: grab;
+    cursor: pointer;
     user-select:none;
     touch-action:none;
   }
-  .tokenBin:active{ cursor: grabbing; }
 
   /* Small cubes you place on cards */
   .tokenCube{
@@ -177,17 +164,19 @@ style.textContent = `
   }
   .tokenCube:active{ cursor: grabbing; }
 
-  /* Big source cube inside the bin */
+  /* Big source cube inside the bin (this is the only visible "bin") */
   .tokenSourceCube{
     position:absolute;
     width:${TOKEN_BANK_CUBE_SIZE}px;
     height:${TOKEN_BANK_CUBE_SIZE}px;
-    border-radius: 6px;
+    border-radius: 8px;
     box-sizing: border-box;
     border: 1px solid rgba(255,255,255,0.25);
     box-shadow: 0 10px 22px rgba(0,0,0,0.60);
     pointer-events:none;
     user-select:none;
+    left: 0px;
+    top: 0px;
   }
 
   .tokenRed{
@@ -230,13 +219,9 @@ stage.id = "stage";
 table.appendChild(stage);
 
 // ---------- state ----------
-let piles = {};
 let forceSlotCenters = [];
 let forceMarker = null;
-
 const capSlotCenters = { p1: [], p2: [] };
-const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
-let zonesCache = null;
 
 // token state
 const tokenPools = {
@@ -244,6 +229,7 @@ const tokenPools = {
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
 };
 const tokenEls = new Set();
+let zonesCache = null;
 
 // ---------- layout helpers ----------
 function computeZones() {
@@ -291,7 +277,7 @@ function computeZones() {
   const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
   const bankH = TOKEN_BIN_H;
   const bankX = xPiles; // left-aligned to discard pile
-  const bankGap = 16;
+  const bankGap = 14;
 
   const yP2TokenBank = yTopPiles + CARD_H + bankGap;       // below P2 piles
   const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles
@@ -640,10 +626,9 @@ function buildTokenBank(owner, r) {
 
     const source = document.createElement("div");
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
-    source.style.left = `${Math.round((TOKEN_BIN_W - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
-    source.style.top  = `${Math.round((TOKEN_BIN_H - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
     bin.appendChild(source);
 
+    // ✅ hit area == visible cube (bin == cube size)
     bin.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -655,6 +640,7 @@ function buildTokenBank(owner, r) {
 
   bank.appendChild(row);
 
+  // keep tokens banks from dragging cards
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
@@ -679,6 +665,7 @@ function returnTokensForOwner(owner, typesToReturn) {
 }
 
 function endTurn(owner) {
+  // temp stuff returns automatically
   returnTokensForOwner(owner, ["attack","resource"]);
 }
 
