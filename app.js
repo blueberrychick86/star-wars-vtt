@@ -338,7 +338,7 @@ style.textContent = `
   }
   .tokenBinsRow{
   display:flex;
-  gap: 10px; /* tighter spacing */
+  gap: 6px; /* tighter spacing */
   align-items:center;
   justify-content:flex-start;
 }
@@ -1073,21 +1073,16 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchors (no visible zone)
- const BIN_GAP = 6; // keep close (matches CSS gap)
+ // Token banks: anchors (no visible zone)
+const BIN_GAP = 6; // should match .tokenBinsRow gap in CSS
 const bankW = (TOKEN_BIN_HIT_W * 3) + (BIN_GAP * 2);
 const bankH = TOKEN_BIN_HIT_H;
 
+// ✅ anchor neatly under discard+draw (left-aligned to discard pile)
+const bankX = xPiles;
 
-
-
-// center under discard + draw piles
-const pilesCenterX = xPiles + (CARD_W * 2 + GAP) / 2;
-const bankX = Math.round(pilesCenterX - bankW / 2);
-
-  const bankGap = 18;
-
-  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
-  const yP2TokenBank = yTopPiles - bankGap - bankH;
+const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
+const yP2TokenBank = yTopPiles - bankGap - bankH;
 
   let zones = {
     // P2 (top) — discard LEFT, draw RIGHT
