@@ -1,4 +1,4 @@
-console.log("VTT: CLEAN BASELINE + Start Menu v1 (set-driven faction logic)");
+console.log("VTT: CLEAN BASELINE (token bins = hit area, no empty clickable space, 3 bins per player, anchored under draw/discard)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -44,49 +44,48 @@ function rect(x, y, w, h) { return { x, y, w, h }; }
 
 // ---------- START MENU CONFIG ----------
 const gameConfig = {
-  setMode: "mixed",          // "og" | "cw" | "mixed"
-  blueChoice: "all_blue",    // "empire" | "separatists" | "all_blue"
-  redChoice: "all_red",      // "rebels" | "republic" | "all_red"
-  mandoNeutrals: true,       // include Mandalorian as neutrals
+  setMode: "mixed",      // "og" | "cw" | "mixed"
+  mandoNeutrals: true,   // include Mandalorian as neutrals
+  p1Side: "blue"         // "blue" | "red" (Player 1 choice; Player 2 is the other side)
 };
 
 function applySetModeDefaults() {
+  // Set determines factions automatically (no manual faction picks)
+  // mixed => All Blue vs All Red
+  // og    => Empire vs Rebels
+  // cw    => Separatists vs Republic
+  // (We keep these as derived values for later deck-loading logic.)
   if (gameConfig.setMode === "mixed") {
-    gameConfig.blueChoice = "all_blue";
-    gameConfig.redChoice = "all_red";
+    gameConfig.blueFaction = "all_blue";
+    gameConfig.redFaction = "all_red";
   } else if (gameConfig.setMode === "og") {
-    gameConfig.blueChoice = "empire";
-    gameConfig.redChoice = "rebels";
-  } else { // "cw"
-    gameConfig.blueChoice = "separatists";
-    gameConfig.redChoice = "republic";
+    gameConfig.blueFaction = "empire";
+    gameConfig.redFaction = "rebels";
+  } else {
+    gameConfig.blueFaction = "separatists";
+    gameConfig.redFaction = "republic";
   }
-}
-
-function configSummaryLine() {
-  const setLabel =
-    gameConfig.setMode === "og" ? "OG" :
-    gameConfig.setMode === "cw" ? "CW" : "Mixed";
-
-  const blueLabel =
-    gameConfig.blueChoice === "empire" ? "Empire" :
-    gameConfig.blueChoice === "separatists" ? "Separatists" : "All Blue";
-
-  const redLabel =
-    gameConfig.redChoice === "rebels" ? "Rebels" :
-    gameConfig.redChoice === "republic" ? "Republic" : "All Red";
-
-  const mandoLabel = gameConfig.mandoNeutrals ? "ON" : "OFF";
-
-  return `BLUE: ${blueLabel} | RED: ${redLabel} | Mando: ${mandoLabel} | Set: ${setLabel}`;
 }
 
 function randomizeConfig() {
   const sets = ["og", "cw", "mixed"];
   gameConfig.setMode = sets[Math.floor(Math.random() * sets.length)];
   gameConfig.mandoNeutrals = Math.random() < 0.6;
+  gameConfig.p1Side = Math.random() < 0.5 ? "blue" : "red";
   applySetModeDefaults();
 }
+
+function describeAutoFactionsHTML() {
+  if (gameConfig.setMode === "mixed") {
+    return `Blue = <b>All Blue</b> (Empire + Separatists), Red = <b>All Red</b> (Rebels + Republic).`;
+  }
+  if (gameConfig.setMode === "og") {
+    return `Blue = <b>Empire</b>, Red = <b>Rebels</b>.`;
+  }
+  return `Blue = <b>Separatists</b>, Red = <b>Republic</b>.`;
+}
+
+applySetModeDefaults();
 
 // ---------- TOKENS ----------
 const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
@@ -129,20 +128,6 @@ style.textContent = `
     user-select:none;
     touch-action:manipulation;
     cursor:pointer;
-  }
-  .hudReadout{
-    display:flex;
-    align-items:center;
-    gap:6px;
-    padding:6px 8px;
-    border-radius:8px;
-    border:1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.06);
-    font-size:11px;
-    font-weight:900;
-    letter-spacing:0.2px;
-    color: rgba(255,255,255,0.90);
-    user-select:none;
   }
 
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
@@ -294,8 +279,25 @@ style.textContent = `
     border: 1px solid rgba(255,255,255,0.16);
     background: rgba(255,255,255,0.05);
     user-select:none;
+    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
   }
   .smOpt input{ transform: translateY(1px); }
+  .smOpt:has(input:checked){
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.55);
+    transform: translateY(-1px);
+  }
+  .smOptBlue:has(input:checked){
+    background: rgba(90,170,255,0.22);
+    border-color: rgba(120,200,255,0.55);
+    box-shadow: 0 0 0 2px rgba(120,200,255,0.18), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smOptRed:has(input:checked){
+    background: rgba(255,90,90,0.18);
+    border-color: rgba(255,130,130,0.55);
+    box-shadow: 0 0 0 2px rgba(255,130,130,0.16), 0 14px 30px rgba(0,0,0,0.65);
+  }
   .smActions{
     display:flex;
     gap: 8px;
@@ -348,15 +350,6 @@ const menuBtn = makeHudBtn("MENU");
 const endP1Btn = makeHudBtn("END P1");
 const endP2Btn = makeHudBtn("END P2");
 const resetTokensBtn = makeHudBtn("RESET");
-
-const hudReadout = document.createElement("div");
-hudReadout.className = "hudReadout";
-hudReadout.textContent = configSummaryLine();
-hud.appendChild(hudReadout);
-
-function updateHudReadout() {
-  hudReadout.textContent = configSummaryLine();
-}
 
 const stage = document.createElement("div");
 stage.id = "stage";
@@ -840,161 +833,6 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
-// ---------- START MENU ----------
-let startMenuOverlayEl = null;
-
-function closeStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
-  startMenuOverlayEl = null;
-
-  // Still apply your real setup rule silently:
-  moveForceMarkerToIndex(FORCE_RED_END_INDEX);
-  updateHudReadout();
-}
-
-function menuFactionSectionHTML() {
-  if (gameConfig.setMode === "mixed") {
-    return `
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Factions</div>
-          <div class="smTiny">Mixed uses <b>All Blue</b> vs <b>All Red</b>.</div>
-        </div>
-      </div>
-    `;
-  }
-
-  const isOG = gameConfig.setMode === "og";
-  const blueLabel = isOG ? "Empire" : "Separatists";
-  const blueValue = isOG ? "empire" : "separatists";
-  const redLabel  = isOG ? "Rebels" : "Republic";
-  const redValue  = isOG ? "rebels" : "republic";
-
-  return `
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Blue</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="blueChoice" value="${blueValue}"> ${blueLabel}</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Red</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="redChoice" value="${redValue}"> ${redLabel}</label>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
-
-  const overlay = document.createElement("div");
-  overlay.className = "startMenuOverlay";
-
-  const panel = document.createElement("div");
-  panel.className = "startMenuPanel";
-
-  panel.innerHTML = `
-    <div class="smTitle">Start Menu</div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Set</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG only</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars only</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed (OG + CW)</label>
-        </div>
-      </div>
-    </div>
-
-    ${menuFactionSectionHTML()}
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Mandalorian</div>
-        <div class="smOptions">
-          <label class="smOpt">
-            <input type="checkbox" name="mandoNeutrals">
-            Include Mandalorian as neutrals
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="smActions">
-      <button class="smBtn" data-action="random">Random</button>
-      <button class="smBtn smBtnPrimary" data-action="start">START</button>
-    </div>
-  `;
-
-  overlay.appendChild(panel);
-  table.appendChild(overlay);
-  startMenuOverlayEl = overlay;
-
-  // keep config consistent with set mode (especially when reopening MENU)
-  applySetModeDefaults();
-
-  // initial UI values
-  panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
-  panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
-
-  const blueRadio = panel.querySelector(`input[name="blueChoice"][value="${gameConfig.blueChoice}"]`);
-  if (blueRadio) blueRadio.checked = true;
-
-  const redRadio = panel.querySelector(`input[name="redChoice"][value="${gameConfig.redChoice}"]`);
-  if (redRadio) redRadio.checked = true;
-
-  function readUIToConfig() {
-    gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
-    gameConfig.mandoNeutrals = !!panel.querySelector(`input[name="mandoNeutrals"]`).checked;
-
-    const blue = panel.querySelector(`input[name="blueChoice"]:checked`);
-    const red  = panel.querySelector(`input[name="redChoice"]:checked`);
-    if (blue) gameConfig.blueChoice = blue.value;
-    if (red)  gameConfig.redChoice = red.value;
-  }
-
-  panel.addEventListener("change", (e) => {
-    // If set mode changes, rebuild menu sections
-    if (e.target && e.target.name === "setMode") {
-      gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
-      applySetModeDefaults();
-      updateHudReadout();
-      renderStartMenu();
-      return;
-    }
-    readUIToConfig();
-    updateHudReadout();
-  });
-
-  panel.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-action]");
-    if (!btn) return;
-
-    const action = btn.dataset.action;
-    if (action === "random") {
-      randomizeConfig();
-      updateHudReadout();
-      renderStartMenu();
-      return;
-    }
-
-    if (action === "start") {
-      readUIToConfig();
-      closeStartMenu();
-    }
-  });
-}
-
-menuBtn.addEventListener("click", (e) => { e.preventDefault(); renderStartMenu(); });
-
 // ---------- build ----------
 function build() {
   stage.innerHTML = "";
@@ -1031,10 +869,127 @@ function build() {
 }
 build();
 
-// show menu on load
-applySetModeDefaults();
+// ---------- START MENU ----------
+let startMenuOverlayEl = null;
+
+function closeStartMenu() {
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+  startMenuOverlayEl = null;
+
+  // Setup rule applied silently:
+  // Force track starts at far RED end.
+  moveForceMarkerToIndex(FORCE_RED_END_INDEX);
+}
+
+function renderStartMenu() {
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "startMenuOverlay";
+
+  const panel = document.createElement("div");
+  panel.className = "startMenuPanel";
+
+  panel.innerHTML = `
+    <div class="smTitle">Start Menu</div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Set</div>
+        <div class="smOptions">
+          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG only</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars only</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed (OG + CW)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Player 1 plays</div>
+        <div class="smOptions">
+          <label class="smOpt smOptBlue"><input type="radio" name="p1Side" value="blue"> Blue</label>
+          <label class="smOpt smOptRed"><input type="radio" name="p1Side" value="red"> Red</label>
+        </div>
+        <div class="smTiny">Player 2 automatically gets the other side.</div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Factions (auto)</div>
+        <div class="smTiny">${describeAutoFactionsHTML()}</div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Mandalorian</div>
+        <div class="smOptions">
+          <label class="smOpt">
+            <input type="checkbox" name="mandoNeutrals">
+            Include Mandalorian as neutrals
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="smActions">
+      <button class="smBtn" data-action="random">Random</button>
+      <button class="smBtn smBtnPrimary" data-action="start">START</button>
+    </div>
+  `;
+
+  overlay.appendChild(panel);
+  table.appendChild(overlay);
+  startMenuOverlayEl = overlay;
+
+  // initial UI values
+  panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
+  panel.querySelector(`input[name="p1Side"][value="${gameConfig.p1Side}"]`).checked = true;
+  panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
+
+  function readUIToConfig() {
+    gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
+    gameConfig.p1Side = panel.querySelector(`input[name="p1Side"]:checked`).value;
+    gameConfig.mandoNeutrals = !!panel.querySelector(`input[name="mandoNeutrals"]`).checked;
+    applySetModeDefaults();
+  }
+
+  panel.addEventListener("change", (e) => {
+    // Rebuild when set changes so auto-faction text updates
+    if (e.target && e.target.name === "setMode") {
+      readUIToConfig();
+      renderStartMenu();
+      return;
+    }
+    readUIToConfig();
+  });
+
+  panel.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+
+    if (btn.dataset.action === "random") {
+      randomizeConfig();
+      renderStartMenu();
+      return;
+    }
+
+    if (btn.dataset.action === "start") {
+      readUIToConfig();
+      closeStartMenu();
+    }
+  });
+}
+
+menuBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  renderStartMenu();
+});
+
+// Show menu on load
 renderStartMenu();
-updateHudReadout();
 
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
