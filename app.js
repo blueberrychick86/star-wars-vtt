@@ -306,6 +306,7 @@ style.textContent = `
 }
 /* ===== END: Mandalorian green selected glow ===== */
 
+
   .smActions{
     display:flex;
     gap: 8px;
@@ -919,8 +920,7 @@ function renderStartMenu() {
           <label class="smOpt smOptBlue"><input type="radio" name="p1Side" value="blue"> Blue</label>
           <label class="smOpt smOptRed"><input type="radio" name="p1Side" value="red"> Red</label>
         </div>
-        <div class="smTiny">Player 2 automatically gets the other side.</div>
-      </div>
+        
     </div>
 
     <div class="smSection">
@@ -934,10 +934,11 @@ function renderStartMenu() {
       <div class="smRow">
         <div class="smLabel">Mandalorian</div>
         <div class="smOptions">
-          <label class="smOpt">
-            <input type="checkbox" name="mandoNeutrals">
-            Include Mandalorian as neutrals
-          </label>
+         <label class="smOpt smOptGreen">
+  <input type="checkbox" name="mandoNeutrals">
+  Include Mandalorian as neutrals
+</label>
+
         </div>
       </div>
     </div>
