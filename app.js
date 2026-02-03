@@ -1,4 +1,4 @@
-console.log("VTT: CLEAN BASELINE (token bins = hit area, no empty clickable space, 3 bins per player, anchored under draw/discard) + Start Menu v1");
+console.log("VTT: CLEAN BASELINE + Start Menu v1 (set-driven faction logic)");
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -50,6 +50,19 @@ const gameConfig = {
   mandoNeutrals: true,       // include Mandalorian as neutrals
 };
 
+function applySetModeDefaults() {
+  if (gameConfig.setMode === "mixed") {
+    gameConfig.blueChoice = "all_blue";
+    gameConfig.redChoice = "all_red";
+  } else if (gameConfig.setMode === "og") {
+    gameConfig.blueChoice = "empire";
+    gameConfig.redChoice = "rebels";
+  } else { // "cw"
+    gameConfig.blueChoice = "separatists";
+    gameConfig.redChoice = "republic";
+  }
+}
+
 function configSummaryLine() {
   const setLabel =
     gameConfig.setMode === "og" ? "OG" :
@@ -70,13 +83,9 @@ function configSummaryLine() {
 
 function randomizeConfig() {
   const sets = ["og", "cw", "mixed"];
-  const blues = ["empire", "separatists", "all_blue"];
-  const reds  = ["rebels", "republic", "all_red"];
-
   gameConfig.setMode = sets[Math.floor(Math.random() * sets.length)];
-  gameConfig.blueChoice = blues[Math.floor(Math.random() * blues.length)];
-  gameConfig.redChoice  = reds[Math.floor(Math.random() * reds.length)];
   gameConfig.mandoNeutrals = Math.random() < 0.6;
+  applySetModeDefaults();
 }
 
 // ---------- TOKENS ----------
@@ -87,12 +96,10 @@ const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temp per turn)
 // Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
 
-// ✅ Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
-const TOKEN_BANK_CUBE_SIZE = 44;   // visual + hit size for each bin (bigger target)
+// Make the "bin" (hit area) exactly the visible source-cube size (NO empty clickable space)
+const TOKEN_BANK_CUBE_SIZE = 44;
 const TOKEN_BIN_W = TOKEN_BANK_CUBE_SIZE;
 const TOKEN_BIN_H = TOKEN_BANK_CUBE_SIZE;
-
-// spacing between the 3 bins
 const TOKEN_BIN_GAP = 10;
 
 // ---------- CSS ----------
@@ -142,26 +149,6 @@ style.textContent = `
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
 
-  .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
-    box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
-
-  .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
-
-  .cardBack {
-    position:absolute; inset:0;
-    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
-    display:none;
-    align-items:center;
-    justify-content:center;
-    color: rgba(255,255,255,0.92);
-    font-weight: 900;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.7);
-  }
-  .card[data-face='down'] .cardBack { display:flex; }
-  .card[data-face='down'] .cardFace { filter: brightness(0.35); }
-
   .forceSlot { position:absolute; border-radius:10px; box-sizing:border-box; border:1px dashed rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.02); pointer-events:none; }
   .forceSlot.neutral { border:1px dashed rgba(255,255,255,0.35); background: rgba(255,255,255,0.06); }
@@ -190,7 +177,6 @@ style.textContent = `
     justify-content:flex-start;
   }
 
-  /* Bin is the hit area (no border/box shown) */
   .tokenBin{
     width: ${TOKEN_BIN_W}px;
     height:${TOKEN_BIN_H}px;
@@ -203,7 +189,6 @@ style.textContent = `
     touch-action:none;
   }
 
-  /* Small cubes you place on cards */
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -218,7 +203,6 @@ style.textContent = `
   }
   .tokenCube:active{ cursor: grabbing; }
 
-  /* Big source cube inside the bin (this is the only visible "bin") */
   .tokenSourceCube{
     position:absolute;
     width:${TOKEN_BANK_CUBE_SIZE}px;
@@ -335,9 +319,9 @@ style.textContent = `
   }
   .smTiny{
     font-size: 11px;
-    opacity: 0.75;
+    opacity: 0.78;
     line-height: 1.25;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 `;
 document.head.appendChild(style);
@@ -856,21 +840,55 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
-// ---------- START MENU (render + apply) ----------
+// ---------- START MENU ----------
 let startMenuOverlayEl = null;
 
 function closeStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) {
-    startMenuOverlayEl.remove();
-  }
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
   startMenuOverlayEl = null;
 
-  // Apply hard rules
-  // - Blue always goes first (rule)
-  // - Force track starts at far RED end
+  // Still apply your real setup rule silently:
   moveForceMarkerToIndex(FORCE_RED_END_INDEX);
-
   updateHudReadout();
+}
+
+function menuFactionSectionHTML() {
+  if (gameConfig.setMode === "mixed") {
+    return `
+      <div class="smSection">
+        <div class="smRow">
+          <div class="smLabel">Factions</div>
+          <div class="smTiny">Mixed uses <b>All Blue</b> vs <b>All Red</b>.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  const isOG = gameConfig.setMode === "og";
+  const blueLabel = isOG ? "Empire" : "Separatists";
+  const blueValue = isOG ? "empire" : "separatists";
+  const redLabel  = isOG ? "Rebels" : "Republic";
+  const redValue  = isOG ? "rebels" : "republic";
+
+  return `
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Blue</div>
+        <div class="smOptions">
+          <label class="smOpt"><input type="radio" name="blueChoice" value="${blueValue}"> ${blueLabel}</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="smSection">
+      <div class="smRow">
+        <div class="smLabel">Red</div>
+        <div class="smOptions">
+          <label class="smOpt"><input type="radio" name="redChoice" value="${redValue}"> ${redLabel}</label>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderStartMenu() {
@@ -896,27 +914,7 @@ function renderStartMenu() {
       </div>
     </div>
 
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Blue (goes first)</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="blueChoice" value="empire"> Empire</label>
-          <label class="smOpt"><input type="radio" name="blueChoice" value="separatists"> Separatists</label>
-          <label class="smOpt"><input type="radio" name="blueChoice" value="all_blue"> All Blue</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="smSection">
-      <div class="smRow">
-        <div class="smLabel">Red (goes second)</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="redChoice" value="rebels"> Rebels</label>
-          <label class="smOpt"><input type="radio" name="redChoice" value="republic"> Republic</label>
-          <label class="smOpt"><input type="radio" name="redChoice" value="all_red"> All Red</label>
-        </div>
-      </div>
-    </div>
+    ${menuFactionSectionHTML()}
 
     <div class="smSection">
       <div class="smRow">
@@ -934,30 +932,44 @@ function renderStartMenu() {
       <button class="smBtn" data-action="random">Random</button>
       <button class="smBtn smBtnPrimary" data-action="start">START</button>
     </div>
-
-    <div class="smTiny">
-      Rules applied: <b>Blue always goes first</b>. Force track starts at the <b>far red end</b>.
-    </div>
   `;
 
   overlay.appendChild(panel);
   table.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
+  // keep config consistent with set mode (especially when reopening MENU)
+  applySetModeDefaults();
+
   // initial UI values
   panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
-  panel.querySelector(`input[name="blueChoice"][value="${gameConfig.blueChoice}"]`).checked = true;
-  panel.querySelector(`input[name="redChoice"][value="${gameConfig.redChoice}"]`).checked = true;
   panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
+
+  const blueRadio = panel.querySelector(`input[name="blueChoice"][value="${gameConfig.blueChoice}"]`);
+  if (blueRadio) blueRadio.checked = true;
+
+  const redRadio = panel.querySelector(`input[name="redChoice"][value="${gameConfig.redChoice}"]`);
+  if (redRadio) redRadio.checked = true;
 
   function readUIToConfig() {
     gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
-    gameConfig.blueChoice = panel.querySelector(`input[name="blueChoice"]:checked`).value;
-    gameConfig.redChoice = panel.querySelector(`input[name="redChoice"]:checked`).value;
     gameConfig.mandoNeutrals = !!panel.querySelector(`input[name="mandoNeutrals"]`).checked;
+
+    const blue = panel.querySelector(`input[name="blueChoice"]:checked`);
+    const red  = panel.querySelector(`input[name="redChoice"]:checked`);
+    if (blue) gameConfig.blueChoice = blue.value;
+    if (red)  gameConfig.redChoice = red.value;
   }
 
-  panel.addEventListener("change", () => {
+  panel.addEventListener("change", (e) => {
+    // If set mode changes, rebuild menu sections
+    if (e.target && e.target.name === "setMode") {
+      gameConfig.setMode = panel.querySelector(`input[name="setMode"]:checked`).value;
+      applySetModeDefaults();
+      updateHudReadout();
+      renderStartMenu();
+      return;
+    }
     readUIToConfig();
     updateHudReadout();
   });
@@ -969,11 +981,9 @@ function renderStartMenu() {
     const action = btn.dataset.action;
     if (action === "random") {
       randomizeConfig();
-      panel.querySelector(`input[name="setMode"][value="${gameConfig.setMode}"]`).checked = true;
-      panel.querySelector(`input[name="blueChoice"][value="${gameConfig.blueChoice}"]`).checked = true;
-      panel.querySelector(`input[name="redChoice"][value="${gameConfig.redChoice}"]`).checked = true;
-      panel.querySelector(`input[name="mandoNeutrals"]`).checked = !!gameConfig.mandoNeutrals;
       updateHudReadout();
+      renderStartMenu();
+      return;
     }
 
     if (action === "start") {
@@ -983,10 +993,7 @@ function renderStartMenu() {
   });
 }
 
-menuBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  renderStartMenu();
-});
+menuBtn.addEventListener("click", (e) => { e.preventDefault(); renderStartMenu(); });
 
 // ---------- build ----------
 function build() {
@@ -998,10 +1005,8 @@ function build() {
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
-  // Draw standard zones (skip token bank anchors)
   for (const [id, rr] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
-
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
@@ -1027,66 +1032,9 @@ function build() {
 build();
 
 // show menu on load
+applySetModeDefaults();
 renderStartMenu();
 updateHudReadout();
 
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
-
-// ---------- demo cards ----------
-function makeCardEl(imgUrl, w, h, x, y, z) {
-  const el = document.createElement("div");
-  el.className = "card";
-  el.style.width = `${w}px`;
-  el.style.height = `${h}px`;
-  el.style.left = `${x}px`;
-  el.style.top = `${y}px`;
-  el.style.zIndex = String(z || 15000);
-
-  const face = document.createElement("div");
-  face.className = "cardFace";
-  face.style.backgroundImage = `url('${imgUrl}')`;
-  el.appendChild(face);
-
-  const back = document.createElement("div");
-  back.className = "cardBack";
-  back.textContent = "Face Down";
-  el.appendChild(back);
-
-  el.dataset.face = "up";
-
-  // simple drag for demo
-  let dragging = false, offX = 0, offY = 0;
-  el.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    el.setPointerCapture(e.pointerId);
-    dragging = true;
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-    offX = px - parseFloat(el.style.left || "0");
-    offY = py - parseFloat(el.style.top || "0");
-    el.style.zIndex = "50000";
-  });
-  el.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-    el.style.left = `${px - offX}px`;
-    el.style.top  = `${py - offY}px`;
-  });
-  el.addEventListener("pointerup", (e) => {
-    dragging = false;
-    try { el.releasePointerCapture(e.pointerId); } catch {}
-    el.style.zIndex = String(z || 15000);
-  });
-
-  stage.appendChild(el);
-}
-
-// place a couple demo cards
-makeCardEl("https://picsum.photos/250/350?random=12", CARD_W, CARD_H, Math.round(DESIGN_W * 0.42), Math.round(DESIGN_H * 0.12), 15000);
-makeCardEl("https://picsum.photos/250/350?random=15", CARD_W, CARD_H, Math.round(DESIGN_W * 0.14), Math.round(DESIGN_H * 0.18), 15000);
-makeCardEl("https://picsum.photos/250/350?random=16", CARD_W, CARD_H, Math.round(DESIGN_W * 0.20), Math.round(DESIGN_H * 0.18), 15000);
