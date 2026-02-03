@@ -182,22 +182,46 @@ style.textContent = `
 
   /* START MENU */
   .startMenuOverlay{
-    position: fixed; inset:0; z-index: 200000;
-    background: rgba(0,0,0,0.72); backdrop-filter: blur(6px);
-    display:flex; align-items:center; justify-content:center;
-    padding: 18px; box-sizing:border-box;
-  }
-  .startMenuPanel{
-    width: min(520px, 92vw);
-    max-height: 88vh;
-    overflow:auto;
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(15,15,15,0.92);
-    box-shadow: 0 18px 55px rgba(0,0,0,0.70);
-    padding: 14px 14px 12px;
-    color: rgba(255,255,255,0.92);
-  }
+  position: fixed;
+  inset: 0;
+  z-index: 999999; /* ensure nothing sits above it */
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(6px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+  box-sizing:border-box;
+
+  /* 🔑 CRITICAL FIX */
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.startMenuPanel{
+  width: min(520px, 92vw);
+  max-height: 88vh;
+  overflow:auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(15,15,15,0.92);
+  box-shadow: 0 18px 55px rgba(0,0,0,0.70);
+  padding: 14px 14px 12px;
+  color: rgba(255,255,255,0.92);
+
+  /* 🔑 CRITICAL FIX */
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+/* Ensure ALL buttons & inputs inside menu respond */
+.startMenuOverlay button,
+.startMenuOverlay input,
+.startMenuOverlay label{
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
   .smTitle{ font-weight: 900; letter-spacing: 0.6px; font-size: 16px; margin-bottom: 10px; }
   .smSection{ border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; margin-top: 10px; }
   .smSection:first-of-type{ border-top: none; padding-top: 0; margin-top: 0; }
