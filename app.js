@@ -274,15 +274,24 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchored under discard+draw piles (both players)
-  const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
-  const bankH = TOKEN_BIN_H;
-  const bankX = xPiles; // left-aligned to discard pile
-  const bankGap = 14;
+  // Token banks: centered under discard+draw, mirrored for P2
+const bankW = (TOKEN_BIN_W * 3) + (TOKEN_BIN_GAP * 2);
+const bankH = TOKEN_BIN_H;
 
-  const yP2TokenBank = yTopPiles + CARD_H + bankGap;       // below P2 piles
-  const yP1TokenBank = yBottomPiles + CARD_H + bankGap;    // below P1 piles
+// center under the 2 piles (discard+draw)
+const pilesW = (CARD_W * 2) + GAP;
+const pilesCenterX = xPiles + (pilesW / 2);
+const bankX = Math.round(pilesCenterX - (bankW / 2));
 
-  let zones = {
+const bankGap = 14;
+
+// ✅ mirrored placement:
+// P1 tokens below P1 piles
+const yP1TokenBank = yBottomPiles + CARD_H + bankGap;
+
+// P2 tokens above P2 piles
+const yP2TokenBank = yTopPiles - bankGap - bankH;
+
     // P2 (top) — discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
