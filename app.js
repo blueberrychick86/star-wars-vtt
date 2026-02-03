@@ -1,4 +1,6 @@
-console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
+// ===== BUILD STAMP (badge + console) =====
+const BUILD_ID = "VTT_BASELINE_PERSIST_LAYERS__2026-02-03A";
+console.log("VTT BUILD:", BUILD_ID);
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -10,6 +12,10 @@ document.body.style.touchAction = "none";
 document.body.style.fontFamily = "Arial, sans-serif";
 
 const app = document.getElementById("app");
+if (!app) {
+  document.body.innerHTML = `<div style="color:white;padding:16px;font-family:Arial">Missing #app container in index.html</div>`;
+  throw new Error("Missing #app container");
+}
 app.innerHTML = "";
 
 // ---------- constants ----------
@@ -37,26 +43,20 @@ const CAP_DISCARD_GAP = 26;    // captured stacks centered around galaxy discard
 const EXILE_GAP = GAP;         // gap between exile draw + exile perm piles
 
 // -------- tray drag tuning (mobile-friendly) --------
-const TRAY_HOLD_TO_DRAG_MS = 260;   // hold this long to start dragging out of tray
-const TRAY_MOVE_CANCEL_PX = 8;      // if you move more than this before hold triggers, it's treated as scroll
-const TRAY_TAP_MOVE_PX = 6;         // tap threshold
+const TRAY_HOLD_TO_DRAG_MS = 260;
+const TRAY_MOVE_CANCEL_PX = 8;
+const TRAY_TAP_MOVE_PX = 6;
 
 // -------- player color (for tray border glow) --------
 let PLAYER_COLOR = "blue"; // "blue" | "red" | "green"
 
 // -------- token system --------
-// Per-player pools (you can tweak these any time)
 const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
 const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temporary per turn)
 const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
 
-// Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
-
-// Source cube visual size (bigger target to pull from)
 const TOKEN_BANK_CUBE_SIZE = 30;
-
-// FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
 const TOKEN_BIN_HIT = 120;
 
 let DESIGN_W = 1;
@@ -67,6 +67,7 @@ function rect(x, y, w, h) { return { x, y, w, h }; }
 const style = document.createElement("style");
 style.textContent = `
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
+
   #hud {
     position: fixed;
     left: 10px;
@@ -92,7 +93,33 @@ style.textContent = `
     cursor:pointer;
   }
 
+  #buildBadge{
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    z-index: 999999;
+    background: rgba(0,0,0,0.72);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.90);
+    padding: 8px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    pointer-events:none;
+    max-width: min(92vw, 520px);
+    overflow:hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
+
+  /* Persistent layers (zones/UI can rebuild; pieces persist) */
+  .layer { position:absolute; left:0; top:0; width:100%; height:100%; }
+  #zonesLayer { pointer-events:auto; }
+  #uiLayer    { pointer-events:auto; }
+  #piecesLayer{ pointer-events:auto; }
 
   .zone { position:absolute; border:2px solid rgba(255,255,255,0.35); border-radius:10px; box-sizing:border-box; background:transparent; }
   .zone.clickable{ cursor:pointer; }
@@ -103,7 +130,6 @@ style.textContent = `
 
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
 
-  /* Face-down overlay */
   .cardBack {
     position:absolute; inset:0;
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
@@ -338,7 +364,6 @@ style.textContent = `
     justify-content:flex-start;
   }
 
-  /* Invisible large hit area (no border/box). The big source cube sits centered. */
   .tokenBin{
     width: ${TOKEN_BIN_HIT}px;
     height:${TOKEN_BIN_HIT}px;
@@ -352,7 +377,6 @@ style.textContent = `
   }
   .tokenBin:active{ cursor: grabbing; }
 
-  /* Actual cubes you drag (spawned on table) */
   .tokenCube{
     position:absolute;
     width:${TOKEN_SIZE}px;
@@ -367,7 +391,6 @@ style.textContent = `
   }
   .tokenCube:active{ cursor: grabbing; }
 
-  /* Big source cubes (visual only, not draggable) */
   .tokenSourceCube{
     position:absolute;
     width:${TOKEN_BANK_CUBE_SIZE}px;
@@ -380,21 +403,13 @@ style.textContent = `
     user-select:none;
   }
 
-  /* cube color styles */
-  .tokenRed{
-    background: linear-gradient(145deg, rgba(255,120,120,0.95), rgba(160,20,20,0.98));
-  }
-  .tokenBlue{
-    background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98));
-  }
-  .tokenGold{
-    background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
-    border-color: rgba(255,255,255,0.30);
-  }
+  .tokenRed{  background: linear-gradient(145deg, rgba(255,120,120,0.95), rgba(160,20,20,0.98)); }
+  .tokenBlue{ background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98)); }
+  .tokenGold{ background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98)); border-color: rgba(255,255,255,0.30); }
 `;
 document.head.appendChild(style);
 
-// ---------- table + hud + stage ----------
+// ---------- table + hud + badge + stage ----------
 const table = document.createElement("div");
 table.id = "table";
 app.appendChild(table);
@@ -423,9 +438,30 @@ resetTokensBtn.className = "hudBtn";
 resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
 
+const buildBadge = document.createElement("div");
+buildBadge.id = "buildBadge";
+buildBadge.textContent = `BUILD: ${BUILD_ID}`;
+table.appendChild(buildBadge);
+
 const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
+
+// ---------- persistent layers ----------
+const zonesLayer = document.createElement("div");
+zonesLayer.id = "zonesLayer";
+zonesLayer.className = "layer";
+stage.appendChild(zonesLayer);
+
+const piecesLayer = document.createElement("div");
+piecesLayer.id = "piecesLayer";
+piecesLayer.className = "layer";
+stage.appendChild(piecesLayer);
+
+const uiLayer = document.createElement("div");
+uiLayer.id = "uiLayer";
+uiLayer.className = "layer";
+stage.appendChild(uiLayer);
 
 // ---------- preview overlay ----------
 const previewBackdrop = document.createElement("div");
@@ -481,7 +517,7 @@ const trayShell = document.createElement("div");
 trayShell.id = "trayShell";
 trayShell.style.pointerEvents = "none";
 trayShell.style.display = "none";
-trayShell.dataset.player = PLAYER_COLOR; // glow
+trayShell.dataset.player = PLAYER_COLOR;
 
 const tray = document.createElement("div");
 tray.id = "tray";
@@ -546,7 +582,7 @@ const tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
 };
-const tokenEls = new Set(); // live token elements on board
+const tokenEls = new Set();
 
 // ---------- preview functions ----------
 function hidePreview() {
@@ -620,6 +656,7 @@ function openTray() {
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
   trayShell.dataset.player = PLAYER_COLOR;
+  fitToScreen();
 }
 
 function closeTray() {
@@ -666,6 +703,7 @@ function closeTray() {
   trayShell.classList.remove("dragging");
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
+  fitToScreen();
 }
 
 trayCloseBtn.addEventListener("click", () => { if (!previewOpen) closeTray(); });
@@ -796,7 +834,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       el.style.top  = `${p.y - h / 2}px`;
       el.style.zIndex = kind === "base" ? "12000" : "15000";
 
-      stage.appendChild(el);
+      piecesLayer.appendChild(el);
 
       if (kind === "base") {
         snapBaseAutoFill(el);
@@ -809,7 +847,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     }
   }
 
-  // Right-click preview (PC)
   tile.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); showPreview(card); });
 
   tile.addEventListener("pointerdown", (e) => {
@@ -951,12 +988,12 @@ function ensureDrawCountBadges() {
   if (!drawCountBadges.p1) {
     drawCountBadges.p1 = document.createElement("div");
     drawCountBadges.p1.className = "trayCountBadge";
-    stage.appendChild(drawCountBadges.p1);
+    uiLayer.appendChild(drawCountBadges.p1);
   }
   if (!drawCountBadges.p2) {
     drawCountBadges.p2 = document.createElement("div");
     drawCountBadges.p2.className = "trayCountBadge";
-    stage.appendChild(drawCountBadges.p2);
+    uiLayer.appendChild(drawCountBadges.p2);
   }
 
   drawCountBadges.p1.style.left = `${Math.round(z1.x + z1.w + 10)}px`;
@@ -993,7 +1030,7 @@ function bindPileZoneClicks() {
   ];
 
   for (const m of clickMap) {
-    const el = stage.querySelector(".zone[data-zone-id='" + m.id + "']");
+    const el = zonesLayer.querySelector(".zone[data-zone-id='" + m.id + "']");
     if (!el) continue;
     el.classList.add("clickable");
 
@@ -1020,7 +1057,7 @@ function bindPileZoneClicks() {
   }
 }
 
-// ---------- zone math (ALIGNED + TRAY COMPATIBLE) ----------
+// ---------- zone math ----------
 function computeZones() {
   const xPiles = 240;
   const xGalaxyDeck = xPiles + (CARD_W * 2 + GAP) + BIG_GAP;
@@ -1062,7 +1099,6 @@ function computeZones() {
   const xForceCenter = xForce + (forceTrackW / 2);
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  // Token banks: anchors (no visible zone)
   const bankW = (TOKEN_BIN_HIT * 3) + (22 * 2);
   const bankH = TOKEN_BIN_HIT;
   const bankX = xPiles;
@@ -1072,7 +1108,6 @@ function computeZones() {
   const yP2TokenBank = yTopPiles - bankGap - bankH;
 
   let zones = {
-    // P2 (top) — discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
 
@@ -1089,7 +1124,6 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
-    // P1 (bottom) — discard LEFT, draw RIGHT
     p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
     p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
 
@@ -1100,7 +1134,6 @@ function computeZones() {
 
     p1_captured_bases: rect(xCaptured, yCapBottom, CAP_W, CAP_H),
 
-    // token bank anchors
     p1_token_bank: rect(bankX, yP1TokenBank, bankW, bankH),
     p2_token_bank: rect(bankX, yP2TokenBank, bankW, bankH),
   };
@@ -1110,7 +1143,6 @@ function computeZones() {
     zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
   }
 
-  // normalize so nothing is negative (FIT-safe)
   const PAD = 18;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -1125,12 +1157,8 @@ function computeZones() {
   const shiftY = (minY < PAD) ? (PAD - minY) : 0;
 
   if (shiftX || shiftY) {
-    for (const r of Object.values(zones)) {
-      r.x += shiftX;
-      r.y += shiftY;
-    }
-    maxX += shiftX;
-    maxY += shiftY;
+    for (const r of Object.values(zones)) { r.x += shiftX; r.y += shiftY; }
+    maxX += shiftX; maxY += shiftY;
   }
 
   DESIGN_W = Math.ceil(maxX + PAD);
@@ -1297,7 +1325,7 @@ const BASE_SNAP_ZONE_IDS = new Set(["p1_base_stack","p2_base_stack"]);
 let zonesMeta = [];
 function refreshSnapRects() {
   zonesMeta = [];
-  stage.querySelectorAll(".zone").forEach((el) => {
+  zonesLayer.querySelectorAll(".zone").forEach((el) => {
     const id = el.dataset.zoneId;
     if (!SNAP_ZONE_IDS.has(id)) return;
     const b = el.getBoundingClientRect();
@@ -1381,7 +1409,7 @@ function snapBaseToNearestBaseStack(baseEl) {
 
 // ---------- force track ----------
 function buildForceTrackSlots(forceRect) {
-  stage.querySelectorAll(".forceSlot").forEach(el => el.remove());
+  uiLayer.querySelectorAll(".forceSlot").forEach(el => el.remove());
   forceSlotCenters = [];
 
   const pad = 10;
@@ -1400,16 +1428,16 @@ function buildForceTrackSlots(forceRect) {
     slot.style.top = `${Math.round(cy - 16)}px`;
     slot.style.width = `${forceRect.w}px`;
     slot.style.height = `32px`;
-    stage.appendChild(slot);
+    uiLayer.appendChild(slot);
   }
 }
 
 function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
-  if (forceMarker) return;
+  if (forceMarker && forceMarker.isConnected) return;
 
   forceMarker = document.createElement("div");
   forceMarker.className = "forceMarker";
-  stage.appendChild(forceMarker);
+  uiLayer.appendChild(forceMarker);
 
   let draggingMarker = false;
   let markerOffX = 0;
@@ -1478,7 +1506,7 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
 
 // ---------- captured slots ----------
 function buildCapturedBaseSlots(capRect, sideLabel) {
-  stage.querySelectorAll(".capSlot[data-cap-side='" + sideLabel + "']").forEach(el => el.remove());
+  uiLayer.querySelectorAll(".capSlot[data-cap-side='" + sideLabel + "']").forEach(el => el.remove());
   capSlotCenters[sideLabel] = [];
 
   const startX = capRect.x;
@@ -1499,7 +1527,7 @@ function buildCapturedBaseSlots(capRect, sideLabel) {
     slot.style.top  = `${slotY}px`;
     slot.style.width = `${CAP_W}px`;
     slot.style.height = `${BASE_H}px`;
-    stage.appendChild(slot);
+    uiLayer.appendChild(slot);
   }
 }
 
@@ -1582,28 +1610,13 @@ function toggleFlip(cardEl) {
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
 }
 
-// ---------- TOKEN BANKS (FREEFORM CUBES) ----------
+// ---------- TOKEN BANKS ----------
 let tokenBankEls = { p1: null, p2: null };
 
 function tokenClassFor(type) {
   if (type === "damage") return "tokenRed";
   if (type === "attack") return "tokenBlue";
   return "tokenGold";
-}
-
-function createTokenCube(owner, type, x, y) {
-  const t = document.createElement("div");
-  t.className = `tokenCube ${tokenClassFor(type)}`;
-  t.dataset.owner = owner;
-  t.dataset.type = type;
-  t.style.left = `${x - TOKEN_SIZE/2}px`;
-  t.style.top  = `${y - TOKEN_SIZE/2}px`;
-  t.style.zIndex = "16000";
-  stage.appendChild(t);
-  tokenEls.add(t);
-
-  attachTokenDragHandlers(t);
-  return t;
 }
 
 function attachTokenDragHandlers(el) {
@@ -1648,6 +1661,21 @@ function attachTokenDragHandlers(el) {
   el.addEventListener("pointercancel", () => { dragging = false; });
 }
 
+function createTokenCube(owner, type, x, y) {
+  const t = document.createElement("div");
+  t.className = `tokenCube ${tokenClassFor(type)}`;
+  t.dataset.owner = owner;
+  t.dataset.type = type;
+  t.style.left = `${x - TOKEN_SIZE/2}px`;
+  t.style.top  = `${y - TOKEN_SIZE/2}px`;
+  t.style.zIndex = "16000";
+  piecesLayer.appendChild(t);
+  tokenEls.add(t);
+
+  attachTokenDragHandlers(t);
+  return t;
+}
+
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   if (tokenPools[owner][type] <= 0) return;
 
@@ -1689,6 +1717,8 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 }
 
 function buildTokenBank(owner, r) {
+  if (tokenBankEls[owner] && tokenBankEls[owner].isConnected) tokenBankEls[owner].remove();
+
   const bank = document.createElement("div");
   bank.className = "tokenBank";
   bank.style.left = `${r.x}px`;
@@ -1700,11 +1730,7 @@ function buildTokenBank(owner, r) {
   const row = document.createElement("div");
   row.className = "tokenBinsRow";
 
-  const bins = [
-    { type:"damage" },
-    { type:"attack" },
-    { type:"resource" },
-  ];
+  const bins = [{ type:"damage" },{ type:"attack" },{ type:"resource" }];
 
   for (const b of bins) {
     const bin = document.createElement("div");
@@ -1712,7 +1738,6 @@ function buildTokenBank(owner, r) {
     bin.dataset.owner = owner;
     bin.dataset.type = b.type;
 
-    // big source cube centered (visual only)
     const source = document.createElement("div");
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
     source.style.left = `${Math.round((TOKEN_BIN_HIT - TOKEN_BANK_CUBE_SIZE)/2)}px`;
@@ -1730,12 +1755,11 @@ function buildTokenBank(owner, r) {
   }
 
   bank.appendChild(row);
-
   bank.addEventListener("pointerdown", (e) => e.stopPropagation());
   bank.addEventListener("pointermove", (e) => e.stopPropagation());
   bank.addEventListener("pointerup", (e) => e.stopPropagation());
 
-  stage.appendChild(bank);
+  uiLayer.appendChild(bank);
   tokenBankEls[owner] = bank;
 }
 
@@ -1749,16 +1773,13 @@ function returnTokensForOwner(owner, typesToReturn) {
     toRemove.push(t);
     tokenPools[owner][type] += 1;
   }
-
   for (const t of toRemove) {
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
   }
 }
 
-function endTurn(owner) {
-  returnTokensForOwner(owner, ["attack","resource"]);
-}
+function endTurn(owner) { returnTokensForOwner(owner, ["attack","resource"]); }
 
 function resetAllTokens() {
   for (const t of Array.from(tokenEls)) {
@@ -1778,9 +1799,11 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
-// ---------- build ----------
+// ---------- build (NO MORE WIPE OF PIECES) ----------
 function build() {
-  stage.innerHTML = "";
+  zonesLayer.innerHTML = "";
+  uiLayer.querySelectorAll(".forceSlot,.capSlot,.trayCountBadge,.tokenBank").forEach(el => el.remove());
+  // IMPORTANT: piecesLayer is NOT cleared. Your placed cards/tokens persist.
 
   const zones = computeZones();
   zonesCache = zones;
@@ -1788,10 +1811,16 @@ function build() {
   stage.style.width = `${DESIGN_W}px`;
   stage.style.height = `${DESIGN_H}px`;
 
-  // Draw standard zones (skip token bank anchors)
+  zonesLayer.style.width = `${DESIGN_W}px`;
+  zonesLayer.style.height = `${DESIGN_H}px`;
+  uiLayer.style.width = `${DESIGN_W}px`;
+  uiLayer.style.height = `${DESIGN_H}px`;
+  piecesLayer.style.width = `${DESIGN_W}px`;
+  piecesLayer.style.height = `${DESIGN_H}px`;
+
+  // zones
   for (const [id, rr] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
-
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
@@ -1799,23 +1828,24 @@ function build() {
     el.style.top = `${rr.y}px`;
     el.style.width = `${rr.w}px`;
     el.style.height = `${rr.h}px`;
-    stage.appendChild(el);
+    zonesLayer.appendChild(el);
   }
 
+  // force + captured + banks + badges
   buildForceTrackSlots(zones.force_track);
   ensureForceMarker(FORCE_NEUTRAL_INDEX);
 
   buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
   buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
 
-  // Token banks (freeform cubes only)
   buildTokenBank("p2", zones.p2_token_bank);
   buildTokenBank("p1", zones.p1_token_bank);
 
-  applyCamera();
-  refreshSnapRects();
   ensureDrawCountBadges();
   bindPileZoneClicks();
+
+  applyCamera();
+  refreshSnapRects();
   fitToScreen();
 }
 build();
@@ -2048,7 +2078,6 @@ const TEST_BASE = {
     const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
     return { ...base, ...overrides, id };
   }
-
   function makeMany(prefix, count){
     const out = [];
     for (let i = 1; i <= count; i++){
@@ -2056,7 +2085,6 @@ const TEST_BASE = {
     }
     return out;
   }
-
   piles = {
     p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
     p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
@@ -2072,7 +2100,7 @@ const unitCard = makeCardEl(OBIWAN, "unit");
 unitCard.style.left = `${DESIGN_W * 0.42}px`;
 unitCard.style.top  = `${DESIGN_H * 0.12}px`;
 unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
+piecesLayer.appendChild(unitCard);
 
 const BASE_TEST_COUNT = 2;
 for (let i = 0; i < BASE_TEST_COUNT; i++) {
@@ -2080,7 +2108,7 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
   baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
   baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
+  piecesLayer.appendChild(baseCard);
 }
 
 // ---------- NOTE: for now keep tray glow BLUE (testing) ----------
