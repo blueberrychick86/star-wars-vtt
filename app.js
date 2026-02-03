@@ -458,6 +458,140 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
+// =============================
+// START MENU (BEGIN)
+// =============================
+const startMenuStyle = document.createElement("style");
+startMenuStyle.textContent = `
+  #startMenuBackdrop{
+    position:fixed; inset:0;
+    background: rgba(0,0,0,0.78);
+    z-index: 250000;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding: 14px;
+    touch-action:none;
+  }
+  #startMenuCard{
+    width: min(92vw, 520px);
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(14,14,16,0.94);
+    box-shadow: 0 16px 60px rgba(0,0,0,0.75);
+    overflow:hidden;
+    color:#fff;
+  }
+  #startMenuHeader{
+    padding: 14px 14px 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+  }
+  #startMenuTitle{
+    margin:0;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    line-height: 1.15;
+  }
+  #startMenuSub{
+    margin:6px 0 0 0;
+    opacity: 0.85;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  #startMenuBody{
+    padding: 12px 14px 14px 14px;
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+  }
+  .startMenuBtn{
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.10);
+    color:#fff;
+    border-radius: 14px;
+    padding: 12px 12px;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    user-select:none;
+    touch-action: manipulation;
+  }
+  .startMenuBtn.primary{
+    background: rgba(120,180,255,0.18);
+    border-color: rgba(120,180,255,0.35);
+  }
+  .startMenuRow{
+    display:flex;
+    gap: 10px;
+  }
+  .startMenuRow .startMenuBtn{ flex:1; }
+  #startMenuFooter{
+    padding: 10px 14px 14px 14px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    opacity: 0.65;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+`;
+document.head.appendChild(startMenuStyle);
+
+const startMenuBackdrop = document.createElement("div");
+startMenuBackdrop.id = "startMenuBackdrop";
+startMenuBackdrop.innerHTML = `
+  <div id="startMenuCard" role="dialog" aria-modal="true">
+    <div id="startMenuHeader">
+      <p id="startMenuTitle">Star Wars Deckbuilding VTT</p>
+      <p id="startMenuSub">Tap START to begin. Use MENU anytime to reopen this screen.</p>
+    </div>
+    <div id="startMenuBody">
+      <button id="startMenuStartBtn" class="startMenuBtn primary" type="button">START GAME</button>
+      <div class="startMenuRow">
+        <button id="startMenuSetupBtn" class="startMenuBtn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">
+          SETUP / OPTIONS (soon)
+        </button>
+      </div>
+    </div>
+    <div id="startMenuFooter">
+      Tip: Use FIT if you ever lose the table view.
+    </div>
+  </div>
+`;
+table.appendChild(startMenuBackdrop);
+
+// Hard-modal: block board input while menu is open
+(function trapStartMenuInteractions(){
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+  const stopNoPrevent = (e) => { e.stopPropagation(); };
+
+  startMenuBackdrop.addEventListener("pointerdown", stop, { capture:true });
+  startMenuBackdrop.addEventListener("pointermove", stop, { capture:true });
+  startMenuBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
+  startMenuBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
+  startMenuBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
+
+  startMenuBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
+  startMenuBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
+  startMenuBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
+
+  startMenuBackdrop.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); }, { capture:true });
+})();
+
+// Start button
+startMenuBackdrop.querySelector("#startMenuStartBtn").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (previewOpen) return;
+  hideStartMenu();
+});
+
+// Show menu on load (every refresh)
+showStartMenu();
+// =============================
+// START MENU (END)
+// =============================
+
 
 // HARD-MODAL preview (block board input)
 (function trapPreviewInteractions(){
@@ -534,6 +668,40 @@ trayShell.addEventListener("wheel",       (e) => e.stopPropagation(), { passive:
 // ---------- state ----------
 let piles = {};
 let previewOpen = false;
+// =============================
+// START MENU (BEGIN)
+// =============================
+let startMenuOpen = true;
+
+function showStartMenu() {
+  startMenuOpen = true;
+  startMenuBackdrop.style.display = "flex";
+  // block any active board pointers
+  boardPointers.clear();
+}
+
+function hideStartMenu() {
+  startMenuOpen = false;
+  startMenuBackdrop.style.display = "none";
+  // auto-fit after closing
+  try { fitToScreen(); } catch {}
+}
+
+// Add a HUD button to reopen menu (since you said NO to "no way back")
+const menuBtn = document.createElement("button");
+menuBtn.className = "hudBtn";
+menuBtn.textContent = "MENU";
+hud.appendChild(menuBtn);
+menuBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (previewOpen) return;
+  showStartMenu();
+});
+
+// =============================
+// START MENU (END)
+// =============================
+
 
 let forceSlotCenters = [];
 let forceMarker = null;
@@ -1223,6 +1391,8 @@ table.addEventListener("pointerdown", (e) => {
   if (e.target.closest(".tokenCube")) return;
   if (e.target.closest(".tokenBin")) return;
   if (e.target.closest("#hud")) return;
+    if (startMenuOpen) return;
+
 
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
@@ -1240,6 +1410,8 @@ table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
+    if (startMenuOpen) return;
+
 
   if (boardPointers.size === 1) {
     const dx = e.clientX - boardLast.x;
@@ -1275,6 +1447,8 @@ table.addEventListener("wheel", (e) => {
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
+    if (startMenuOpen) return;
+
   e.preventDefault();
   const zoomIntensity = 0.0018;
   const delta = -e.deltaY;
