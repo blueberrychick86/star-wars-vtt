@@ -298,6 +298,14 @@ style.textContent = `
     border-color: rgba(255,130,130,0.55);
     box-shadow: 0 0 0 2px rgba(255,130,130,0.16), 0 14px 30px rgba(0,0,0,0.65);
   }
+  /* ===== START: Mandalorian green selected glow ===== */
+.smOptGreen:has(input:checked){
+  background: rgba(90,255,140,0.18);
+  border-color: rgba(120,255,170,0.55);
+  box-shadow: 0 0 0 2px rgba(120,255,170,0.16), 0 14px 30px rgba(0,0,0,0.65);
+}
+/* ===== END: Mandalorian green selected glow ===== */
+
   .smActions{
     display:flex;
     gap: 8px;
