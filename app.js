@@ -1,5 +1,5 @@
-// ===== BUILD STAMP (if you don't see this in console + badge, you're not running this file) =====
-const BUILD_ID = "VTT_BASELINE_REWORK_2026-02-03__LAYERS+TOKENBINS+TRAYBTN";
+// ===== BUILD STAMP =====
+const BUILD_ID = "VTT_BASELINE_REWORK_2026-02-03__TOKENDRAG1CLICK+RIGHTTRAYS+PILECLICK";
 console.log("VTT BUILD:", BUILD_ID);
 
 // ---------- base page ----------
@@ -33,32 +33,19 @@ const FORCE_MARKER_SIZE = 28;
 
 const CAP_SLOTS = 7;
 const CAP_OVERLAP = Math.round(BASE_H * 0.45);
-const CAP_W = BASE_W;
-const CAP_H = BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP;
-const CAP_Z_BASE = 20000;
 
+// Layout knobs
 const BASE_ROW_GAP = 480;
-const CAP_DISCARD_GAP = 26;
-const EXILE_GAP = GAP;
-
-// Tray drag tuning
-const TRAY_HOLD_TO_DRAG_MS = 260;
-const TRAY_MOVE_CANCEL_PX = 8;
-const TRAY_TAP_MOVE_PX = 6;
 
 // -------- token system --------
-// Per-player pools (you can tweak these any time)
-const TOKENS_DAMAGE_PER_PLAYER   = 25; // red (persistent)
-const TOKENS_ATTACK_PER_PLAYER   = 30; // blue (temporary per turn)
-const TOKENS_RESOURCE_PER_PLAYER = 20; // gold (temporary per turn)
+const TOKENS_DAMAGE_PER_PLAYER   = 25; // red persistent
+const TOKENS_ATTACK_PER_PLAYER   = 30; // blue temp
+const TOKENS_RESOURCE_PER_PLAYER = 20; // gold temp
 
-// Spawned cube size (small enough to sit on cards)
 const TOKEN_SIZE = 18;
 
-// Source cube visual size (and hit area) — user wanted these visibly larger
+// ✅ KEEP: bank cube size + hit area (you said these are correct)
 const TOKEN_BANK_CUBE_SIZE = 46;
-
-// Hit area should match the visible cube size (no huge invisible area)
 const TOKEN_BIN_HIT = TOKEN_BANK_CUBE_SIZE;
 const TOKEN_BIN_GAP = 10;
 
@@ -110,6 +97,26 @@ style.textContent = `
   .zone.clickable{ cursor:pointer; }
   .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
+  /* small pile counter badge (visible to opponent) */
+  .pileCountBadge{
+    position:absolute;
+    right: 6px;
+    top: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.72);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    font-weight: 900;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+  }
+
   .forceSlot {
     position:absolute; border-radius:10px; box-sizing:border-box;
     border:1px dashed rgba(255,255,255,0.18);
@@ -124,25 +131,10 @@ style.textContent = `
     touch-action:none; cursor:grab;
   }
 
-  .capSlot {
-    position:absolute; border-radius:10px; box-sizing:border-box;
-    border:1px dashed rgba(255,255,255,0.14);
-    background: rgba(255,255,255,0.01); pointer-events:none;
-  }
-
   .card {
     position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden;
   }
-  .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
-  .cardBack {
-    position:absolute; inset:0;
-    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10), rgba(255,255,255,0.10) 8px, rgba(0,0,0,0.25) 8px, rgba(0,0,0,0.25) 16px);
-    display:none; align-items:center; justify-content:center; color: rgba(255,255,255,0.92);
-    font-weight: 900; letter-spacing: 0.6px; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.7);
-  }
-  .card[data-face='down'] .cardBack { display:flex; }
-  .card[data-face='down'] .cardFace { filter: brightness(0.35); }
 
   /* token banks */
   .tokenBank{
@@ -175,43 +167,60 @@ style.textContent = `
   .tokenBlue{ background: linear-gradient(145deg, rgba(140,200,255,0.95), rgba(25,90,170,0.98)); }
   .tokenGold{ background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98)); border-color: rgba(255,255,255,0.30); }
 
-  /* tray */
-  .trayShell{
-    position: fixed; left: 10px; right: 10px; bottom: 10px;
+  /* RIGHT SIDE TRAY (vertical drawer) */
+  .trayDock{
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: min(360px, 92vw);
+    z-index: 200000;
+    display:none;
+    pointer-events:auto;
+  }
+  .trayPanel{
+    height: 100%;
+    display:flex;
+    flex-direction:column;
     background: rgba(0,0,0,0.88);
     border: 1px solid rgba(255,255,255,0.20);
     border-radius: 14px;
-    padding: 10px;
-    z-index: 200000;
-    color: rgba(255,255,255,0.92);
-    display:none;
     box-shadow: 0 18px 55px rgba(0,0,0,0.70);
-    pointer-events:auto;
+    overflow:hidden;
   }
   .trayHeader{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding: 2px 2px 8px;
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
   }
-  .trayTitle{ font-weight: 900; letter-spacing: 0.4px; font-size: 12px; opacity: 0.92; }
-  .trayBtn{
+  .trayTitle{
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.92);
+  }
+  .trayClose{
     background: rgba(255,255,255,0.10);
     border: 1px solid rgba(255,255,255,0.22);
     color: rgba(255,255,255,0.92);
     border-radius: 10px;
-    padding: 7px 10px;
+    width: 34px;
+    height: 30px;
     font-weight: 900;
-    font-size: 11px;
+    font-size: 12px;
     cursor:pointer;
     user-select:none;
     touch-action:manipulation;
   }
   .trayControls{
-    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    padding: 0 2px 8px;
+    padding: 8px 10px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
   }
   .traySearch{
-    flex: 1 1 220px;
-    min-width: 180px;
+    flex: 1 1 auto;
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.16);
     color: rgba(255,255,255,0.92);
@@ -222,27 +231,60 @@ style.textContent = `
     outline:none;
   }
   .trayBody{
-    max-height: 34vh;
+    padding: 10px;
     overflow:auto;
-    border-top: 1px solid rgba(255,255,255,0.12);
-    padding-top: 8px;
+    flex: 1 1 auto;
   }
-  .trayGrid{
-    display:flex; gap:10px; flex-wrap:wrap;
-    padding: 2px 2px 0;
+  .trayStack{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
   }
-  .trayCardMini{
-    width:${CARD_W}px; height:${CARD_H}px;
-    border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 10px;
+  .trayCard{
+    width:${CARD_W}px;
+    height:${CARD_H}px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 12px;
     background: rgba(255,255,255,0.06);
-    overflow:hidden;
     position:relative;
-    touch-action:none;
-    cursor:pointer;
+    overflow:hidden;
   }
-  .trayCardMini .cardFace{ filter: none; }
-  .trayCardMini .cardBack{ display:none; }
+  .trayCardNum{
+    position:absolute;
+    left: 6px;
+    top: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.72);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    font-weight: 900;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+  }
+  .trayCardLabel{
+    position:absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    font-size: 11px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.92);
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    pointer-events:none;
+  }
+
+  @media (max-width: 520px){
+    .trayDock{ width: 92vw; }
+  }
 `;
 document.head.appendChild(style);
 
@@ -267,8 +309,6 @@ const fitBtn = makeHudBtn("FIT");
 const endP1Btn = makeHudBtn("END P1");
 const endP2Btn = makeHudBtn("END P2");
 const resetTokensBtn = makeHudBtn("RESET");
-const trayP1Btn = makeHudBtn("TRAY P1");
-const trayP2Btn = makeHudBtn("TRAY P2");
 
 const buildBadge = document.createElement("div");
 buildBadge.id = "buildBadge";
@@ -279,7 +319,7 @@ const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
 
-// ---------- persistent layers (so rebuilds don't wipe pieces) ----------
+// ---------- persistent layers ----------
 const zonesLayer = document.createElement("div");
 zonesLayer.id = "zonesLayer";
 zonesLayer.className = "layer";
@@ -295,78 +335,102 @@ uiLayer.id = "uiLayer";
 uiLayer.className = "layer";
 stage.appendChild(uiLayer);
 
-// ---------- tray ui ----------
-const trayShell = document.createElement("div");
-trayShell.className = "trayShell";
-trayShell.innerHTML = `
-  <div class="trayHeader">
-    <div class="trayTitle" id="trayTitle">Tray</div>
-    <button class="trayBtn" id="trayCloseBtn">X</button>
-  </div>
-  <div class="trayControls">
-    <input class="traySearch" id="traySearchInput" placeholder="Search..." />
-  </div>
-  <div class="trayBody">
-    <div class="trayGrid" id="trayGrid"></div>
+// ---------- right-side tray ----------
+const trayDock = document.createElement("div");
+trayDock.className = "trayDock";
+trayDock.innerHTML = `
+  <div class="trayPanel">
+    <div class="trayHeader">
+      <div class="trayTitle" id="trayTitle">Tray</div>
+      <button class="trayClose" id="trayClose">X</button>
+    </div>
+    <div class="trayControls" id="trayControls">
+      <input class="traySearch" id="traySearch" placeholder="Search..." />
+    </div>
+    <div class="trayBody">
+      <div class="trayStack" id="trayStack"></div>
+    </div>
   </div>
 `;
-table.appendChild(trayShell);
+table.appendChild(trayDock);
 
-const trayTitleEl = trayShell.querySelector("#trayTitle");
-const trayCloseBtn = trayShell.querySelector("#trayCloseBtn");
-const traySearchInput = trayShell.querySelector("#traySearchInput");
-const trayGrid = trayShell.querySelector("#trayGrid");
-trayCloseBtn.addEventListener("click", () => closeTray());
+const trayTitleEl = trayDock.querySelector("#trayTitle");
+const trayCloseEl = trayDock.querySelector("#trayClose");
+const trayControlsEl = trayDock.querySelector("#trayControls");
+const traySearchEl = trayDock.querySelector("#traySearch");
+const trayStackEl = trayDock.querySelector("#trayStack");
+
+trayCloseEl.addEventListener("click", () => closeTray());
 
 const trayState = {
   open: false,
+  kind: "draw",      // "draw" or "discard"
   owner: "p1",
-  pileKey: "draw",
-  title: "Tray",
   filter: "",
-  cards: [],
+  // draw tray contents = looked-at cards
+  drawSeen: { p1: [], p2: [] },
 };
 
-function openTray(owner, pileKey, title, cards) {
+function openTray(kind, owner) {
   trayState.open = true;
+  trayState.kind = kind;
   trayState.owner = owner;
-  trayState.pileKey = pileKey;
-  trayState.title = title;
-  trayState.cards = cards || [];
-  trayTitleEl.textContent = title || "Tray";
-  trayShell.style.display = "block";
-  traySearchInput.value = trayState.filter || "";
+
+  trayDock.style.display = "block";
+  traySearchEl.value = trayState.filter || "";
+
+  if (kind === "draw") {
+    trayTitleEl.textContent = `${owner.toUpperCase()} DRAW (peek)`;
+    trayControlsEl.style.display = "none"; // no search for draw-peek
+  } else {
+    trayTitleEl.textContent = `${owner.toUpperCase()} DISCARD (search)`;
+    trayControlsEl.style.display = "flex";
+  }
   renderTray();
 }
+
 function closeTray() {
   trayState.open = false;
-  trayShell.style.display = "none";
+  trayDock.style.display = "none";
 }
+
 function renderTray() {
+  trayStackEl.innerHTML = "";
+
+  if (trayState.kind === "draw") {
+    const list = trayState.drawSeen[trayState.owner] || [];
+    list.forEach((c, idx) => {
+      const card = document.createElement("div");
+      card.className = "trayCard";
+      card.innerHTML = `
+        <div class="trayCardNum">${idx + 1}</div>
+        <div class="trayCardLabel">${c.name || "Card"}</div>
+      `;
+      trayStackEl.appendChild(card);
+    });
+    return;
+  }
+
+  // discard tray: show full discard with search
+  const owner = trayState.owner;
   const q = (trayState.filter || "").trim().toLowerCase();
-  trayGrid.innerHTML = "";
+  const list = (piles[owner] && piles[owner].discard) ? piles[owner].discard : [];
+  const filtered = q ? list.filter(c => (c.name || "").toLowerCase().includes(q)) : list;
 
-  const list = trayState.cards || [];
-  const filtered = q
-    ? list.filter(c => (c.name || "").toLowerCase().includes(q))
-    : list;
-
-  filtered.forEach((cardObj) => {
-    const mini = document.createElement("div");
-    mini.className = "trayCardMini";
-    mini.title = cardObj.name || "Card";
-
-    const face = document.createElement("div");
-    face.className = "cardFace";
-    if (cardObj.img) face.style.backgroundImage = `url("${cardObj.img}")`;
-    mini.appendChild(face);
-
-    trayGrid.appendChild(mini);
+  filtered.forEach((c, idx) => {
+    const card = document.createElement("div");
+    card.className = "trayCard";
+    card.innerHTML = `
+      <div class="trayCardNum">${idx + 1}</div>
+      <div class="trayCardLabel">${c.name || "Card"}</div>
+    `;
+    trayStackEl.appendChild(card);
   });
 }
-traySearchInput.addEventListener("input", () => {
-  trayState.filter = traySearchInput.value || "";
-  renderTray();
+
+traySearchEl.addEventListener("input", () => {
+  trayState.filter = traySearchEl.value || "";
+  if (trayState.open && trayState.kind === "discard") renderTray();
 });
 
 // ---------- state ----------
@@ -374,18 +438,20 @@ let zonesCache = null;
 let forceSlotCenters = [];
 let forceMarker = null;
 
-// token state
 const tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
 };
 const tokenEls = new Set();
 
-// piles (minimal data so tray can show something)
+// Piles (placeholder cards so trays demonstrate behavior now)
 const piles = {
   p1: { draw: [], discard: [], exile: [] },
   p2: { draw: [], discard: [], exile: [] },
 };
+
+// Draw-peek visible counters on draw piles
+const drawPeekCount = { p1: 0, p2: 0 };
 
 // ---------- camera ----------
 const camera = { scale: 1, tx: 0, ty: 0 };
@@ -414,7 +480,6 @@ function fitToScreen() {
   applyCamera();
 }
 fitBtn.addEventListener("click", (e) => { e.preventDefault(); fitToScreen(); });
-
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
@@ -455,7 +520,7 @@ function computeZones() {
   const yCapTop = yGalaxyDiscard - 26 - (BASE_H + (CAP_SLOTS - 1) * Math.round(BASE_H * 0.45));
   const yCapBottom = yGalaxyDiscard + CARD_H + 26;
 
-  // token banks centered under draw+discard piles
+  // token banks centered under draw+discard piles (KEEP BEHAVIOR)
   const bankW = (TOKEN_BIN_HIT * 3) + (TOKEN_BIN_GAP * 2);
   const bankH = TOKEN_BIN_HIT;
 
@@ -467,8 +532,6 @@ function computeZones() {
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
     p2_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yTopBase, BASE_W, BASE_H),
-    p2_exile_draw: rect(xForce - CARD_W - GAP, yTopExile, CARD_W, CARD_H),
-    p2_exile_perm: rect(xForce - GAP, yTopExile, CARD_W, CARD_H),
 
     galaxy_deck: rect(xGalaxyDeck, yGalaxyDeck, CARD_W, CARD_H),
     outer_rim: rect(xOuterRim, yGalaxyDiscard, CARD_W, CARD_H),
@@ -478,8 +541,6 @@ function computeZones() {
     p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
     p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
     p1_base_stack: rect(xRowStart + (rowWidth / 2) - (BASE_W / 2), yBottomBase, BASE_W, BASE_H),
-    p1_exile_draw: rect(xForce - CARD_W - GAP, yBotExile, CARD_W, CARD_H),
-    p1_exile_perm: rect(xForce - GAP, yBotExile, CARD_W, CARD_H),
 
     p2_captured_bases: rect(xCaptured, yCapTop, BASE_W, BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP),
     p1_captured_bases: rect(xCaptured, yCapBottom, BASE_W, BASE_H + (CAP_SLOTS - 1) * CAP_OVERLAP),
@@ -551,21 +612,21 @@ function ensureForceMarker(initialIndex = FORCE_NEUTRAL_INDEX) {
   }
 }
 
-// ---------- tokens ----------
+// ---------- TOKENS (one-click click+drag) ----------
 function tokenClassFor(type) {
   if (type === "damage") return "tokenRed";
   if (type === "attack") return "tokenBlue";
   return "tokenGold";
 }
+
 function attachTokenDragHandlers(el) {
-  let dragging = false;
-  let offX = 0, offY = 0;
+  // Store drag state on element so we can start drag programmatically
+  el._drag = { dragging:false, offX:0, offY:0 };
 
   el.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     el.setPointerCapture(e.pointerId);
-    dragging = true;
 
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
@@ -573,26 +634,44 @@ function attachTokenDragHandlers(el) {
 
     const left = parseFloat(el.style.left || "0");
     const top  = parseFloat(el.style.top || "0");
-    offX = px - left;
-    offY = py - top;
+    el._drag.offX = px - left;
+    el._drag.offY = py - top;
+    el._drag.dragging = true;
     el.style.zIndex = "60000";
   });
 
   el.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+    if (!el._drag.dragging) return;
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
     const py = (e.clientY - stageRect.top) / camera.scale;
-    el.style.left = `${px - offX}px`;
-    el.style.top  = `${py - offY}px`;
+    el.style.left = `${px - el._drag.offX}px`;
+    el.style.top  = `${py - el._drag.offY}px`;
   });
 
   el.addEventListener("pointerup", (e) => {
-    dragging = false;
+    el._drag.dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch {}
     el.style.zIndex = "16000";
   });
 }
+
+function startTokenDragImmediately(el, e) {
+  // Make the SAME pointerdown that spawned it also start dragging (no second click).
+  try { el.setPointerCapture(e.pointerId); } catch {}
+  const stageRect = stage.getBoundingClientRect();
+  const px = (e.clientX - stageRect.left) / camera.scale;
+  const py = (e.clientY - stageRect.top) / camera.scale;
+
+  const left = parseFloat(el.style.left || "0");
+  const top  = parseFloat(el.style.top || "0");
+
+  el._drag.offX = px - left;
+  el._drag.offY = py - top;
+  el._drag.dragging = true;
+  el.style.zIndex = "60000";
+}
+
 function createTokenCube(owner, type, x, y) {
   const t = document.createElement("div");
   t.className = `tokenCube ${tokenClassFor(type)}`;
@@ -606,15 +685,18 @@ function createTokenCube(owner, type, x, y) {
   attachTokenDragHandlers(t);
   return t;
 }
-function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
+
+function spawnTokenFromBin(owner, type, e) {
   if (tokenPools[owner][type] <= 0) return;
   tokenPools[owner][type] -= 1;
 
-  const p = viewportToDesign(clientX, clientY);
+  const p = viewportToDesign(e.clientX, e.clientY);
   const tok = createTokenCube(owner, type, p.x, p.y);
 
-  try { tok.setPointerCapture(pointerId); } catch {}
+  // ✅ key fix: immediately enter dragging state with the same pointer
+  startTokenDragImmediately(tok, e);
 }
+
 function buildTokenBank(owner, r) {
   const bank = document.createElement("div");
   bank.className = "tokenBank";
@@ -637,7 +719,7 @@ function buildTokenBank(owner, r) {
     bin.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
-      spawnTokenFromBin(owner, type, e.clientX, e.clientY, e.pointerId);
+      spawnTokenFromBin(owner, type, e);
     });
 
     row.appendChild(bin);
@@ -646,6 +728,7 @@ function buildTokenBank(owner, r) {
   bank.appendChild(row);
   uiLayer.appendChild(bank);
 }
+
 function returnTokensForOwner(owner, typesToReturn) {
   for (const t of Array.from(tokenEls)) {
     if (!t.isConnected) { tokenEls.delete(t); continue; }
@@ -671,16 +754,57 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
-function openTrayDraw(owner, pileKey, title) {
-  const list = (piles[owner] && piles[owner][pileKey]) ? piles[owner][pileKey] : [];
-  openTray(owner, pileKey, title, list);
+// ---------- pile click behavior (draw/discard trays) ----------
+function bumpDrawPeek(owner) {
+  // each click = look at 1 more card
+  drawPeekCount[owner] += 1;
+
+  // placeholder: "draw" provides the next card by index
+  const idx = drawPeekCount[owner] - 1;
+  const card = piles[owner].draw[idx] || { name: `Look ${drawPeekCount[owner]}` };
+
+  trayState.drawSeen[owner].push(card);
+
+  // update visible badge on the draw pile zone
+  updateDrawBadge(owner);
+
+  // open draw tray
+  openTray("draw", owner);
 }
-trayP1Btn.addEventListener("click", (e) => { e.preventDefault(); openTrayDraw("p1", "draw", "P1 Draw"); });
-trayP2Btn.addEventListener("click", (e) => { e.preventDefault(); openTrayDraw("p2", "draw", "P2 Draw"); });
+
+function openDiscard(owner) {
+  // open discard tray (searchable)
+  trayState.filter = "";
+  traySearchEl.value = "";
+  openTray("discard", owner);
+}
+
+function updateDrawBadge(owner) {
+  const zoneId = owner === "p1" ? "p1_draw" : "p2_draw";
+  const zoneEl = zonesLayer.querySelector(`.zone[data-zone-id="${zoneId}"]`);
+  if (!zoneEl) return;
+
+  let badge = zoneEl.querySelector(".pileCountBadge");
+  if (!badge) {
+    badge = document.createElement("div");
+    badge.className = "pileCountBadge";
+    zoneEl.appendChild(badge);
+  }
+  badge.textContent = String(drawPeekCount[owner]);
+}
+
+function clearDrawPeek(owner) {
+  drawPeekCount[owner] = 0;
+  trayState.drawSeen[owner] = [];
+  updateDrawBadge(owner);
+  if (trayState.open && trayState.kind === "draw" && trayState.owner === owner) renderTray();
+}
+
+// OPTIONAL: if you want END TURN to also clear the peek count, uncomment:
+// function endTurn(owner){ returnTokensForOwner(owner, ["attack","resource"]); clearDrawPeek(owner); }
 
 // ---------- build ----------
 function build() {
-  // Rebuild geometry without wiping movable pieces
   zonesLayer.innerHTML = "";
   uiLayer.innerHTML = "";
 
@@ -699,6 +823,7 @@ function build() {
   // draw zones (skip token bank anchors)
   for (const [id, rr] of Object.entries(zones)) {
     if (id === "p1_token_bank" || id === "p2_token_bank") continue;
+
     const el = document.createElement("div");
     el.className = "zone";
     el.dataset.zoneId = id;
@@ -706,29 +831,62 @@ function build() {
     el.style.top = `${rr.y}px`;
     el.style.width = `${rr.w}px`;
     el.style.height = `${rr.h}px`;
+
+    // clickable piles: draw/discard
+    if (id === "p1_draw" || id === "p2_draw" || id === "p1_discard" || id === "p2_discard") {
+      el.classList.add("clickable");
+    }
+
     zonesLayer.appendChild(el);
   }
 
   buildForceTrackSlots(zones.force_track);
   ensureForceMarker(FORCE_NEUTRAL_INDEX);
 
-  // rebuild token banks
+  // token banks
   buildTokenBank("p2", zones.p2_token_bank);
   buildTokenBank("p1", zones.p1_token_bank);
+
+  // restore draw badges
+  updateDrawBadge("p1");
+  updateDrawBadge("p2");
 
   applyCamera();
   fitToScreen();
 }
 
-// ---------- seed piles so tray isn't empty ----------
+zonesLayer.addEventListener("pointerdown", (e) => {
+  const z = e.target.closest(".zone");
+  if (!z) return;
+
+  const id = z.dataset.zoneId;
+
+  // Draw pile: each click adds 1 to peek tray + updates counter badge
+  if (id === "p1_draw") { e.preventDefault(); bumpDrawPeek("p1"); return; }
+  if (id === "p2_draw") { e.preventDefault(); bumpDrawPeek("p2"); return; }
+
+  // Discard pile: opens searchable tray of entire discard
+  if (id === "p1_discard") { e.preventDefault(); openDiscard("p1"); return; }
+  if (id === "p2_discard") { e.preventDefault(); openDiscard("p2"); return; }
+});
+
+// ---------- seed demo piles so trays have content right now ----------
 function seedDemoPiles() {
-  // only seed once
   if (piles.p1.draw.length || piles.p2.draw.length) return;
 
-  for (let i = 1; i <= 10; i++) {
-    piles.p1.draw.push({ name: `P1 Card ${i}`, img: "" });
-    piles.p2.draw.push({ name: `P2 Card ${i}`, img: "" });
+  for (let i = 1; i <= 30; i++) {
+    piles.p1.draw.push({ name: `P1 Draw ${i}` });
+    piles.p2.draw.push({ name: `P2 Draw ${i}` });
+  }
+  for (let i = 1; i <= 40; i++) {
+    piles.p1.discard.push({ name: `P1 Discard ${i}` });
+    piles.p2.discard.push({ name: `P2 Discard ${i}` });
   }
 }
 seedDemoPiles();
 build();
+
+// ---------- camera apply ----------
+function applyCamera() {
+  stage.style.transform = `translate(${camera.tx}px, ${camera.ty}px) scale(${camera.scale})`;
+}
