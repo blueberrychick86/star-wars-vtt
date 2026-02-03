@@ -56,9 +56,10 @@ const TOKEN_SIZE = 18;
 // Source cube visual size (bigger target to pull from)
 const TOKEN_BANK_CUBE_SIZE = 30;
 
-// FREEFORM token spawn "hit area" size (invisible, makes it easy to grab)
-const TOKEN_BIN_HIT_W = 140; // wider grab area
-const TOKEN_BIN_HIT_H = 70;  // shorter height, more rectangular
+
+const TOKEN_BIN_W = 120; // actual visible bin width
+const TOKEN_BIN_H = 70;  // height stays the same
+
 
 
 let DESIGN_W = 1;
@@ -343,8 +344,10 @@ style.textContent = `
 
   /* Invisible large hit area (no border/box). The big source cube sits centered. */
   .tokenBin{
-  width: ${TOKEN_BIN_HIT_W}px;
-  height:${TOKEN_BIN_HIT_H}px;
+  .tokenBin{
+  width: ${TOKEN_BIN_W}px;
+  height:${TOKEN_BIN_H}px;
+
 
     border: none;
     background: transparent;
@@ -1067,9 +1070,10 @@ function computeZones() {
   const xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
   // Token banks: anchors (no visible zone)
-  const BIN_GAP = 10; // must match .tokenBinsRow gap in CSS
-const bankW = (TOKEN_BIN_HIT_W * 3) + (BIN_GAP * 2);
-const bankH = TOKEN_BIN_HIT_H;
+ const BIN_GAP = 6;
+const bankW = (TOKEN_BIN_W * 3) + (BIN_GAP * 2);
+const bankH = TOKEN_BIN_H;
+
 
 
 // center under discard + draw piles
@@ -1725,8 +1729,9 @@ function buildTokenBank(owner, r) {
     // big source cube centered (visual only)
     const source = document.createElement("div");
     source.className = `tokenSourceCube ${tokenClassFor(b.type)}`;
-    source.style.left = `${Math.round((TOKEN_BIN_HIT_W - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
-source.style.top  = `${Math.round((TOKEN_BIN_HIT_H - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
+    source.style.left = `${Math.round((TOKEN_BIN_W - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
+source.style.top  = `${Math.round((TOKEN_BIN_H - TOKEN_BANK_CUBE_SIZE) / 2)}px`;
+
 
     bin.appendChild(source);
 
