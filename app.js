@@ -1,4 +1,5 @@
-console.log("VTT: baseline code phase 1v
+console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
+
 // ---------- base page ----------
 document.body.style.margin = "0";
 document.body.style.padding = "0";
