@@ -234,19 +234,30 @@ style.textContent = `
     border: 1px solid rgba(255,255,255,0.16);
     background: rgba(255,255,255,0.05); user-select:none;
   }
-  .smOpt input{ transform: translateY(1px); }
-  .smActions{ display:flex; gap: 8px; justify-content:flex-end; margin-top: 12px; }
-  .smBtn{
-    background: rgba(255,255,255,0.10);
-    color:#fff;
-    border:1px solid rgba(255,255,255,0.22);
-    border-radius:12px;
-    padding:10px 12px;
-    font-weight:900;
-    letter-spacing:0.4px;
-    font-size: 12px;
-    cursor:pointer;
+    /* ===== START: Selected highlight/glow rules ===== */
+  .smOpt:has(input:checked){
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.55);
+    transform: translateY(-1px);
   }
+  .smOptBlue:has(input:checked){
+    background: rgba(90,170,255,0.22);
+    border-color: rgba(120,200,255,0.55);
+    box-shadow: 0 0 0 2px rgba(120,200,255,0.18), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smOptRed:has(input:checked){
+    background: rgba(255,90,90,0.18);
+    border-color: rgba(255,130,130,0.55);
+    box-shadow: 0 0 0 2px rgba(255,130,130,0.16), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  .smOptGreen:has(input:checked){
+    background: rgba(90,255,140,0.18);
+    border-color: rgba(120,255,170,0.55);
+    box-shadow: 0 0 0 2px rgba(120,255,170,0.16), 0 14px 30px rgba(0,0,0,0.65);
+  }
+  /* ===== END: Selected highlight/glow rules ===== */
+
   .smBtnPrimary{ background: rgba(120,180,255,0.22); border-color: rgba(120,180,255,0.40); }
   .smTiny{ font-size: 11px; opacity: 0.78; line-height: 1.25; margin-top: 6px; }
 `;
@@ -654,9 +665,17 @@ build();
 let startMenuOverlayEl = null;
 
 function closeStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+  if (startMenuOverlayEl) {
+    // If, for any reason, it doesn't remove cleanly, NEVER let it block input.
+    startMenuOverlayEl.style.pointerEvents = "none";
+    startMenuOverlayEl.style.display = "none";
+
+    if (startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+  }
   startMenuOverlayEl = null;
-  // Force starts at far RED end
+
+  // Setup rule applied silently:
+  // Force track starts at far RED end.
   moveForceMarkerToIndex(FORCE_RED_END_INDEX);
 }
 
