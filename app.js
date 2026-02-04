@@ -305,8 +305,8 @@ style.textContent = `
     box-shadow: 0 0 0 2px rgba(255,110,110,0.16), 0 10px 22px rgba(0,0,0,0.45);
   }
   .card.fNeutral, .trayTile.fNeutral{
-    border-color: rgba(210,210,215,0.95);
-    box-shadow: 0 0 0 2px rgba(210,210,215,0.14), 0 10px 22px rgba(0,0,0,0.45);
+    border-color: rgba(140,140,140,0.95);
+  box-shadow: 0 0 0 1px rgba(140,140,140,0.35);
   }
   .card.fMando, .trayTile.fMando{
     border-color: rgba(140,255,170,0.95);
