@@ -294,18 +294,20 @@ style.textContent = `
     pointer-events:none;
   }
 
-  #trayShell[data-player="blue"] .trayTile{
+    /* Player glow ONLY applies when tile has no faction class */
+  #trayShell[data-player="blue"] .trayTile:not(.fBlue):not(.fRed):not(.fNeutral):not(.fMando){
     border-color: rgba(120,180,255,0.80);
     box-shadow: 0 0 0 2px rgba(120,180,255,0.20), 0 10px 22px rgba(0,0,0,0.45);
   }
-  #trayShell[data-player="red"] .trayTile{
+  #trayShell[data-player="red"] .trayTile:not(.fBlue):not(.fRed):not(.fNeutral):not(.fMando){
     border-color: rgba(255,110,110,0.80);
     box-shadow: 0 0 0 2px rgba(255,110,110,0.20), 0 10px 22px rgba(0,0,0,0.45);
   }
-  #trayShell[data-player="green"] .trayTile{
+  #trayShell[data-player="green"] .trayTile:not(.fBlue):not(.fRed):not(.fNeutral):not(.fMando){
     border-color: rgba(140,255,170,0.80);
     box-shadow: 0 0 0 2px rgba(140,255,170,0.18), 0 10px 22px rgba(0,0,0,0.45);
   }
+
   /* ===== FACTION BORDER COLORS (BOARD + TRAY) ===== */
   .card.fBlue, .trayTile.fBlue{
     border-color: rgba(120,180,255,0.92);
