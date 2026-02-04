@@ -394,80 +394,7 @@ style.textContent = `
   }
 
 /* ===== START MENU ===== */
-
-/* ===== FACTION BUTTONS ===== */
-.smFactionGridPrimary{
-  display:grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.smFactionGridSecondary{
-  display:grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.smFactionBtn{
-  border-radius: 14px;
-  border: 2px solid rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.06);
-  cursor:pointer;
-  user-select:none;
-  text-align:center;
-}
-
-.smFactionBtnPrimary{ padding: 16px 10px; }
-.smFactionBtnSecondary{ padding: 10px 8px; }
-
-.smFactionBtn.active{
-  box-shadow: 0 0 0 2px rgba(120,180,255,0.65) inset;
-  background: rgba(120,180,255,0.18);
-}
-
-.smFactionTitle{
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-
-.smFactionTitleSmall{
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-}
-
-.smFactionSub{
-  margin-top: 4px;
-  font-size: 11px;
-  opacity: 0.82;
-  line-height: 1.15;
-}
-
-.smDividerRow{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  margin: 12px 0 10px;
-  opacity: 0.75;
-}
-
-.smDividerLine{
-  height: 1px;
-  background: rgba(255,255,255,0.16);
-  flex: 1;
-}
-
-.smDividerText{
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
-
 .startMenuOverlay{
-  touch-action: auto;
   position: fixed;
   inset: 0;
   z-index: 250000;
@@ -480,7 +407,6 @@ style.textContent = `
 }
 
 .startMenuPanel{
-  touch-action: auto;
   width: min(560px, 96vw);
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.22);
@@ -585,6 +511,11 @@ style.textContent = `
   border-color: rgba(120,180,255,0.35);
 }
 
+.smNote{
+  font-size: 11px;
+  opacity: 0.75;
+  line-height: 1.25;
+}
 `;
 document.head.appendChild(style);
 
@@ -750,7 +681,6 @@ const GAME_CONFIG = {
   includeMandoNeutrals: true, // boolean
 };
 
-
 function renderStartMenu() {
   if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
 
@@ -764,69 +694,52 @@ function renderStartMenu() {
     <div class="smHeader">
       <div>
         <div class="smTitle">Start Menu</div>
-        <div class="smSub">Choose set + faction, then press Start.</div>
+        <div class="smSub">Choose set + factions, then press Start.</div>
       </div>
+      <div class="smNote">Blue goes first • Force starts at far Red end</div>
     </div>
 
     <div class="smBody">
       <div class="smSection">
-        <div class="smLabel">Set</div>
-        <div class="smOptions">
-          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
-          <label class="smOpt"><input type="radio" name="setMode" value="rand"> Random</label>
-        </div>
-      </div>
-
-      <div class="smSection">
-        <div class="smLabel" style="margin-bottom:8px;">Faction</div>
-
-        <div class="smFactionGridPrimary">
-          <div class="smFactionBtn smFactionBtnPrimary" data-faction="blue">
-            <div class="smFactionTitle">Blue</div>
-            <div class="smFactionSub" id="smBlueSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnPrimary" data-faction="red">
-            <div class="smFactionTitle">Red</div>
-            <div class="smFactionSub" id="smRedSub"></div>
-          </div>
-        </div>
-
-        <div class="smDividerRow">
-          <div class="smDividerLine"></div>
-          <div class="smDividerText">Combined</div>
-          <div class="smDividerLine"></div>
-        </div>
-
-        <div class="smFactionGridSecondary">
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allBlue">
-            <div class="smFactionTitle smFactionTitleSmall">All Blue</div>
-            <div class="smFactionSub" id="smAllBlueSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allRed">
-            <div class="smFactionTitle smFactionTitleSmall">All Red</div>
-            <div class="smFactionSub" id="smAllRedSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="random">
-            <div class="smFactionTitle smFactionTitleSmall">Random</div>
-            <div class="smFactionSub">Blue / Red</div>
+        <div class="smRow">
+          <div class="smLabel">Set</div>
+          <div class="smOptions">
+            <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
+            <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
+            <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
           </div>
         </div>
       </div>
 
       <div class="smSection">
         <div class="smRow">
-          <div class="smLabel">Neutrals</div>
+          <div class="smLabel">Faction Mode</div>
+          <div class="smOptions">
+            <label class="smOpt"><input type="radio" name="factionMode" value="blue"> Blue</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="red"> Red</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allBlue"> All Blue</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allRed"> All Red</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="random"> Random</label>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="smRow">
+          <div class="smLabel">Mandalorian</div>
           <div class="smOptions">
             <label class="smOpt">
               <input type="checkbox" id="smMandoNeutrals">
-              Include Mandalorian neutrals
+              Use Mandalorian deck as Neutral (Green)
             </label>
           </div>
+        </div>
+      </div>
+
+      <div class="smSection">
+        <div class="smNote">
+          This menu currently stores your choices in <b>GAME_CONFIG</b> and updates the tray glow.
+          Next step: we’ll use these choices to generate the correct decks/bases/tokens.
         </div>
       </div>
     </div>
@@ -841,27 +754,54 @@ function renderStartMenu() {
   document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
-  overlay.addEventListener("click", e => e.stopPropagation());
+  // defaults from GAME_CONFIG
+  const setRadios = panel.querySelectorAll("input[name='setMode']");
+  setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
 
-  let chosenFaction = "blue";
+  const factionRadios = panel.querySelectorAll("input[name='factionMode']");
+  factionRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.factionMode); });
 
-  panel.querySelector("#blueBtn").onclick = () => chosenFaction = "blue";
-  panel.querySelector("#redBtn").onclick = () => chosenFaction = "red";
-  panel.querySelector("#allBlueBtn").onclick = () => chosenFaction = "allBlue";
-  panel.querySelector("#allRedBtn").onclick = () => chosenFaction = "allRed";
-  panel.querySelector("#randBtn").onclick = () => chosenFaction = (Math.random() < 0.5 ? "blue" : "red");
+  const mandoCb = panel.querySelector("#smMandoNeutrals");
+  if (mandoCb) mandoCb.checked = !!GAME_CONFIG.includeMandoNeutrals;
 
-  panel.querySelector("#startBtn").onclick = () => {
+  function readSelections() {
     const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
+    let facSel = panel.querySelector("input[name='factionMode']:checked")?.value || "blue";
+
+    if (facSel === "random") {
+      facSel = (Math.random() < 0.5) ? "blue" : "red";
+    }
+
     GAME_CONFIG.setMode = setSel;
-    GAME_CONFIG.factionMode = chosenFaction;
+    GAME_CONFIG.factionMode = facSel;
+    GAME_CONFIG.includeMandoNeutrals = mandoCb ? !!mandoCb.checked : !!GAME_CONFIG.includeMandoNeutrals;
 
-    setTrayPlayerColor(chosenFaction === "red" || chosenFaction === "allRed" ? "red" : "blue");
+    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
+    setTrayPlayerColor(glowColor);
+  }
 
+  const closeBtn = panel.querySelector("#smCloseBtn");
+  const startBtn = panel.querySelector("#smStartBtn");
+
+  closeBtn.addEventListener("click", () => {
+    readSelections();
     overlay.remove();
-  };
-}
+  });
 
+  startBtn.addEventListener("click", () => {
+    readSelections();
+    overlay.remove();
+    // Hook point: later we’ll call buildGameFromConfig(GAME_CONFIG)
+  });
+
+  // Tap outside panel to close
+  overlay.addEventListener("pointerdown", (e) => {
+    if (e.target === overlay) {
+      readSelections();
+      overlay.remove();
+    }
+  });
+}
 
 // token state
 const tokenPools = {
@@ -1536,6 +1476,7 @@ let pinchMid = { x: 0, y: 0 };
 // Board pan/zoom (ignore tray + preview + cards + tokens)
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
@@ -1559,6 +1500,7 @@ table.addEventListener("pointerdown", (e) => {
 
 table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
