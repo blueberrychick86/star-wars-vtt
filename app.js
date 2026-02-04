@@ -698,7 +698,6 @@ function renderStartMenu() {
         <div class="smTitle">Start Menu</div>
         <div class="smSub">Choose set + factions, then press Start.</div>
       </div>
-      <div class="smNote">Blue goes first • Force starts at far Red end</div>
     </div>
 
     <div class="smBody">
@@ -717,10 +716,10 @@ function renderStartMenu() {
         <div class="smRow">
           <div class="smLabel">Faction Mode</div>
           <div class="smOptions">
-            <label class="smOpt"><input type="radio" name="factionMode" value="blue"> Blue</label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="red"> Red</label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="allBlue"> All Blue</label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="allRed"> All Red</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="blue"> <span id="smLblBlue"></span></label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="red"> <span id="smLblRed"></span></label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allBlue"> <span id="smLblAllBlue"></span></label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allRed"> <span id="smLblAllRed"></span></label>
             <label class="smOpt"><input type="radio" name="factionMode" value="random"> Random</label>
           </div>
         </div>
@@ -735,13 +734,6 @@ function renderStartMenu() {
               Include Mandalorian neutrals
             </label>
           </div>
-        </div>
-      </div>
-
-      <div class="smSection">
-        <div class="smNote">
-          This menu currently stores your choices in <b>GAME_CONFIG</b> and updates the tray glow.
-          Next step: we’ll use these choices to generate the correct decks/bases/tokens.
         </div>
       </div>
     </div>
@@ -766,8 +758,45 @@ function renderStartMenu() {
 
 
   // defaults from GAME_CONFIG
+  function applyFactionLabels() {
+    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || GAME_CONFIG.setMode || "og";
+
+    const elBlue = panel.querySelector("#smLblBlue");
+    const elRed = panel.querySelector("#smLblRed");
+    const elAllBlue = panel.querySelector("#smLblAllBlue");
+    const elAllRed = panel.querySelector("#smLblAllRed");
+
+    // Labels by set selection
+    if (setMode === "cw") {
+      if (elBlue) elBlue.textContent = "Blue (Separatists)";
+      if (elRed) elRed.textContent = "Red (Republic)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Separatists)";
+      if (elAllRed) elAllRed.textContent = "All Red (Republic)";
+    } else if (setMode === "mixed") {
+      if (elBlue) elBlue.textContent = "Blue (Choose at table)";
+      if (elRed) elRed.textContent = "Red (Choose at table)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire + Separatists)";
+      if (elAllRed) elAllRed.textContent = "All Red (Rebels + Republic)";
+    } else {
+      // OG
+      if (elBlue) elBlue.textContent = "Blue (Empire)";
+      if (elRed) elRed.textContent = "Red (Rebels)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire)";
+      if (elAllRed) elAllRed.textContent = "All Red (Rebels)";
+    }
+  }
+
   const setRadios = panel.querySelectorAll("input[name='setMode']");
   setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
+  applyFactionLabels();
+
+  // Update faction labels live when the Set selection changes
+  setRadios.forEach(r => {
+    r.addEventListener("change", () => {
+      applyFactionLabels();
+    });
+  });
+
 
   const factionRadios = panel.querySelectorAll("input[name='factionMode']");
   factionRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.factionMode); });
@@ -2334,42 +2363,4 @@ const TEST_BASE = {
     return { ...base, ...overrides, id };
   }
 
-  function makeMany(prefix, count){
-    const out = [];
-    for (let i = 1; i <= count; i++){
-      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
-    }
-    return out;
-  }
-
-  piles = {
-    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
-    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
-    p1_discard: [ ...makeMany("Discard Example", 25) ],
-    p2_discard: [ ...makeMany("Discard Example", 25) ],
-    p1_exile: [ ...makeMany("Exiled Example", 18) ],
-    p2_exile: [ ...makeMany("Exiled Example", 18) ],
-  };
-})();
-
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
-
-const BASE_TEST_COUNT = 2;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
-}
-
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
-
-// Show start menu on launch
-renderStartMenu();
+  function 
