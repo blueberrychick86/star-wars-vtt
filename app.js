@@ -1,4 +1,36 @@
 console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
+// ---------- crash overlay (helps debug white screens) ----------
+(function(){
+  function showCrash(msg){
+    try{
+      const existing = document.getElementById("crashOverlay");
+      if (existing) existing.remove();
+      const ov = document.createElement("div");
+      ov.id = "crashOverlay";
+      ov.style.position = "fixed";
+      ov.style.inset = "0";
+      ov.style.zIndex = "999999";
+      ov.style.background = "rgba(0,0,0,0.92)";
+      ov.style.color = "#fff";
+      ov.style.fontFamily = "monospace";
+      ov.style.padding = "14px";
+      ov.style.overflow = "auto";
+      ov.innerHTML = "<div style='font-weight:900; margin-bottom:10px;'>VTT crashed</div>" +
+        "<div style='opacity:0.9; white-space:pre-wrap;'>" + String(msg).replace(/</g,"&lt;") + "</div>";
+      document.body.appendChild(ov);
+    }catch(_){}
+  }
+  window.addEventListener("error", (e) => {
+    const msg = (e && (e.message || e.error)) ? (e.message || (e.error && e.error.stack) || e.error) : "Unknown error";
+    showCrash(msg);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e && e.reason;
+    const msg = (r && (r.stack || r.message)) ? (r.stack || r.message) : String(r || "Unhandled promise rejection");
+    showCrash(msg);
+  });
+})();
+
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -2322,55 +2354,3 @@ function attachDragHandlers(el, cardData, kind) {
     pressTimer = setTimeout(() => {
       longPressFired = true;
       showPreview(cardData);
-    }, 380);
-  }
-
-  let lastTap = 0;
-
-  el.addEventListener("pointerdown", (e) => {
-    if (previewOpen) return;
-    if (e.button !== 0) return;
-
-    clearFlipTimer();
-    suppressNextPointerUp = false;
-
-    const now = Date.now();
-    const dt = now - lastTap;
-    lastTap = now;
-
-    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
-      suppressNextPointerUp = true;
-      toggleRotate(el);
-      return;
-    }
-
-    el.setPointerCapture(e.pointerId);
-    dragging = true;
-    startLongPress(e);
-
-    if (kind === "base") {
-      baseHadCapturedAssignment = !!el.dataset.capSide;
-      baseFreedAssignment = false;
-    }
-
-    const stageRect = stage.getBoundingClientRect();
-    const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale;
-
-    const left = parseFloat(el.style.left || "0");
-    const top = parseFloat(el.style.top || "0");
-    offsetX = px - left;
-    offsetY = py - top;
-
-    el.style.zIndex = String(50000);
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-
-    const dx = e.clientX - downX;
-    const dy = e.clientY - downY;
-    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
-
-    if (!longPressFired && Math.hypot(dx, dy) > 8) {
-      clearPressTimer
