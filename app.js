@@ -1,36 +1,4 @@
 console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
-// ---------- crash overlay (helps debug white screens) ----------
-(function(){
-  function showCrash(msg){
-    try{
-      const existing = document.getElementById("crashOverlay");
-      if (existing) existing.remove();
-      const ov = document.createElement("div");
-      ov.id = "crashOverlay";
-      ov.style.position = "fixed";
-      ov.style.inset = "0";
-      ov.style.zIndex = "999999";
-      ov.style.background = "rgba(0,0,0,0.92)";
-      ov.style.color = "#fff";
-      ov.style.fontFamily = "monospace";
-      ov.style.padding = "14px";
-      ov.style.overflow = "auto";
-      ov.innerHTML = "<div style='font-weight:900; margin-bottom:10px;'>VTT crashed</div>" +
-        "<div style='opacity:0.9; white-space:pre-wrap;'>" + String(msg).replace(/</g,"&lt;") + "</div>";
-      document.body.appendChild(ov);
-    }catch(_){}
-  }
-  window.addEventListener("error", (e) => {
-    const msg = (e && (e.message || e.error)) ? (e.message || (e.error && e.error.stack) || e.error) : "Unknown error";
-    showCrash(msg);
-  });
-  window.addEventListener("unhandledrejection", (e) => {
-    const r = e && e.reason;
-    const msg = (r && (r.stack || r.message)) ? (r.stack || r.message) : String(r || "Unhandled promise rejection");
-    showCrash(msg);
-  });
-})();
-
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -424,210 +392,6 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
     border-color: rgba(255,255,255,0.30);
   }
-
-/* ===== START MENU ===== */
-.startMenuOverlay{
-  touch-action: auto;
-  position: fixed;
-  inset: 0;
-  z-index: 250000;
-  background: rgba(0,0,0,0.72);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 14px;
-  pointer-events:auto;
-}
-
-.startMenuPanel{
-  touch-action: auto;
-  width: min(620px, 96vw);
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.22);
-  background: rgba(15,15,18,0.96);
-  box-shadow: 0 18px 50px rgba(0,0,0,0.70);
-  overflow:hidden;
-  color:#fff;
-}
-
-.smHeader{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
-}
-
-.smTitle{
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}
-
-.smSub{
-  font-size: 12px;
-  opacity: 0.85;
-  margin-top: 2px;
-}
-
-.smBody{
-  padding: 12px 14px;
-  display:flex;
-  flex-direction:column;
-  gap: 12px;
-}
-
-.smSection{
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04);
-  border-radius: 14px;
-  padding: 12px;
-}
-
-.smRow{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 10px;
-  align-items:center;
-  justify-content:space-between;
-}
-
-.smLabel{
-  font-weight: 900;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  font-size: 12px;
-  opacity: 0.9;
-}
-
-.smOptions{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 12px;
-  justify-content:flex-end;
-}
-
-.smOpt{
-  display:flex;
-  align-items:center;
-  gap: 6px;
-  font-weight: 800;
-  font-size: 12px;
-  opacity: 0.95;
-  user-select:none;
-}
-
-.smOpt input{ transform: translateY(1px); }
-
-/* faction buttons */
-.smFactionGridPrimary{
-  display:grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.smFactionGridSecondary{
-  display:grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.smFactionBtn{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  border-radius: 14px;
-  border: 2px solid rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.06);
-  cursor:pointer;
-  user-select:none;
-  text-align:center;
-  min-height: 56px;
-}
-
-.smFactionBtnPrimary{ min-height: 62px; }
-.smFactionBtnSecondary{ min-height: 52px; }
-
-.smFactionBtn.active{
-  box-shadow: 0 0 0 2px rgba(120,180,255,0.65) inset;
-  background: rgba(120,180,255,0.18);
-}
-
-.smFactionTitle{
-  font-size: 15px;
-  font-weight: 950;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  line-height: 1.05;
-}
-
-.smFactionTitleSmall{
-  font-size: 12px;
-  font-weight: 950;
-  letter-spacing: 0.6px;
-}
-
-.smFactionSub{
-  margin-top: 4px;
-  font-size: 11px;
-  opacity: 0.82;
-  line-height: 1.15;
-}
-
-.smDividerRow{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  margin: 12px 0 10px;
-  opacity: 0.70;
-}
-
-.smDividerLine{
-  height: 1px;
-  background: rgba(255,255,255,0.16);
-  flex: 1;
-}
-
-.smDividerText{
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
-
-.smFooter{
-  display:flex;
-  gap: 10px;
-  padding: 12px 14px;
-  border-top: 1px solid rgba(255,255,255,0.10);
-  justify-content:flex-end;
-  flex-wrap:wrap;
-}
-
-.smBtn{
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.08);
-  color:#fff;
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 900;
-  font-size: 12px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  cursor:pointer;
-  user-select:none;
-  touch-action:manipulation;
-}
-
-.smBtn.primary{
-  background: rgba(120,180,255,0.18);
-  border-color: rgba(120,180,255,0.35);
-}
-
 `;
 document.head.appendChild(style);
 
@@ -659,12 +423,6 @@ const resetTokensBtn = document.createElement("button");
 resetTokensBtn.className = "hudBtn";
 resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
-
-// --- MENU button (re-open start menu anytime)
-const menuBtn = document.createElement("button");
-menuBtn.className = "hudBtn";
-menuBtn.textContent = "MENU";
-hud.appendChild(menuBtn);
 
 const stage = document.createElement("div");
 stage.id = "stage";
@@ -783,209 +541,6 @@ let forceMarker = null;
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
-// ===== START MENU STATE =====
-let startMenuOverlayEl = null;
-
-const GAME_CONFIG = {
-  setMode: "og",              // "og" | "cw" | "mixed"
-  factionMode: "blue",        // "blue" | "red" | "allBlue" | "allRed"
-  mandoAsNeutral: false       // Mandalorian deck used as Neutral (Green)
-};
-
-function renderStartMenu() {
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
-
-  const overlay = document.createElement("div");
-  overlay.className = "startMenuOverlay";
-
-  const panel = document.createElement("div");
-  panel.className = "startMenuPanel";
-
-  panel.innerHTML = `
-    <div class="smHeader">
-      <div>
-        <div class="smTitle">Start Menu</div>
-        <div class="smSub">Choose set + faction, then press Start.</div>
-      </div>
-    </div>
-
-    <div class="smBody">
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Set</div>
-          <div class="smOptions">
-            <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
-            <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
-            <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
-          </div>
-        </div>
-      </div>
-
-      <div class="smSection">
-        <div class="smLabel" style="margin-bottom:8px;">Faction</div>
-
-        <div class="smFactionGridPrimary">
-          <div class="smFactionBtn smFactionBtnPrimary" data-faction="blue">
-            <div class="smFactionTitle">Blue</div>
-            <div class="smFactionSub" id="smBlueSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnPrimary" data-faction="red">
-            <div class="smFactionTitle">Red</div>
-            <div class="smFactionSub" id="smRedSub"></div>
-          </div>
-        </div>
-
-        <div class="smDividerRow">
-          <div class="smDividerLine"></div>
-          <div class="smDividerText">Combined</div>
-          <div class="smDividerLine"></div>
-        </div>
-
-        <div class="smFactionGridSecondary">
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allBlue">
-            <div class="smFactionTitle smFactionTitleSmall">All Blue</div>
-            <div class="smFactionSub" id="smAllBlueSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allRed">
-            <div class="smFactionTitle smFactionTitleSmall">All Red</div>
-            <div class="smFactionSub" id="smAllRedSub"></div>
-          </div>
-
-          <div class="smFactionBtn smFactionBtnSecondary" data-faction="random">
-            <div class="smFactionTitle smFactionTitleSmall">Random</div>
-            <div class="smFactionSub">Set + P1</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Mandalorian</div>
-          <div class="smOptions">
-            <label class="smOpt">
-              <input type="checkbox" id="smMandoAsNeutral">
-              Use Mandalorian deck as Neutral (Green)
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="smFooter">
-      <button class="smBtn" id="smCloseBtn" type="button">Close</button>
-      <button class="smBtn primary" id="smStartBtn" type="button">Start</button>
-    </div>
-  `;
-
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-  startMenuOverlayEl = overlay;
-
-  // prevent board gestures from eating menu taps
-  const stopBubble = (e) => { e.stopPropagation(); };
-  overlay.addEventListener("pointerdown", stopBubble);
-  overlay.addEventListener("pointermove", stopBubble);
-  overlay.addEventListener("pointerup", stopBubble);
-  overlay.addEventListener("click", stopBubble);
-
-  const setRadios = panel.querySelectorAll("input[name='setMode']");
-  setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
-
-  const mandoCb = panel.querySelector("#smMandoAsNeutral");
-  if (mandoCb) mandoCb.checked = !!GAME_CONFIG.mandoAsNeutral;
-
-  const factionBtns = panel.querySelectorAll(".smFactionBtn");
-  const blueSub = panel.querySelector("#smBlueSub");
-  const redSub = panel.querySelector("#smRedSub");
-  const allBlueSub = panel.querySelector("#smAllBlueSub");
-  const allRedSub = panel.querySelector("#smAllRedSub");
-
-  function updateFactionSublabels() {
-    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-    const setTxt = (el, txt) => { if (el) el.textContent = txt; };
-
-    if (setMode === "cw") {
-      setTxt(blueSub, "Separatists");
-      setTxt(redSub, "Republic");
-      setTxt(allBlueSub, "Separatists");
-      setTxt(allRedSub, "Republic");
-    } else if (setMode === "mixed") {
-      setTxt(blueSub, "Empire or Separatists");
-      setTxt(redSub, "Rebels or Republic");
-      setTxt(allBlueSub, "Empire + Separatists");
-      setTxt(allRedSub, "Rebels + Republic");
-    } else {
-      setTxt(blueSub, "Empire");
-      setTxt(redSub, "Rebels");
-      setTxt(allBlueSub, "Empire");
-      setTxt(allRedSub, "Rebels");
-    }
-  }
-
-  function setFactionActive(val) {
-    if (val === "random") {
-      const setChoices = ["og", "cw", "mixed"];
-      const pickedSet = setChoices[Math.floor(Math.random() * setChoices.length)];
-      const pickedP1 = (Math.random() < 0.5) ? "blue" : "red";
-
-      const setRadio = panel.querySelector(`input[name='setMode'][value='${pickedSet}']`);
-      if (setRadio) setRadio.checked = true;
-      updateFactionSublabels();
-
-      val = pickedP1;
-    }
-
-    factionBtns.forEach(b => b.classList.toggle("active", b.dataset.faction === val));
-    GAME_CONFIG.factionMode = val;
-  }
-
-  factionBtns.forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setFactionActive(btn.dataset.faction);
-    });
-  });
-
-  setFactionActive(GAME_CONFIG.factionMode || "blue");
-  updateFactionSublabels();
-  setRadios.forEach(r => r.addEventListener("change", updateFactionSublabels));
-
-  function readSelections() {
-    const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-    const facSel = GAME_CONFIG.factionMode || "blue";
-
-    GAME_CONFIG.setMode = setSel;
-    GAME_CONFIG.factionMode = facSel;
-    GAME_CONFIG.mandoAsNeutral = mandoCb ? !!mandoCb.checked : !!GAME_CONFIG.mandoAsNeutral;
-
-    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
-    setTrayPlayerColor(glowColor);
-  }
-
-  const closeBtn = panel.querySelector("#smCloseBtn");
-  const startBtn = panel.querySelector("#smStartBtn");
-
-  closeBtn.addEventListener("click", () => {
-    readSelections();
-    overlay.remove();
-  });
-
-  startBtn.addEventListener("click", () => {
-    readSelections();
-    overlay.remove();
-    // Hook point: later buildGameFromConfig(GAME_CONFIG)
-  });
-
-  overlay.addEventListener("pointerdown", (e) => {
-    if (e.target === overlay) {
-      readSelections();
-      overlay.remove();
-    }
-  });
-}
-
 
 // token state
 const tokenPools = {
@@ -1660,7 +1215,6 @@ let pinchMid = { x: 0, y: 0 };
 // Board pan/zoom (ignore tray + preview + cards + tokens)
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
@@ -1684,7 +1238,6 @@ table.addEventListener("pointerdown", (e) => {
 
 table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
@@ -2232,12 +1785,6 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
-menuBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  if (previewOpen) return;
-  renderStartMenu();
-});
-
 // ---------- build ----------
 function build() {
   stage.innerHTML = "";
@@ -2354,3 +1901,194 @@ function attachDragHandlers(el, cardData, kind) {
     pressTimer = setTimeout(() => {
       longPressFired = true;
       showPreview(cardData);
+    }, 380);
+  }
+
+  let lastTap = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+
+    const now = Date.now();
+    const dt = now - lastTap;
+    lastTap = now;
+
+    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
+      suppressNextPointerUp = true;
+      toggleRotate(el);
+      return;
+    }
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+    startLongPress(e);
+
+    if (kind === "base") {
+      baseHadCapturedAssignment = !!el.dataset.capSide;
+      baseFreedAssignment = false;
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    el.style.zIndex = String(50000);
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer();
+
+      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
+        clearCapturedAssignment(el);
+        baseFreedAssignment = true;
+      }
+    }
+
+    if (longPressFired) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offsetX}px`;
+    el.style.top  = `${py - offsetY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    dragging = false;
+
+    if (suppressNextPointerUp) {
+      suppressNextPointerUp = false;
+      el.style.zIndex = (kind === "base") ? "12000" : "15000";
+      return;
+    }
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    if (!movedDuringPress) {
+      clearFlipTimer();
+      flipTimer = setTimeout(() => {
+        toggleFlip(el);
+        if (kind === "base") {
+          if (el.dataset.capSide) {
+            const idx = Number(el.dataset.capIndex || "0");
+            el.style.zIndex = String(CAP_Z_BASE + idx);
+          } else el.style.zIndex = "12000";
+        } else el.style.zIndex = "15000";
+      }, FLIP_CONFIRM_MS);
+      return;
+    }
+
+    if (kind === "base") {
+      snapBaseAutoFill(el);
+      if (!el.dataset.capSide) {
+        snapBaseToNearestBaseStack(el);
+        el.style.zIndex = "12000";
+      }
+    } else {
+      snapCardToNearestZone(el);
+      el.style.zIndex = "15000";
+    }
+  });
+
+  el.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearPressTimer();
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+  });
+}
+
+// ---------- demo card data ----------
+const OBIWAN = {
+  id: "obiwan",
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
+// ---------- pile data (demo) ----------
+(function initDemoPiles(){
+  function cloneCard(base, overrides){
+    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    return { ...base, ...overrides, id };
+  }
+
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
+  piles = {
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 2;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
+
+// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
+setTrayPlayerColor("blue");
