@@ -304,10 +304,14 @@ style.textContent = `
     border-color: rgba(255,110,110,0.92);
     box-shadow: 0 0 0 2px rgba(255,110,110,0.16), 0 10px 22px rgba(0,0,0,0.45);
   }
-  .card.fNeutral, .trayTile.fNeutral{
-    border-color: rgba(140,140,140,0.95);
-  box-shadow: 0 0 0 1px rgba(140,140,140,0.35);
-  }
+  .card.fNeutral,
+.trayTile.fNeutral {
+  border-color: rgba(105,105,105,1);
+  box-shadow:
+    0 0 0 1px rgba(105,105,105,0.55),
+    0 6px 14px rgba(0,0,0,0.45);
+}
+
   .card.fMando, .trayTile.fMando{
     border-color: rgba(140,255,170,0.95);
     box-shadow: 0 0 0 2px rgba(140,255,170,0.14), 0 10px 22px rgba(0,0,0,0.45);
