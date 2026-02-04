@@ -1,4 +1,5 @@
 console.log("VTT: aligned layout + tray restored + rotate(90-cycle) + flip(single-tap confirmed) + search/draw tray + captured/exile alignment + zone-acceptance (bases vs units) + per-player token banks (freeform cubes, big sources, no counters) + end-turn return (blue+gold) + UI sizing tweaks");
+window.__VTT_LOADED__ = true;
 
 // ---------- base page ----------
 document.body.style.margin = "0";
@@ -2360,4 +2361,131 @@ function attachDragHandlers(el, cardData, kind) {
 
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
-    const py = (e.clientY - stageRect.top) / camera.scale
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = `${px - offsetX}px`;
+    el.style.top  = `${py - offsetY}px`;
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    dragging = false;
+
+    if (suppressNextPointerUp) {
+      suppressNextPointerUp = false;
+      el.style.zIndex = (kind === "base") ? "12000" : "15000";
+      return;
+    }
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    if (!movedDuringPress) {
+      clearFlipTimer();
+      flipTimer = setTimeout(() => {
+        toggleFlip(el);
+        if (kind === "base") {
+          if (el.dataset.capSide) {
+            const idx = Number(el.dataset.capIndex || "0");
+            el.style.zIndex = String(CAP_Z_BASE + idx);
+          } else el.style.zIndex = "12000";
+        } else el.style.zIndex = "15000";
+      }, FLIP_CONFIRM_MS);
+      return;
+    }
+
+    if (kind === "base") {
+      snapBaseAutoFill(el);
+      if (!el.dataset.capSide) {
+        snapBaseToNearestBaseStack(el);
+        el.style.zIndex = "12000";
+      }
+    } else {
+      snapCardToNearestZone(el);
+      el.style.zIndex = "15000";
+    }
+  });
+
+  el.addEventListener("pointercancel", () => {
+    dragging = false;
+    clearPressTimer();
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+  });
+}
+
+// ---------- demo card data ----------
+const OBIWAN = {
+  id: "obiwan",
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
+// ---------- pile data (demo) ----------
+(function initDemoPiles(){
+  function cloneCard(base, overrides){
+    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    return { ...base, ...overrides, id };
+  }
+
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
+  piles = {
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 2;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
+
+// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
+setTrayPlayerColor("blue");
