@@ -729,6 +729,7 @@ function openTraySearch(owner, pileKey, title) {
 function makeTrayTile(card) {
   const tile = document.createElement("div");
   tile.className = "trayTile";
+  applyFactionBorderClass(tile, card);
 
   const img = document.createElement("div");
   img.className = "trayTileImg";
@@ -1887,6 +1888,7 @@ function applyFactionBorderClass(el, cardData){
 function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
+  applyFactionBorderClass(el, cardData);
   el.dataset.kind = kind;
   el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
   el.dataset.face = "up";
@@ -2087,6 +2089,35 @@ const OBIWAN = {
   reward: "Gain 1 Force.",
   img: "https://picsum.photos/250/350?random=12"
 };
+const TEST_NEUTRAL = {
+  id: "test_neutral",
+  name: "TEST Neutral (Silver)",
+  type: "Unit",
+  subtype: "Neutral",
+  faction: "neutral",
+  cost: 2,
+  attack: 1,
+  resources: 2,
+  force: 0,
+  effect: "FACTION BORDER TEST",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=201"
+};
+
+const TEST_MANDO = {
+  id: "test_mando",
+  name: "TEST Mandalorian (Green)",
+  type: "Unit",
+  subtype: "Mandalorian",
+  faction: "mandalorian",
+  cost: 4,
+  attack: 3,
+  resources: 1,
+  force: 0,
+  effect: "FACTION BORDER TEST",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=202"
+};
 
 const TEST_BASE = {
   id: "base_test",
@@ -2118,7 +2149,7 @@ const TEST_BASE = {
   }
 
   piles = {
-    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p1_draw: [ TEST_NEUTRAL, TEST_MANDO, ...makeMany("P1 Draw Card", 30) ],
     p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
     p1_discard: [ ...makeMany("Discard Example", 25) ],
     p2_discard: [ ...makeMany("Discard Example", 25) ],
