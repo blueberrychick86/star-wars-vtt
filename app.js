@@ -1848,6 +1848,42 @@ window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
 
 // ---------- card factory ----------
+// ===== FACTION BORDER HELPERS =====
+function getFactionKey(cardData){
+  const raw = String(
+    cardData.faction ??
+    cardData.side ??
+    cardData.allegiance ??
+    cardData.border ??
+    ""
+  ).toLowerCase().trim();
+
+  // Mandalorian ALWAYS green even if treated as neutral sometimes
+  if (raw === "mando" || raw === "mandalorian" || raw === "mandalorians") return "mando";
+
+  // Neutral variants
+  if (raw === "neutral" || raw === "grey" || raw === "gray" || raw === "silver") return "neutral";
+
+  // Color factions
+  if (raw === "blue") return "blue";
+  if (raw === "red") return "red";
+
+  // If later your dataset uses names instead of colors, tolerate common ones:
+  if (raw === "empire" || raw === "separatists" || raw === "separatist") return "blue";
+  if (raw === "rebels" || raw === "rebel" || raw === "republic") return "red";
+
+  return "";
+}
+
+function applyFactionBorderClass(el, cardData){
+  el.classList.remove("fBlue","fRed","fNeutral","fMando");
+  const k = getFactionKey(cardData);
+  if (k === "blue") el.classList.add("fBlue");
+  else if (k === "red") el.classList.add("fRed");
+  else if (k === "neutral") el.classList.add("fNeutral");
+  else if (k === "mando") el.classList.add("fMando");
+}
+
 function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
