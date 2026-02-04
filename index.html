@@ -11,30 +11,23 @@
 <body>
   <div id="app"></div>
 
-  <!-- IMPORTANT: bump this when you paste a new app.js so cache can't lie -->
-  <script src="./app.js?v=STARTMENU_DEBUG_2026_02_05k"></script>
+  <!-- BASELINE: faction borders locked + 3px borders -->
+  <script src="./app.js?v=BASELINE_2026_02_05A"></script>
 
-
-  <!-- Prevent iOS Safari "double-tap to zoom page" from wrecking the board -->
+  <!-- Prevent iOS Safari double-tap zoom from breaking the board -->
   <script>
-    (function preventBoardDoubleTapZoom(){
-      let lastTouchEnd = 0;
-
-      document.addEventListener('touchend', (e) => {
-        const onGame = e.target.closest('#app');
-        if (!onGame) return;
-
+    let lastTouchEnd = 0;
+    document.addEventListener(
+      "touchend",
+      function (event) {
         const now = Date.now();
-        if (now - lastTouchEnd <= 300) e.preventDefault();
+        if (now - lastTouchEnd <= 300) {
+          event.preventDefault();
+        }
         lastTouchEnd = now;
-      }, { passive: false });
-
-      document.addEventListener('dblclick', (e) => {
-        const onGame = e.target.closest('#app');
-        if (!onGame) return;
-        e.preventDefault();
-      }, { passive: false });
-    })();
+      },
+      false
+    );
   </script>
 </body>
 </html>
