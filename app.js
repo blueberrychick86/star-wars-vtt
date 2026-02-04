@@ -393,8 +393,7 @@ style.textContent = `
     border-color: rgba(255,255,255,0.30);
   }
 
-/* ===== START MENU ===== */
-
+/* ===== START MENU (SAFE OPT-IN) ===== */
 .startMenuOverlay{
   touch-action: auto;
   position: fixed;
@@ -420,10 +419,6 @@ style.textContent = `
 }
 
 .smHeader{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.10);
 }
@@ -490,7 +485,7 @@ style.textContent = `
 
 .smOpt input{ transform: translateY(1px); }
 
-/* ===== FACTION BUTTONS (clean) ===== */
+/* faction buttons (simple + clean) */
 .smFactionGridPrimary{
   display:grid;
   grid-template-columns: repeat(2, 1fr);
@@ -629,7 +624,6 @@ resetTokensBtn.className = "hudBtn";
 resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
 
-// --- MENU button (re-open start menu anytime)
 const menuBtn = document.createElement("button");
 menuBtn.className = "hudBtn";
 menuBtn.textContent = "MENU";
@@ -752,15 +746,13 @@ let forceMarker = null;
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
-
-// ===== START MENU STATE =====
+// ===== START MENU (SAFE OPT-IN) =====
 let startMenuOverlayEl = null;
 
 const GAME_CONFIG = {
-  setMode: "og",              // "og" | "cw" | "mixed"
-  factionMode: "blue",        // "blue" | "red" | "allBlue" | "allRed" | "random"
-  includeMandoNeutrals: true, // boolean
-  mandoAsNeutral: false,       // Mandalorian deck used as Neutral (Green)
+  setMode: "og",         // "og" | "cw" | "mixed"
+  factionMode: "blue",   // "blue" | "red" | "allBlue" | "allRed"
+  mandoAsNeutral: false  // Mandalorian deck used as Neutral (Green)
 };
 
 function renderStartMenu() {
@@ -774,10 +766,8 @@ function renderStartMenu() {
 
   panel.innerHTML = `
     <div class="smHeader">
-      <div>
-        <div class="smTitle">Start Menu</div>
-        <div class="smSub">Choose set + faction, then press Start.</div>
-      </div>
+      <div class="smTitle">Start Menu</div>
+      <div class="smSub">Pick set + factions, then Start.</div>
     </div>
 
     <div class="smBody">
@@ -854,14 +844,13 @@ function renderStartMenu() {
   document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
-  // Block board pan/zoom from hijacking touches while menu is open
+  // prevent board gestures from hijacking menu taps
   const stopBubble = (e) => { e.stopPropagation(); };
   overlay.addEventListener("pointerdown", stopBubble);
   overlay.addEventListener("pointermove", stopBubble);
   overlay.addEventListener("pointerup", stopBubble);
   overlay.addEventListener("click", stopBubble);
 
-  // Defaults
   const setRadios = panel.querySelectorAll("input[name='setMode']");
   setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
 
@@ -897,7 +886,7 @@ function renderStartMenu() {
   }
 
   function setFactionActive(val) {
-    // Random = choose random set + random P1 (blue/red)
+    // Random picks a random set + random P1 (blue/red)
     if (val === "random") {
       const setChoices = ["og", "cw", "mixed"];
       const pickedSet = setChoices[Math.floor(Math.random() * setChoices.length)];
@@ -905,13 +894,17 @@ function renderStartMenu() {
 
       const setRadio = panel.querySelector(`input[name='setMode'][value='${pickedSet}']`);
       if (setRadio) setRadio.checked = true;
-
       updateFactionSublabels();
+
       val = pickedP1;
     }
 
     factionBtns.forEach(b => b.classList.toggle("active", b.dataset.faction === val));
     GAME_CONFIG.factionMode = val;
+
+    // tray glow test (blue/red)
+    const glowColor = (val === "red" || val === "allRed") ? "red" : "blue";
+    try { setTrayPlayerColor(glowColor); } catch(_){}
   }
 
   factionBtns.forEach(btn => {
@@ -921,48 +914,27 @@ function renderStartMenu() {
     });
   });
 
-  // keep current selection
   setFactionActive(GAME_CONFIG.factionMode || "blue");
   updateFactionSublabels();
   setRadios.forEach(r => r.addEventListener("change", updateFactionSublabels));
 
   function readSelections() {
-    const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-
-    let facSel = GAME_CONFIG.factionMode || "blue";
-    if (facSel === "random") facSel = (Math.random() < 0.5) ? "blue" : "red";
-
-    GAME_CONFIG.setMode = setSel;
-    GAME_CONFIG.factionMode = facSel;
+    GAME_CONFIG.setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
     GAME_CONFIG.mandoAsNeutral = mandoCb ? !!mandoCb.checked : !!GAME_CONFIG.mandoAsNeutral;
-    GAME_CONFIG.includeMandoNeutrals = GAME_CONFIG.mandoAsNeutral;
-
-    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
-    setTrayPlayerColor(glowColor);
   }
 
   const closeBtn = panel.querySelector("#smCloseBtn");
   const startBtn = panel.querySelector("#smStartBtn");
 
-  closeBtn.addEventListener("click", () => {
-    readSelections();
-    overlay.remove();
-  });
+  closeBtn.addEventListener("click", () => { readSelections(); overlay.remove(); });
+  startBtn.addEventListener("click", () => { readSelections(); overlay.remove(); });
 
-  startBtn.addEventListener("click", () => {
-    readSelections();
-    overlay.remove();
-    // Hook point: later we’ll call buildGameFromConfig(GAME_CONFIG)
-  });
-
-  // Tap outside panel to close
+  // tap outside closes
   overlay.addEventListener("pointerdown", (e) => {
-    if (e.target === overlay) {
-      readSelections();
-      overlay.remove();
-    }
+    if (e.target === overlay) { readSelections(); overlay.remove(); }
   });
 }
+
 
 // token state
 const tokenPools = {
@@ -1637,8 +1609,6 @@ let pinchMid = { x: 0, y: 0 };
 // Board pan/zoom (ignore tray + preview + cards + tokens)
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
@@ -1662,8 +1632,6 @@ table.addEventListener("pointerdown", (e) => {
 
 table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
@@ -2210,12 +2178,8 @@ function resetAllTokens() {
 endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); });
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
+menuBtn.addEventListener("click", (e) => { e.preventDefault(); try { renderStartMenu(); } catch(_){} });
 
-menuBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  if (previewOpen) return;
-  renderStartMenu();
-});
 
 // ---------- build ----------
 function build() {
@@ -2366,4 +2330,34 @@ function attachDragHandlers(el, cardData, kind) {
 
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
-    const py =
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    el.style.zIndex = String(50000);
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer();
+
+      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
+        clearCapturedAssignment(el);
+        baseFreedAssignment = true;
+      }
+    }
+
+    if (longPressFired) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const px = (e.clientX - stageRect.left) / camera.scale;
+    const py = (e.clientY - stageRect.top) / camera.scale
