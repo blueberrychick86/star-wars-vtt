@@ -409,10 +409,6 @@ style.textContent = `
 }
 
 .smFactionBtn{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
   border-radius: 14px;
   border: 2px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.06);
@@ -421,7 +417,7 @@ style.textContent = `
   text-align:center;
 }
 
-.smFactionBtnPrimary{ padding: 12px 10px; }
+.smFactionBtnPrimary{ padding: 16px 10px; }
 .smFactionBtnSecondary{ padding: 10px 8px; }
 
 .smFactionBtn.active{
@@ -430,7 +426,7 @@ style.textContent = `
 }
 
 .smFactionTitle{
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -445,7 +441,7 @@ style.textContent = `
 .smFactionSub{
   margin-top: 4px;
   font-size: 11px;
-  opacity: 0.80;
+  opacity: 0.82;
   line-height: 1.15;
 }
 
@@ -768,7 +764,7 @@ function renderStartMenu() {
     <div class="smHeader">
       <div>
         <div class="smTitle">Start Menu</div>
-        <div class="smSub">Choose set + faction</div>
+        <div class="smSub">Choose set + faction, then press Start.</div>
       </div>
     </div>
 
@@ -779,6 +775,7 @@ function renderStartMenu() {
           <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
           <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
           <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="rand"> Random</label>
         </div>
       </div>
 
@@ -786,11 +783,12 @@ function renderStartMenu() {
         <div class="smLabel" style="margin-bottom:8px;">Faction</div>
 
         <div class="smFactionGridPrimary">
-          <div class="smFactionBtn" data-faction="blue">
+          <div class="smFactionBtn smFactionBtnPrimary" data-faction="blue">
             <div class="smFactionTitle">Blue</div>
             <div class="smFactionSub" id="smBlueSub"></div>
           </div>
-          <div class="smFactionBtn" data-faction="red">
+
+          <div class="smFactionBtn smFactionBtnPrimary" data-faction="red">
             <div class="smFactionTitle">Red</div>
             <div class="smFactionSub" id="smRedSub"></div>
           </div>
@@ -803,15 +801,17 @@ function renderStartMenu() {
         </div>
 
         <div class="smFactionGridSecondary">
-          <div class="smFactionBtn" data-faction="allBlue">
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allBlue">
             <div class="smFactionTitle smFactionTitleSmall">All Blue</div>
             <div class="smFactionSub" id="smAllBlueSub"></div>
           </div>
-          <div class="smFactionBtn" data-faction="allRed">
+
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allRed">
             <div class="smFactionTitle smFactionTitleSmall">All Red</div>
             <div class="smFactionSub" id="smAllRedSub"></div>
           </div>
-          <div class="smFactionBtn" data-faction="random">
+
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="random">
             <div class="smFactionTitle smFactionTitleSmall">Random</div>
             <div class="smFactionSub">Blue / Red</div>
           </div>
@@ -820,26 +820,14 @@ function renderStartMenu() {
 
       <div class="smSection">
         <div class="smRow">
-          <div class="smLabel">Mandalorian Deck</div>
+          <div class="smLabel">Neutrals</div>
           <div class="smOptions">
             <label class="smOpt">
-              <input type="checkbox" id="smUseMando">
-              Use Mandalorian cards as neutral (Green)
+              <input type="checkbox" id="smMandoNeutrals">
+              Include Mandalorian neutrals
             </label>
           </div>
         </div>
-      
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Mandalorian</div>
-          <div class="smOptions">
-            <label class="smOpt">
-              <input type="checkbox" id="smMandoAsNeutral">
-              Use Mandalorian deck as Neutral (Green)
-            </label>
-          </div>
-        </div>
-      </div>
       </div>
     </div>
 
@@ -853,59 +841,23 @@ function renderStartMenu() {
   document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
-  const setRadios = panel.querySelectorAll("input[name='setMode']");
-  setRadios.forEach(r => r.checked = (r.value === GAME_CONFIG.setMode));
+  overlay.addEventListener("click", e => e.stopPropagation());
 
-  const factionBtns = panel.querySelectorAll(".smFactionBtn");
-  const blueSub = panel.querySelector("#smBlueSub");
-  const redSub = panel.querySelector("#smRedSub");
-  const allBlueSub = panel.querySelector("#smAllBlueSub");
-  const allRedSub = panel.querySelector("#smAllRedSub");
-  const mandoCb = panel.querySelector("#smUseMando");
+  let chosenFaction = "blue";
 
-  function updateSublabels() {
-    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-    if (setMode === "cw") {
-      blueSub.textContent = "Separatists";
-      redSub.textContent = "Republic";
-      allBlueSub.textContent = "Separatists";
-      allRedSub.textContent = "Republic";
-    } else if (setMode === "mixed") {
-      blueSub.textContent = "Empire / Separatists";
-      redSub.textContent = "Rebels / Republic";
-      allBlueSub.textContent = "Empire + Separatists";
-      allRedSub.textContent = "Rebels + Republic";
-    } else {
-      blueSub.textContent = "Empire";
-      redSub.textContent = "Rebels";
-      allBlueSub.textContent = "Empire";
-      allRedSub.textContent = "Rebels";
-    }
-  }
+  panel.querySelector("#blueBtn").onclick = () => chosenFaction = "blue";
+  panel.querySelector("#redBtn").onclick = () => chosenFaction = "red";
+  panel.querySelector("#allBlueBtn").onclick = () => chosenFaction = "allBlue";
+  panel.querySelector("#allRedBtn").onclick = () => chosenFaction = "allRed";
+  panel.querySelector("#randBtn").onclick = () => chosenFaction = (Math.random() < 0.5 ? "blue" : "red");
 
-  function setFactionActive(val) {
-    factionBtns.forEach(b => b.classList.toggle("active", b.dataset.faction === val));
-    GAME_CONFIG.factionMode = val;
-  }
+  panel.querySelector("#startBtn").onclick = () => {
+    const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
+    GAME_CONFIG.setMode = setSel;
+    GAME_CONFIG.factionMode = chosenFaction;
 
-  factionBtns.forEach(btn => btn.addEventListener("click", () => setFactionActive(btn.dataset.faction)));
-  setFactionActive(GAME_CONFIG.factionMode || "blue");
+    setTrayPlayerColor(chosenFaction === "red" || chosenFaction === "allRed" ? "red" : "blue");
 
-  updateSublabels();
-  setRadios.forEach(r => r.addEventListener("change", updateSublabels));
-
-  const closeBtn = panel.querySelector("#smCloseBtn");
-  const startBtn = panel.querySelector("#smStartBtn");
-
-  closeBtn.onclick = () => overlay.remove();
-  startBtn.onclick = () => {
-    GAME_CONFIG.setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-    GAME_CONFIG.includeMandalorian = mandoCb.checked;
-
-    let fac = GAME_CONFIG.factionMode;
-    if (fac === "random") fac = Math.random() < 0.5 ? "blue" : "red";
-
-    setTrayPlayerColor(fac === "red" || fac === "allRed" ? "red" : "blue");
     overlay.remove();
   };
 }
