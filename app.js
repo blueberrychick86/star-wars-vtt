@@ -395,6 +395,7 @@ style.textContent = `
 
 /* ===== START MENU ===== */
 .startMenuOverlay{
+  touch-action: auto;
   position: fixed;
   inset: 0;
   z-index: 250000;
@@ -407,6 +408,7 @@ style.textContent = `
 }
 
 .startMenuPanel{
+  touch-action: auto;
   width: min(560px, 96vw);
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.22);
@@ -568,7 +570,7 @@ previewBackdrop.innerHTML = `
         <p id="previewTitle"></p>
         <p id="previewSub"></p>
       </div>
-      <button id="closePreviewBtn" type="button">���</button>
+      <button id="closePreviewBtn" type="button">✕</button>
     </div>
 
     <div id="previewScroll">
@@ -627,7 +629,7 @@ trayTitle.textContent = "TRAY";
 const trayCloseBtn = document.createElement("button");
 trayCloseBtn.id = "trayCloseBtn";
 trayCloseBtn.type = "button";
-trayCloseBtn.textContent = "���";
+trayCloseBtn.textContent = "✕";
 trayCloseBtn.setAttribute("aria-label", "Close tray");
 
 trayHeaderBar.appendChild(trayTitle);
@@ -639,7 +641,7 @@ traySearchRow.id = "traySearchRow";
 const traySearchInput = document.createElement("input");
 traySearchInput.id = "traySearchInput";
 traySearchInput.type = "text";
-traySearchInput.placeholder = "Search��� (blank shows all)";
+traySearchInput.placeholder = "Search… (blank shows all)";
 traySearchRow.appendChild(traySearchInput);
 
 const trayBody = document.createElement("div");
@@ -696,7 +698,7 @@ function renderStartMenu() {
         <div class="smTitle">Start Menu</div>
         <div class="smSub">Choose set + factions, then press Start.</div>
       </div>
-      <div class="smNote">Blue goes first ��� Force starts at far Red end</div>
+      <div class="smNote">Blue goes first • Force starts at far Red end</div>
     </div>
 
     <div class="smBody">
@@ -739,7 +741,7 @@ function renderStartMenu() {
       <div class="smSection">
         <div class="smNote">
           This menu currently stores your choices in <b>GAME_CONFIG</b> and updates the tray glow.
-          Next step: we���ll use these choices to generate the correct decks/bases/tokens.
+          Next step: we’ll use these choices to generate the correct decks/bases/tokens.
         </div>
       </div>
     </div>
@@ -751,8 +753,17 @@ function renderStartMenu() {
   `;
 
   overlay.appendChild(panel);
-  table.appendChild(overlay);
+  document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
+
+  // prevent board drag handlers from eating clicks/taps inside the menu
+  // NOTE: do NOT use capture here — capture would block the inputs themselves.
+  const stopBubble = (e) => { e.stopPropagation(); };
+  overlay.addEventListener("pointerdown", stopBubble);
+  overlay.addEventListener("pointermove", stopBubble);
+  overlay.addEventListener("pointerup",   stopBubble);
+  overlay.addEventListener("click",       stopBubble);
+
 
   // defaults from GAME_CONFIG
   const setRadios = panel.querySelectorAll("input[name='setMode']");
@@ -791,7 +802,7 @@ function renderStartMenu() {
   startBtn.addEventListener("click", () => {
     readSelections();
     overlay.remove();
-    // Hook point: later we���ll call buildGameFromConfig(GAME_CONFIG)
+    // Hook point: later we’ll call buildGameFromConfig(GAME_CONFIG)
   });
 
   // Tap outside panel to close
@@ -828,14 +839,14 @@ function showPreview(cardData) {
 
   imgEl.style.backgroundImage = `url('${cardData.img || ""}')`;
   titleEl.textContent = cardData.name || "Card";
-  subEl.textContent = `${cardData.type || "���"}${cardData.subtype ? " ��� " + cardData.subtype : ""}`;
+  subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
   const pills = [
-    `Cost: ${cardData.cost ?? "���"}`,
-    `Attack: ${cardData.attack ?? "���"}`,
-    `Resources: ${cardData.resources ?? "���"}`,
-    `Force: ${cardData.force ?? "���"}`,
+    `Cost: ${cardData.cost ?? "—"}`,
+    `Attack: ${cardData.attack ?? "—"}`,
+    `Resources: ${cardData.resources ?? "—"}`,
+    `Force: ${cardData.force ?? "—"}`,
   ];
   for (const p of pills) {
     const d = document.createElement("div");
@@ -843,8 +854,8 @@ function showPreview(cardData) {
     d.textContent = p;
     pillsEl.appendChild(d);
   }
-  effEl.textContent = cardData.effect ?? "���";
-  rewEl.textContent = cardData.reward ?? "���";
+  effEl.textContent = cardData.effect ?? "—";
+  rewEl.textContent = cardData.reward ?? "—";
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
@@ -1341,7 +1352,7 @@ function computeZones() {
   const yP2TokenBank = yTopPiles - bankGap - bankH;
 
   let zones = {
-    // P2 (top) ��� discard LEFT, draw RIGHT
+    // P2 (top) — discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
 
@@ -1358,7 +1369,7 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
-    // P1 (bottom) ��� discard LEFT, draw RIGHT
+    // P1 (bottom) — discard LEFT, draw RIGHT
     p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
     p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
 
@@ -2312,7 +2323,7 @@ const TEST_BASE = {
   resources: 0,
   force: 0,
   effect: "This is a test base card.",
-  reward: "���",
+  reward: "—",
   img: "https://picsum.photos/350/250?random=22"
 };
 
