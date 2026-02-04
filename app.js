@@ -417,13 +417,8 @@ style.textContent = `
   text-align:center;
 }
 
-.smFactionBtnPrimary{
-  padding: 16px 10px;
-}
-
-.smFactionBtnSecondary{
-  padding: 10px 8px;
-}
+.smFactionBtnPrimary{ padding: 16px 10px; }
+.smFactionBtnSecondary{ padding: 10px 8px; }
 
 .smFactionBtn.active{
   box-shadow: 0 0 0 2px rgba(120,180,255,0.65) inset;
@@ -432,14 +427,14 @@ style.textContent = `
 
 .smFactionTitle{
   font-size: 18px;
-  font-weight: 950;
+  font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
 }
 
 .smFactionTitleSmall{
   font-size: 12px;
-  font-weight: 950;
+  font-weight: 900;
   letter-spacing: 0.6px;
 }
 
@@ -470,6 +465,7 @@ style.textContent = `
   letter-spacing: 0.6px;
   text-transform: uppercase;
 }
+
 .startMenuOverlay{
   touch-action: auto;
   position: fixed;
@@ -589,11 +585,6 @@ style.textContent = `
   border-color: rgba(120,180,255,0.35);
 }
 
-.smNote{
-  font-size: 11px;
-  opacity: 0.75;
-  line-height: 1.25;
-}
 `;
 document.head.appendChild(style);
 
@@ -759,6 +750,7 @@ const GAME_CONFIG = {
   includeMandoNeutrals: true, // boolean
 };
 
+
 function renderStartMenu() {
   if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
 
@@ -769,18 +761,25 @@ function renderStartMenu() {
   panel.className = "startMenuPanel";
 
   panel.innerHTML = `
-
     <div class="smHeader">
       <div>
         <div class="smTitle">Start Menu</div>
-        <div class="smSub">Choose set + factions, then press Start.</div>
+        <div class="smSub">Choose set + faction, then press Start.</div>
       </div>
     </div>
 
     <div class="smBody">
-      
-            <div class="smSection">
-        <div class="smLabel" style="margin-bottom:8px;">Faction Mode</div>
+      <div class="smSection">
+        <div class="smLabel">Set</div>
+        <div class="smOptions">
+          <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
+          <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
+        </div>
+      </div>
+
+      <div class="smSection">
+        <div class="smLabel" style="margin-bottom:8px;">Faction</div>
 
         <div class="smFactionGridPrimary">
           <div class="smFactionBtn smFactionBtnPrimary" data-faction="blue">
@@ -818,7 +817,7 @@ function renderStartMenu() {
         </div>
       </div>
 
-<div class="smSection">
+      <div class="smSection">
         <div class="smRow">
           <div class="smLabel">Neutrals</div>
           <div class="smOptions">
@@ -829,138 +828,39 @@ function renderStartMenu() {
           </div>
         </div>
       </div>
-
-      </div>
     </div>
 
     <div class="smFooter">
       <button class="smBtn" id="smCloseBtn" type="button">Close</button>
       <button class="smBtn primary" id="smStartBtn" type="button">Start</button>
     </div>
-  
-`;
+  `;
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
-  // prevent board drag handlers from eating clicks/taps inside the menu
-  // NOTE: do NOT use capture here — capture would block the inputs themselves.
-  const stopBubble = (e) => { e.stopPropagation(); };
-  overlay.addEventListener("pointerdown", stopBubble);
-  overlay.addEventListener("pointermove", stopBubble);
-  overlay.addEventListener("pointerup",   stopBubble);
-  overlay.addEventListener("click",       stopBubble);
+  overlay.addEventListener("click", e => e.stopPropagation());
 
+  let chosenFaction = "blue";
 
-  
-  function updateFactionSublabels() {
-    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
+  panel.querySelector("#blueBtn").onclick = () => chosenFaction = "blue";
+  panel.querySelector("#redBtn").onclick = () => chosenFaction = "red";
+  panel.querySelector("#allBlueBtn").onclick = () => chosenFaction = "allBlue";
+  panel.querySelector("#allRedBtn").onclick = () => chosenFaction = "allRed";
+  panel.querySelector("#randBtn").onclick = () => chosenFaction = (Math.random() < 0.5 ? "blue" : "red");
 
-    if (setMode === "cw") {
-      blueSub.textContent = "Separatists";
-      redSub.textContent = "Republic";
-      allBlueSub.textContent = "Separatists";
-      allRedSub.textContent = "Republic";
-    } else if (setMode === "mixed") {
-      blueSub.textContent = "Empire or Separatists";
-      redSub.textContent = "Rebels or Republic";
-      allBlueSub.textContent = "Empire + Separatists";
-      allRedSub.textContent = "Rebels + Republic";
-    } else {
-      blueSub.textContent = "Empire";
-      redSub.textContent = "Rebels";
-      allBlueSub.textContent = "Empire";
-      allRedSub.textContent = "Rebels";
-    }
-  }
-
-// defaults from GAME_CONFIG
-  const setRadios = panel.querySelectorAll("input[name='setMode']");
-  setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
-
-  setRadios.forEach(r => {
-    r.addEventListener("change", () => {
-    });
-  });
-
-
-  const factionRadios = panel.querySelectorAll("input[name='factionMode']");
-  factionRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.factionMode); });
-
-
-  const factionBtns = panel.querySelectorAll(".smFactionBtn");
-  const blueSub = panel.querySelector("#smBlueSub");
-  const redSub = panel.querySelector("#smRedSub");
-  const allBlueSub = panel.querySelector("#smAllBlueSub");
-  const allRedSub = panel.querySelector("#smAllRedSub");
-
-  function setFactionActive(val){
-    factionBtns.forEach(b => {
-      b.classList.toggle("active", b.dataset.faction === val);
-    });
-    GAME_CONFIG.factionMode = val;
-  }
-
-  factionBtns.forEach(btn => {
-    btn.addEventListener("click", () => setFactionActive(btn.dataset.faction));
-  });
-
-  setFactionActive(GAME_CONFIG.factionMode);
-  updateFactionSublabels();
-
-  const mandoCb = panel.querySelector("#smMandoNeutrals");
-  mandoCb.checked = !!GAME_CONFIG.includeMandoNeutrals;
-  }
-
-
-  function readSelections() {
+  panel.querySelector("#startBtn").onclick = () => {
     const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-
-    let facSel = GAME_CONFIG.factionMode || "blue";
-    if (facSel === "random") {
-      facSel = (Math.random() < 0.5) ? "blue" : "red";
-      GAME_CONFIG.factionMode = facSel;
-      setFactionActive(facSel);
-    }
-
     GAME_CONFIG.setMode = setSel;
-    GAME_CONFIG.includeMandoNeutrals = !!mandoCb.checked;
+    GAME_CONFIG.factionMode = chosenFaction;
 
-    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
-    setTrayPlayerColor(glowColor);
-  }
+    setTrayPlayerColor(chosenFaction === "red" || chosenFaction === "allRed" ? "red" : "blue");
 
-    GAME_CONFIG.setMode = setSel;
-    GAME_CONFIG.factionMode = facSel;
-    GAME_CONFIG.includeMandoNeutrals = !!mandoCb.checked;
-
-    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
-    setTrayPlayerColor(glowColor);
-  }
-
-  const closeBtn = panel.querySelector("#smCloseBtn");
-  const startBtn = panel.querySelector("#smStartBtn");
-
-  closeBtn.addEventListener("click", () => {
-    readSelections();
     overlay.remove();
-  });
-
-  startBtn.addEventListener("click", () => {
-    readSelections();
-    overlay.remove();
-    // Hook point: later we’ll call buildGameFromConfig(GAME_CONFIG)
-  });
-
-  // Tap outside panel to close
-  overlay.addEventListener("pointerdown", (e) => {
-    if (e.target === overlay) {
-      readSelections();
-      overlay.remove();
-    }
-  });
+  };
 }
+
 
 // token state
 const tokenPools = {
@@ -2451,4 +2351,73 @@ const OBIWAN = {
   id: "obiwan",
   name: "Obi-Wan Kenobi",
   type: "Unit",
-  subtype
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
+const TEST_BASE = {
+  id: "base_test",
+  name: "Test Base",
+  type: "Base",
+  subtype: "",
+  cost: 0,
+  attack: 0,
+  resources: 0,
+  force: 0,
+  effect: "This is a test base card.",
+  reward: "—",
+  img: "https://picsum.photos/350/250?random=22"
+};
+
+// ---------- pile data (demo) ----------
+(function initDemoPiles(){
+  function cloneCard(base, overrides){
+    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
+    return { ...base, ...overrides, id };
+  }
+
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
+  piles = {
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 2;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
+
+// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
+setTrayPlayerColor("blue");
+
+// Show start menu on launch
+renderStartMenu();
