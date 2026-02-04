@@ -394,7 +394,6 @@ style.textContent = `
   }
 
 /* ===== START MENU ===== */
-
 .startMenuOverlay{
   touch-action: auto;
   position: fixed;
@@ -490,7 +489,7 @@ style.textContent = `
 
 .smOpt input{ transform: translateY(1px); }
 
-/* ===== FACTION BUTTONS (clean) ===== */
+/* faction buttons */
 .smFactionGridPrimary{
   display:grid;
   grid-template-columns: repeat(2, 1fr);
@@ -752,15 +751,13 @@ let forceMarker = null;
 const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
-
 // ===== START MENU STATE =====
 let startMenuOverlayEl = null;
 
 const GAME_CONFIG = {
   setMode: "og",              // "og" | "cw" | "mixed"
-  factionMode: "blue",        // "blue" | "red" | "allBlue" | "allRed" | "random"
-  includeMandoNeutrals: true, // boolean
-  mandoAsNeutral: false,       // Mandalorian deck used as Neutral (Green)
+  factionMode: "blue",        // "blue" | "red" | "allBlue" | "allRed"
+  mandoAsNeutral: false       // Mandalorian deck used as Neutral (Green)
 };
 
 function renderStartMenu() {
@@ -854,14 +851,13 @@ function renderStartMenu() {
   document.body.appendChild(overlay);
   startMenuOverlayEl = overlay;
 
-  // Block board pan/zoom from hijacking touches while menu is open
+  // prevent board gestures from eating menu taps
   const stopBubble = (e) => { e.stopPropagation(); };
   overlay.addEventListener("pointerdown", stopBubble);
   overlay.addEventListener("pointermove", stopBubble);
   overlay.addEventListener("pointerup", stopBubble);
   overlay.addEventListener("click", stopBubble);
 
-  // Defaults
   const setRadios = panel.querySelectorAll("input[name='setMode']");
   setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
 
@@ -897,7 +893,6 @@ function renderStartMenu() {
   }
 
   function setFactionActive(val) {
-    // Random = choose random set + random P1 (blue/red)
     if (val === "random") {
       const setChoices = ["og", "cw", "mixed"];
       const pickedSet = setChoices[Math.floor(Math.random() * setChoices.length)];
@@ -905,8 +900,8 @@ function renderStartMenu() {
 
       const setRadio = panel.querySelector(`input[name='setMode'][value='${pickedSet}']`);
       if (setRadio) setRadio.checked = true;
-
       updateFactionSublabels();
+
       val = pickedP1;
     }
 
@@ -921,21 +916,17 @@ function renderStartMenu() {
     });
   });
 
-  // keep current selection
   setFactionActive(GAME_CONFIG.factionMode || "blue");
   updateFactionSublabels();
   setRadios.forEach(r => r.addEventListener("change", updateFactionSublabels));
 
   function readSelections() {
     const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-
-    let facSel = GAME_CONFIG.factionMode || "blue";
-    if (facSel === "random") facSel = (Math.random() < 0.5) ? "blue" : "red";
+    const facSel = GAME_CONFIG.factionMode || "blue";
 
     GAME_CONFIG.setMode = setSel;
     GAME_CONFIG.factionMode = facSel;
     GAME_CONFIG.mandoAsNeutral = mandoCb ? !!mandoCb.checked : !!GAME_CONFIG.mandoAsNeutral;
-    GAME_CONFIG.includeMandoNeutrals = GAME_CONFIG.mandoAsNeutral;
 
     const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
     setTrayPlayerColor(glowColor);
@@ -952,10 +943,9 @@ function renderStartMenu() {
   startBtn.addEventListener("click", () => {
     readSelections();
     overlay.remove();
-    // Hook point: later we’ll call buildGameFromConfig(GAME_CONFIG)
+    // Hook point: later buildGameFromConfig(GAME_CONFIG)
   });
 
-  // Tap outside panel to close
   overlay.addEventListener("pointerdown", (e) => {
     if (e.target === overlay) {
       readSelections();
@@ -963,6 +953,7 @@ function renderStartMenu() {
     }
   });
 }
+
 
 // token state
 const tokenPools = {
@@ -1638,7 +1629,6 @@ let pinchMid = { x: 0, y: 0 };
 table.addEventListener("pointerdown", (e) => {
   if (previewOpen) return;
   if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (e.target.closest("#tray")) return;
   if (e.target.closest("#trayShell")) return;
   if (e.target.closest("#previewBackdrop")) return;
@@ -1662,7 +1652,6 @@ table.addEventListener("pointerdown", (e) => {
 
 table.addEventListener("pointermove", (e) => {
   if (previewOpen) return;
-  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (startMenuOverlayEl && startMenuOverlayEl.isConnected) return;
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
@@ -2366,4 +2355,22 @@ function attachDragHandlers(el, cardData, kind) {
 
     const stageRect = stage.getBoundingClientRect();
     const px = (e.clientX - stageRect.left) / camera.scale;
-    const py =
+    const py = (e.clientY - stageRect.top) / camera.scale;
+
+    const left = parseFloat(el.style.left || "0");
+    const top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    el.style.zIndex = String(50000);
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer
