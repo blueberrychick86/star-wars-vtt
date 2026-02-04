@@ -2,11 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
   <title>Star Wars Deckbuilding VTT</title>
 </head>
 <body>
   <div id="app"></div>
-  <script src="./app.js?v=BASELINE_2026_02_05A"></script>
+
+  <!-- IMPORTANT: bump this when you paste a new app.js so cache can't lie -->
+  <script src="./app.js?v=STARTMENU_DEBUG_2026_02_05K"></script>
+
+
+  <!-- Prevent iOS Safari "double-tap to zoom page" from wrecking the board -->
+  <script>
+    (function preventBoardDoubleTapZoom(){
+      let lastTouchEnd = 0;
+
+      document.addEventListener('touchend', (e) => {
+        const onGame = e.target.closest('#app');
+        if (!onGame) return;
+
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) e.preventDefault();
+        lastTouchEnd = now;
+      }, { passive: false });
+
+      document.addEventListener('dblclick', (e) => {
+        const onGame = e.target.closest('#app');
+        if (!onGame) return;
+        e.preventDefault();
+      }, { passive: false });
+    })();
+  </script>
 </body>
 </html>
