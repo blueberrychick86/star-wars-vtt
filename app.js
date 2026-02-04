@@ -305,24 +305,6 @@ style.textContent = `
   #trayShell[data-player="green"] .trayTile{
     border-color: rgba(140,255,170,0.80);
     box-shadow: 0 0 0 2px rgba(140,255,170,0.18), 0 10px 22px rgba(0,0,0,0.45);
-    
-  }
-  /* ---------- FACTION BORDERS (cards + tray tiles) ---------- */
-  .card.fBlue, .trayTile.fBlue{
-    border-color: rgba(120,180,255,0.92);
-    box-shadow: 0 0 0 2px rgba(120,180,255,0.16), 0 10px 22px rgba(0,0,0,0.45);
-  }
-  .card.fRed, .trayTile.fRed{
-    border-color: rgba(255,110,110,0.92);
-    box-shadow: 0 0 0 2px rgba(255,110,110,0.16), 0 10px 22px rgba(0,0,0,0.45);
-  }
-  .card.fNeutral, .trayTile.fNeutral{
-    border-color: rgba(210,210,215,0.95);
-    box-shadow: 0 0 0 2px rgba(210,210,215,0.14), 0 10px 22px rgba(0,0,0,0.45);
-  }
-  .card.fMando, .trayTile.fMando{
-    border-color: rgba(140,255,170,0.95);
-    box-shadow: 0 0 0 2px rgba(140,255,170,0.14), 0 10px 22px rgba(0,0,0,0.45);
   }
 
   .trayCountBadge{
@@ -629,7 +611,7 @@ const trayState = {
   searchQuery: "",
 };
 
-function (color) {
+function setTrayPlayerColor(color) {
   PLAYER_COLOR = color;
   trayShell.dataset.player = color;
 }
@@ -726,51 +708,10 @@ function openTraySearch(owner, pileKey, title) {
 
   setTimeout(() => { try { traySearchInput.focus(); } catch {} }, 0);
 }
-// ---------- FACTION BORDER HELPERS ----------
-function getFactionKey(cardData){
-  // Prefer explicit fields you control in your card JSON
-  const raw = String(
-    cardData.faction ??
-    cardData.factionKey ??
-    cardData.allegiance ??
-    cardData.side ??
-    cardData.border ??
-    cardData.setFaction ??
-    ""
-  ).toLowerCase().trim();
-
-  // Mandalorians must always be green even if treated as "neutral" sometimes
-  if (raw === "mando" || raw === "mandalorian" || raw === "mandalorians") return "mando";
-
-  // Neutral variants
-  if (raw === "neutral" || raw === "grey" || raw === "gray" || raw === "silver") return "neutral";
-
-  // Color factions
-  if (raw === "blue") return "blue";
-  if (raw === "red") return "red";
-
-  // Optional: tolerate common faction names if your dataset uses those
-  // (These map to your existing "blue goes first" scheme)
-  if (raw === "empire" || raw === "separatists" || raw === "separatist") return "blue";
-  if (raw === "rebels" || raw === "rebel" || raw === "republic") return "red";
-
-  return ""; // unknown/unspecified -> keep default border
-}
-
-function applyFactionBorderClass(el, cardData){
-  el.classList.remove("fBlue","fRed","fNeutral","fMando");
-  const k = getFactionKey(cardData);
-  if (k === "blue") el.classList.add("fBlue");
-  else if (k === "red") el.classList.add("fRed");
-  else if (k === "neutral") el.classList.add("fNeutral");
-  else if (k === "mando") el.classList.add("fMando");
-}
 
 function makeTrayTile(card) {
   const tile = document.createElement("div");
   tile.className = "trayTile";
-    applyFactionBorderClass(tile, card);
-
 
   const img = document.createElement("div");
   img.className = "trayTileImg";
@@ -1893,7 +1834,6 @@ if (window.visualViewport) window.visualViewport.addEventListener("resize", () =
 function makeCardEl(cardData, kind) {
   const el = document.createElement("div");
   el.className = "card";
-    applyFactionBorderClass(el, cardData);
   el.dataset.kind = kind;
   el.dataset.cardId = `${cardData.id}_${Math.random().toString(16).slice(2)}`;
   el.dataset.face = "up";
@@ -2152,4 +2092,3 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
 
 // ---------- NOTE: for now keep tray glow BLUE (testing) ----------
 setTrayPlayerColor("blue");
-
