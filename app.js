@@ -275,7 +275,7 @@ style.textContent = `
     aspect-ratio: 2.5 / 3.5;
     margin: 0 auto;
     border-radius: 9px;
-    border: 2px solid rgba(255,255,255,0.45);
+    border: 3px solid rgba(255,255,255,0.45);
     background: rgba(255,255,255,0.04);
     position: relative;
     overflow: hidden;
