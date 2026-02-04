@@ -758,39 +758,11 @@ function renderStartMenu() {
 
 
   // defaults from GAME_CONFIG
-  function applyFactionLabels() {
-    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || GAME_CONFIG.setMode || "og";
-
-    const elBlue = panel.querySelector("#smLblBlue");
-    const elRed = panel.querySelector("#smLblRed");
-    const elAllBlue = panel.querySelector("#smLblAllBlue");
-    const elAllRed = panel.querySelector("#smLblAllRed");
-
-    // Labels by set selection
-    if (setMode === "cw") {
-      if (elBlue) elBlue.textContent = "Blue (Separatists)";
-      if (elRed) elRed.textContent = "Red (Republic)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Separatists)";
-      if (elAllRed) elAllRed.textContent = "All Red (Republic)";
-    } else if (setMode === "mixed") {
-      if (elBlue) elBlue.textContent = "Blue (Choose at table)";
-      if (elRed) elRed.textContent = "Red (Choose at table)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire + Separatists)";
-      if (elAllRed) elAllRed.textContent = "All Red (Rebels + Republic)";
-    } else {
-      // OG
-      if (elBlue) elBlue.textContent = "Blue (Empire)";
-      if (elRed) elRed.textContent = "Red (Rebels)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire)";
-      if (elAllRed) elAllRed.textContent = "All Red (Rebels)";
-    }
-  }
-
   const setRadios = panel.querySelectorAll("input[name='setMode']");
   setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
+
   applyFactionLabels();
 
-  // Update faction labels live when the Set selection changes
   setRadios.forEach(r => {
     r.addEventListener("change", () => {
       applyFactionLabels();
@@ -803,6 +775,34 @@ function renderStartMenu() {
 
   const mandoCb = panel.querySelector("#smMandoNeutrals");
   mandoCb.checked = !!GAME_CONFIG.includeMandoNeutrals;
+
+
+  function applyFactionLabels() {
+    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || GAME_CONFIG.setMode || "og";
+
+    const elBlue = panel.querySelector("#smLblBlue");
+    const elRed = panel.querySelector("#smLblRed");
+    const elAllBlue = panel.querySelector("#smLblAllBlue");
+    const elAllRed = panel.querySelector("#smLblAllRed");
+
+    if (setMode === "cw") {
+      if (elBlue) elBlue.textContent = "Blue (Separatists)";
+      if (elRed) elRed.textContent = "Red (Republic)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Separatists)";
+      if (elAllRed) elAllRed.textContent = "All Red (Republic)";
+    } else if (setMode === "mixed") {
+      if (elBlue) elBlue.textContent = "Blue (OG Blue or CW Blue)";
+      if (elRed) elRed.textContent = "Red (OG Red or CW Red)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire + Separatists)";
+      if (elAllRed) elAllRed.textContent = "All Red (Rebels + Republic)";
+    } else {
+      if (elBlue) elBlue.textContent = "Blue (Empire)";
+      if (elRed) elRed.textContent = "Red (Rebels)";
+      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire)";
+      if (elAllRed) elAllRed.textContent = "All Red (Rebels)";
+    }
+  }
+
 
   function readSelections() {
     const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
@@ -2363,4 +2363,42 @@ const TEST_BASE = {
     return { ...base, ...overrides, id };
   }
 
-  function 
+  function makeMany(prefix, count){
+    const out = [];
+    for (let i = 1; i <= count; i++){
+      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
+    }
+    return out;
+  }
+
+  piles = {
+    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
+    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
+    p1_discard: [ ...makeMany("Discard Example", 25) ],
+    p2_discard: [ ...makeMany("Discard Example", 25) ],
+    p1_exile: [ ...makeMany("Exiled Example", 18) ],
+    p2_exile: [ ...makeMany("Exiled Example", 18) ],
+  };
+})();
+
+// ---------- spawn test cards ----------
+const unitCard = makeCardEl(OBIWAN, "unit");
+unitCard.style.left = `${DESIGN_W * 0.42}px`;
+unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+unitCard.style.zIndex = "15000";
+stage.appendChild(unitCard);
+
+const BASE_TEST_COUNT = 2;
+for (let i = 0; i < BASE_TEST_COUNT; i++) {
+  const baseCard = makeCardEl(TEST_BASE, "base");
+  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+  baseCard.style.zIndex = "12000";
+  stage.appendChild(baseCard);
+}
+
+// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
+setTrayPlayerColor("blue");
+
+// Show start menu on launch
+renderStartMenu();
