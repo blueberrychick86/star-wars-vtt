@@ -392,6 +392,130 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
     border-color: rgba(255,255,255,0.30);
   }
+
+/* ===== START MENU ===== */
+.startMenuOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 250000;
+  background: rgba(0,0,0,0.72);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 14px;
+  pointer-events:auto;
+}
+
+.startMenuPanel{
+  width: min(560px, 96vw);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(15,15,18,0.96);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.70);
+  overflow:hidden;
+  color:#fff;
+}
+
+.smHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.smTitle{
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.smSub{
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.smBody{ padding: 12px 14px; display:flex; flex-direction:column; gap: 12px; }
+
+.smSection{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.smRow{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 10px;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.smLabel{
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.smOptions{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 10px;
+  justify-content:flex-end;
+}
+
+.smOpt{
+  display:flex;
+  align-items:center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 12px;
+  opacity: 0.95;
+  user-select:none;
+}
+
+.smOpt input{ transform: translateY(1px); }
+
+.smFooter{
+  display:flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+.smBtn{
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color:#fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor:pointer;
+  user-select:none;
+  touch-action:manipulation;
+}
+
+.smBtn.primary{
+  background: rgba(120,180,255,0.18);
+  border-color: rgba(120,180,255,0.35);
+}
+
+.smNote{
+  font-size: 11px;
+  opacity: 0.75;
+  line-height: 1.25;
+}
 `;
 document.head.appendChild(style);
 
@@ -424,6 +548,12 @@ resetTokensBtn.className = "hudBtn";
 resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
 
+// --- MENU button (re-open start menu anytime)
+const menuBtn = document.createElement("button");
+menuBtn.className = "hudBtn";
+menuBtn.textContent = "MENU";
+hud.appendChild(menuBtn);
+
 const stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
@@ -438,7 +568,7 @@ previewBackdrop.innerHTML = `
         <p id="previewTitle"></p>
         <p id="previewSub"></p>
       </div>
-      <button id="closePreviewBtn" type="button">✕</button>
+      <button id="closePreviewBtn" type="button">���</button>
     </div>
 
     <div id="previewScroll">
@@ -497,7 +627,7 @@ trayTitle.textContent = "TRAY";
 const trayCloseBtn = document.createElement("button");
 trayCloseBtn.id = "trayCloseBtn";
 trayCloseBtn.type = "button";
-trayCloseBtn.textContent = "✕";
+trayCloseBtn.textContent = "���";
 trayCloseBtn.setAttribute("aria-label", "Close tray");
 
 trayHeaderBar.appendChild(trayTitle);
@@ -509,7 +639,7 @@ traySearchRow.id = "traySearchRow";
 const traySearchInput = document.createElement("input");
 traySearchInput.id = "traySearchInput";
 traySearchInput.type = "text";
-traySearchInput.placeholder = "Search… (blank shows all)";
+traySearchInput.placeholder = "Search��� (blank shows all)";
 traySearchRow.appendChild(traySearchInput);
 
 const trayBody = document.createElement("div");
@@ -542,6 +672,137 @@ const capSlotCenters = { p1: [], p2: [] };
 const capOccupied = { p1: Array(CAP_SLOTS).fill(null), p2: Array(CAP_SLOTS).fill(null) };
 let zonesCache = null;
 
+// ===== START MENU STATE =====
+let startMenuOverlayEl = null;
+
+const GAME_CONFIG = {
+  setMode: "og",              // "og" | "cw" | "mixed"
+  factionMode: "blue",        // "blue" | "red" | "allBlue" | "allRed" | "random"
+  includeMandoNeutrals: true, // boolean
+};
+
+function renderStartMenu() {
+  if (startMenuOverlayEl && startMenuOverlayEl.isConnected) startMenuOverlayEl.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "startMenuOverlay";
+
+  const panel = document.createElement("div");
+  panel.className = "startMenuPanel";
+
+  panel.innerHTML = `
+    <div class="smHeader">
+      <div>
+        <div class="smTitle">Start Menu</div>
+        <div class="smSub">Choose set + factions, then press Start.</div>
+      </div>
+      <div class="smNote">Blue goes first ��� Force starts at far Red end</div>
+    </div>
+
+    <div class="smBody">
+      <div class="smSection">
+        <div class="smRow">
+          <div class="smLabel">Set</div>
+          <div class="smOptions">
+            <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
+            <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
+            <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="smSection">
+        <div class="smRow">
+          <div class="smLabel">Faction Mode</div>
+          <div class="smOptions">
+            <label class="smOpt"><input type="radio" name="factionMode" value="blue"> Blue</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="red"> Red</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allBlue"> All Blue</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="allRed"> All Red</label>
+            <label class="smOpt"><input type="radio" name="factionMode" value="random"> Random</label>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="smRow">
+          <div class="smLabel">Neutrals</div>
+          <div class="smOptions">
+            <label class="smOpt">
+              <input type="checkbox" id="smMandoNeutrals">
+              Include Mandalorian neutrals
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="smSection">
+        <div class="smNote">
+          This menu currently stores your choices in <b>GAME_CONFIG</b> and updates the tray glow.
+          Next step: we���ll use these choices to generate the correct decks/bases/tokens.
+        </div>
+      </div>
+    </div>
+
+    <div class="smFooter">
+      <button class="smBtn" id="smCloseBtn" type="button">Close</button>
+      <button class="smBtn primary" id="smStartBtn" type="button">Start</button>
+    </div>
+  `;
+
+  overlay.appendChild(panel);
+  table.appendChild(overlay);
+  startMenuOverlayEl = overlay;
+
+  // defaults from GAME_CONFIG
+  const setRadios = panel.querySelectorAll("input[name='setMode']");
+  setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
+
+  const factionRadios = panel.querySelectorAll("input[name='factionMode']");
+  factionRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.factionMode); });
+
+  const mandoCb = panel.querySelector("#smMandoNeutrals");
+  mandoCb.checked = !!GAME_CONFIG.includeMandoNeutrals;
+
+  function readSelections() {
+    const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
+    let facSel = panel.querySelector("input[name='factionMode']:checked")?.value || "blue";
+
+    if (facSel === "random") {
+      facSel = (Math.random() < 0.5) ? "blue" : "red";
+    }
+
+    GAME_CONFIG.setMode = setSel;
+    GAME_CONFIG.factionMode = facSel;
+    GAME_CONFIG.includeMandoNeutrals = !!mandoCb.checked;
+
+    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
+    setTrayPlayerColor(glowColor);
+  }
+
+  const closeBtn = panel.querySelector("#smCloseBtn");
+  const startBtn = panel.querySelector("#smStartBtn");
+
+  closeBtn.addEventListener("click", () => {
+    readSelections();
+    overlay.remove();
+  });
+
+  startBtn.addEventListener("click", () => {
+    readSelections();
+    overlay.remove();
+    // Hook point: later we���ll call buildGameFromConfig(GAME_CONFIG)
+  });
+
+  // Tap outside panel to close
+  overlay.addEventListener("pointerdown", (e) => {
+    if (e.target === overlay) {
+      readSelections();
+      overlay.remove();
+    }
+  });
+}
+
 // token state
 const tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
@@ -567,14 +828,14 @@ function showPreview(cardData) {
 
   imgEl.style.backgroundImage = `url('${cardData.img || ""}')`;
   titleEl.textContent = cardData.name || "Card";
-  subEl.textContent = `${cardData.type || "—"}${cardData.subtype ? " • " + cardData.subtype : ""}`;
+  subEl.textContent = `${cardData.type || "���"}${cardData.subtype ? " ��� " + cardData.subtype : ""}`;
 
   pillsEl.innerHTML = "";
   const pills = [
-    `Cost: ${cardData.cost ?? "—"}`,
-    `Attack: ${cardData.attack ?? "—"}`,
-    `Resources: ${cardData.resources ?? "—"}`,
-    `Force: ${cardData.force ?? "—"}`,
+    `Cost: ${cardData.cost ?? "���"}`,
+    `Attack: ${cardData.attack ?? "���"}`,
+    `Resources: ${cardData.resources ?? "���"}`,
+    `Force: ${cardData.force ?? "���"}`,
   ];
   for (const p of pills) {
     const d = document.createElement("div");
@@ -582,8 +843,8 @@ function showPreview(cardData) {
     d.textContent = p;
     pillsEl.appendChild(d);
   }
-  effEl.textContent = cardData.effect ?? "—";
-  rewEl.textContent = cardData.reward ?? "—";
+  effEl.textContent = cardData.effect ?? "���";
+  rewEl.textContent = cardData.reward ?? "���";
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
@@ -1080,7 +1341,7 @@ function computeZones() {
   const yP2TokenBank = yTopPiles - bankGap - bankH;
 
   let zones = {
-    // P2 (top) — discard LEFT, draw RIGHT
+    // P2 (top) ��� discard LEFT, draw RIGHT
     p2_discard: rect(xPiles, yTopPiles, CARD_W, CARD_H),
     p2_draw: rect(xPiles + CARD_W + GAP, yTopPiles, CARD_W, CARD_H),
 
@@ -1097,7 +1358,7 @@ function computeZones() {
     force_track: rect(xForce, yForceTrack, forceTrackW, forceTrackH),
     galaxy_discard: rect(xGalaxyDiscard, yGalaxyDiscard, CARD_W, CARD_H),
 
-    // P1 (bottom) — discard LEFT, draw RIGHT
+    // P1 (bottom) ��� discard LEFT, draw RIGHT
     p1_discard: rect(xPiles, yBottomPiles, CARD_W, CARD_H),
     p1_draw: rect(xPiles + CARD_W + GAP, yBottomPiles, CARD_W, CARD_H),
 
@@ -1785,6 +2046,12 @@ endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); }
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
 
+menuBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (previewOpen) return;
+  renderStartMenu();
+});
+
 // ---------- build ----------
 function build() {
   stage.innerHTML = "";
@@ -2045,7 +2312,7 @@ const TEST_BASE = {
   resources: 0,
   force: 0,
   effect: "This is a test base card.",
-  reward: "—",
+  reward: "���",
   img: "https://picsum.photos/350/250?random=22"
 };
 
@@ -2092,3 +2359,6 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
 
 // ---------- NOTE: for now keep tray glow BLUE (testing) ----------
 setTrayPlayerColor("blue");
+
+// Show start menu on launch
+renderStartMenu();
