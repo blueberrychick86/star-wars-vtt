@@ -429,6 +429,11 @@ const resetTokensBtn = document.createElement("button");
 resetTokensBtn.className = "hudBtn";
 resetTokensBtn.textContent = "RESET";
 hud.appendChild(resetTokensBtn);
+const factionTestBtn = document.createElement("button");
+factionTestBtn.className = "hudBtn";
+factionTestBtn.textContent = "FACTION TEST";
+hud.appendChild(factionTestBtn);
+
 
 const stage = document.createElement("div");
 stage.id = "stage";
@@ -1794,6 +1799,24 @@ function resetAllTokens() {
 endP1Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p1"); });
 endP2Btn.addEventListener("click", (e) => { e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", (e) => { e.preventDefault(); resetAllTokens(); });
+factionTestBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+
+  const cards = [TEST_BLUE, TEST_RED, TEST_NEUTRAL2, TEST_MANDO2];
+
+  // spawn in a row near the top-middle so you can see them quickly
+  const startX = DESIGN_W * 0.34;
+  const startY = DESIGN_H * 0.10;
+  const stepX = CARD_W + 18;
+
+  cards.forEach((c, i) => {
+    const el = makeCardEl(c, "unit");
+    el.style.left = `${startX + i * stepX}px`;
+    el.style.top  = `${startY}px`;
+    el.style.zIndex = "15000";
+    stage.appendChild(el);
+  });
+});
 
 // ---------- build ----------
 function build() {
@@ -2095,6 +2118,53 @@ const TEST_BASE = {
   effect: "This is a test base card.",
   reward: "—",
   img: "https://picsum.photos/350/250?random=22"
+};
+const TEST_BLUE = {
+  id: "test_blue",
+  name: "TEST Blue",
+  type: "Unit",
+  subtype: "Blue",
+  faction: "blue",
+  cost: 1, attack: 1, resources: 1, force: 0,
+  effect: "Faction border test.",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=301"
+};
+
+const TEST_RED = {
+  id: "test_red",
+  name: "TEST Red",
+  type: "Unit",
+  subtype: "Red",
+  faction: "red",
+  cost: 1, attack: 1, resources: 1, force: 0,
+  effect: "Faction border test.",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=302"
+};
+
+const TEST_NEUTRAL2 = {
+  id: "test_neutral2",
+  name: "TEST Neutral",
+  type: "Unit",
+  subtype: "Neutral",
+  faction: "neutral",
+  cost: 1, attack: 1, resources: 1, force: 0,
+  effect: "Faction border test.",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=303"
+};
+
+const TEST_MANDO2 = {
+  id: "test_mando2",
+  name: "TEST Mando",
+  type: "Unit",
+  subtype: "Mandalorian",
+  faction: "mandalorian",
+  cost: 1, attack: 1, resources: 1, force: 0,
+  effect: "Faction border test.",
+  reward: "—",
+  img: "https://picsum.photos/250/350?random=304"
 };
 
 // ---------- pile data (demo) ----------
