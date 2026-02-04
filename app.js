@@ -394,6 +394,82 @@ style.textContent = `
   }
 
 /* ===== START MENU ===== */
+
+/* ===== FACTION BUTTONS ===== */
+.smFactionGridPrimary{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.smFactionGridSecondary{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.smFactionBtn{
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+  cursor:pointer;
+  user-select:none;
+  text-align:center;
+}
+
+.smFactionBtnPrimary{
+  padding: 16px 10px;
+}
+
+.smFactionBtnSecondary{
+  padding: 10px 8px;
+}
+
+.smFactionBtn.active{
+  box-shadow: 0 0 0 2px rgba(120,180,255,0.65) inset;
+  background: rgba(120,180,255,0.18);
+}
+
+.smFactionTitle{
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.smFactionTitleSmall{
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.6px;
+}
+
+.smFactionSub{
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.80;
+  line-height: 1.15;
+}
+
+.smDividerRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin: 12px 0 10px;
+  opacity: 0.75;
+}
+
+.smDividerLine{
+  height: 1px;
+  background: rgba(255,255,255,0.16);
+  flex: 1;
+}
+
+.smDividerText{
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
 .startMenuOverlay{
   touch-action: auto;
   position: fixed;
@@ -693,6 +769,7 @@ function renderStartMenu() {
   panel.className = "startMenuPanel";
 
   panel.innerHTML = `
+
     <div class="smHeader">
       <div>
         <div class="smTitle">Start Menu</div>
@@ -701,31 +778,47 @@ function renderStartMenu() {
     </div>
 
     <div class="smBody">
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Set</div>
-          <div class="smOptions">
-            <label class="smOpt"><input type="radio" name="setMode" value="og"> OG</label>
-            <label class="smOpt"><input type="radio" name="setMode" value="cw"> Clone Wars</label>
-            <label class="smOpt"><input type="radio" name="setMode" value="mixed"> Mixed</label>
+      
+            <div class="smSection">
+        <div class="smLabel" style="margin-bottom:8px;">Faction Mode</div>
+
+        <div class="smFactionGridPrimary">
+          <div class="smFactionBtn smFactionBtnPrimary" data-faction="blue">
+            <div class="smFactionTitle">Blue</div>
+            <div class="smFactionSub" id="smBlueSub"></div>
+          </div>
+
+          <div class="smFactionBtn smFactionBtnPrimary" data-faction="red">
+            <div class="smFactionTitle">Red</div>
+            <div class="smFactionSub" id="smRedSub"></div>
+          </div>
+        </div>
+
+        <div class="smDividerRow">
+          <div class="smDividerLine"></div>
+          <div class="smDividerText">Combined</div>
+          <div class="smDividerLine"></div>
+        </div>
+
+        <div class="smFactionGridSecondary">
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allBlue">
+            <div class="smFactionTitle smFactionTitleSmall">All Blue</div>
+            <div class="smFactionSub" id="smAllBlueSub"></div>
+          </div>
+
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="allRed">
+            <div class="smFactionTitle smFactionTitleSmall">All Red</div>
+            <div class="smFactionSub" id="smAllRedSub"></div>
+          </div>
+
+          <div class="smFactionBtn smFactionBtnSecondary" data-faction="random">
+            <div class="smFactionTitle smFactionTitleSmall">Random</div>
+            <div class="smFactionSub">Blue / Red</div>
           </div>
         </div>
       </div>
 
-      <div class="smSection">
-        <div class="smRow">
-          <div class="smLabel">Faction Mode</div>
-          <div class="smOptions">
-            <label class="smOpt"><input type="radio" name="factionMode" value="blue"> <span id="smLblBlue"></span></label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="red"> <span id="smLblRed"></span></label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="allBlue"> <span id="smLblAllBlue"></span></label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="allRed"> <span id="smLblAllRed"></span></label>
-            <label class="smOpt"><input type="radio" name="factionMode" value="random"> Random</label>
-          </div>
-        </div>
-
-        <div style="height:10px"></div>
-
+<div class="smSection">
         <div class="smRow">
           <div class="smLabel">Neutrals</div>
           <div class="smOptions">
@@ -736,13 +829,16 @@ function renderStartMenu() {
           </div>
         </div>
       </div>
+
+      </div>
     </div>
 
     <div class="smFooter">
       <button class="smBtn" id="smCloseBtn" type="button">Close</button>
       <button class="smBtn primary" id="smStartBtn" type="button">Start</button>
     </div>
-  `;
+  
+`;
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -757,15 +853,34 @@ function renderStartMenu() {
   overlay.addEventListener("click",       stopBubble);
 
 
-  // defaults from GAME_CONFIG
+  
+  function updateFactionSublabels() {
+    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || "og";
+
+    if (setMode === "cw") {
+      blueSub.textContent = "Separatists";
+      redSub.textContent = "Republic";
+      allBlueSub.textContent = "Separatists";
+      allRedSub.textContent = "Republic";
+    } else if (setMode === "mixed") {
+      blueSub.textContent = "Empire or Separatists";
+      redSub.textContent = "Rebels or Republic";
+      allBlueSub.textContent = "Empire + Separatists";
+      allRedSub.textContent = "Rebels + Republic";
+    } else {
+      blueSub.textContent = "Empire";
+      redSub.textContent = "Rebels";
+      allBlueSub.textContent = "Empire";
+      allRedSub.textContent = "Rebels";
+    }
+  }
+
+// defaults from GAME_CONFIG
   const setRadios = panel.querySelectorAll("input[name='setMode']");
   setRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.setMode); });
 
-  applyFactionLabels();
-
   setRadios.forEach(r => {
     r.addEventListener("change", () => {
-      applyFactionLabels();
     });
   });
 
@@ -773,44 +888,48 @@ function renderStartMenu() {
   const factionRadios = panel.querySelectorAll("input[name='factionMode']");
   factionRadios.forEach(r => { r.checked = (r.value === GAME_CONFIG.factionMode); });
 
+
+  const factionBtns = panel.querySelectorAll(".smFactionBtn");
+  const blueSub = panel.querySelector("#smBlueSub");
+  const redSub = panel.querySelector("#smRedSub");
+  const allBlueSub = panel.querySelector("#smAllBlueSub");
+  const allRedSub = panel.querySelector("#smAllRedSub");
+
+  function setFactionActive(val){
+    factionBtns.forEach(b => {
+      b.classList.toggle("active", b.dataset.faction === val);
+    });
+    GAME_CONFIG.factionMode = val;
+  }
+
+  factionBtns.forEach(btn => {
+    btn.addEventListener("click", () => setFactionActive(btn.dataset.faction));
+  });
+
+  setFactionActive(GAME_CONFIG.factionMode);
+  updateFactionSublabels();
+
   const mandoCb = panel.querySelector("#smMandoNeutrals");
   mandoCb.checked = !!GAME_CONFIG.includeMandoNeutrals;
-
-
-  function applyFactionLabels() {
-    const setMode = panel.querySelector("input[name='setMode']:checked")?.value || GAME_CONFIG.setMode || "og";
-
-    const elBlue = panel.querySelector("#smLblBlue");
-    const elRed = panel.querySelector("#smLblRed");
-    const elAllBlue = panel.querySelector("#smLblAllBlue");
-    const elAllRed = panel.querySelector("#smLblAllRed");
-
-    if (setMode === "cw") {
-      if (elBlue) elBlue.textContent = "Blue (Separatists)";
-      if (elRed) elRed.textContent = "Red (Republic)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Separatists)";
-      if (elAllRed) elAllRed.textContent = "All Red (Republic)";
-    } else if (setMode === "mixed") {
-      if (elBlue) elBlue.textContent = "Blue (OG Blue or CW Blue)";
-      if (elRed) elRed.textContent = "Red (OG Red or CW Red)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire + Separatists)";
-      if (elAllRed) elAllRed.textContent = "All Red (Rebels + Republic)";
-    } else {
-      if (elBlue) elBlue.textContent = "Blue (Empire)";
-      if (elRed) elRed.textContent = "Red (Rebels)";
-      if (elAllBlue) elAllBlue.textContent = "All Blue (Empire)";
-      if (elAllRed) elAllRed.textContent = "All Red (Rebels)";
-    }
   }
 
 
   function readSelections() {
     const setSel = panel.querySelector("input[name='setMode']:checked")?.value || "og";
-    let facSel = panel.querySelector("input[name='factionMode']:checked")?.value || "blue";
 
+    let facSel = GAME_CONFIG.factionMode || "blue";
     if (facSel === "random") {
       facSel = (Math.random() < 0.5) ? "blue" : "red";
+      GAME_CONFIG.factionMode = facSel;
+      setFactionActive(facSel);
     }
+
+    GAME_CONFIG.setMode = setSel;
+    GAME_CONFIG.includeMandoNeutrals = !!mandoCb.checked;
+
+    const glowColor = (facSel === "red" || facSel === "allRed") ? "red" : "blue";
+    setTrayPlayerColor(glowColor);
+  }
 
     GAME_CONFIG.setMode = setSel;
     GAME_CONFIG.factionMode = facSel;
@@ -2332,73 +2451,4 @@ const OBIWAN = {
   id: "obiwan",
   name: "Obi-Wan Kenobi",
   type: "Unit",
-  subtype: "Jedi",
-  cost: 4,
-  attack: 2,
-  resources: 1,
-  force: 1,
-  effect: "If you control the Force, draw 1 card.",
-  reward: "Gain 1 Force.",
-  img: "https://picsum.photos/250/350?random=12"
-};
-
-const TEST_BASE = {
-  id: "base_test",
-  name: "Test Base",
-  type: "Base",
-  subtype: "",
-  cost: 0,
-  attack: 0,
-  resources: 0,
-  force: 0,
-  effect: "This is a test base card.",
-  reward: "—",
-  img: "https://picsum.photos/350/250?random=22"
-};
-
-// ---------- pile data (demo) ----------
-(function initDemoPiles(){
-  function cloneCard(base, overrides){
-    const id = `${base.id}_${Math.random().toString(16).slice(2)}`;
-    return { ...base, ...overrides, id };
-  }
-
-  function makeMany(prefix, count){
-    const out = [];
-    for (let i = 1; i <= count; i++){
-      out.push(cloneCard(OBIWAN, { name: `${prefix} ${i}` }));
-    }
-    return out;
-  }
-
-  piles = {
-    p1_draw: [ ...makeMany("P1 Draw Card", 30) ],
-    p2_draw: [ ...makeMany("P2 Draw Card", 30) ],
-    p1_discard: [ ...makeMany("Discard Example", 25) ],
-    p2_discard: [ ...makeMany("Discard Example", 25) ],
-    p1_exile: [ ...makeMany("Exiled Example", 18) ],
-    p2_exile: [ ...makeMany("Exiled Example", 18) ],
-  };
-})();
-
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
-
-const BASE_TEST_COUNT = 2;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
-}
-
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
-
-// Show start menu on launch
-renderStartMenu();
+  subtype
