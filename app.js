@@ -99,7 +99,8 @@ style.textContent = `
   .zone.clickable{ cursor:pointer; }
   .zone.clickable:hover{ border-color: rgba(255,255,255,0.60); background: rgba(255,255,255,0.03); }
 
-  .card { position:absolute; border:2px solid rgba(255,255,255,0.85); border-radius:10px; background:#111;
+  .card { position:absolute; border:3px solid rgba(255,255,255,0.85);
+ border-radius:10px; background:#111;
     box-sizing:border-box; user-select:none; touch-action:none; cursor:grab; overflow:hidden; }
 
   .cardFace { position:absolute; inset:0; background-size:cover; background-position:center; will-change:transform; }
