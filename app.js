@@ -534,6 +534,16 @@ style.textContent = `
     0 0 18px rgba(120,180,255,0.14);
 }
 
+/* selected BLUE = blue glow + existing green selected outline */
+.menu-btn.faction.blue.selected{
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.18) inset,
+    0 0 20px rgba(120,180,255,0.75),
+    0 0 48px rgba(120,180,255,0.35),
+    0 18px 36px rgba(0,0,0,0.70);
+}
+
+
 .menu-btn.faction.red{
   background: rgba(0,0,0,0.68);
   border-color: rgba(255,110,110,0.95);
@@ -541,6 +551,16 @@ style.textContent = `
     0 10px 24px rgba(0,0,0,0.55),
     0 0 18px rgba(255,110,110,0.14);
 }
+
+/* selected RED = red glow + existing green selected outline */
+.menu-btn.faction.red.selected{
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.18) inset,
+    0 0 20px rgba(255,110,110,0.75),
+    0 0 48px rgba(255,110,110,0.35),
+    0 18px 36px rgba(0,0,0,0.70);
+}
+
 
 
 /* Row buttons OG / CW / Mixed / Random */
