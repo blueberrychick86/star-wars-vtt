@@ -527,13 +527,21 @@ style.textContent = `
 }
 
 .menu-btn.faction.blue{
-  background: rgba(70,105,255,0.75);
-  border-color: rgba(210,225,255,0.85);
+  background: rgba(0,0,0,0.68);
+  border-color: rgba(120,180,255,0.95);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.55),
+    0 0 18px rgba(120,180,255,0.14);
 }
+
 .menu-btn.faction.red{
-  background: rgba(255,60,60,0.78);
-  border-color: rgba(255,220,220,0.85);
+  background: rgba(0,0,0,0.68);
+  border-color: rgba(255,110,110,0.95);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.55),
+    0 0 18px rgba(255,110,110,0.14);
 }
+
 
 /* Row buttons OG / CW / Mixed / Random */
 .menu-btn.mode{
@@ -542,13 +550,20 @@ style.textContent = `
 
 /* Selected state: strong glow/pulse */
 .menu-btn.selected{
-  border-color: rgba(255,255,255,0.95);
+  border-color: rgba(140,255,170,0.98);
   box-shadow:
-    0 0 0 3px rgba(255,255,255,0.16) inset,
-    0 0 26px rgba(255,255,255,0.32),
-    0 18px 36px rgba(0,0,0,0.65);
-  animation: menuPulse 1.35s ease-in-out infinite;
+    0 0 0 3px rgba(140,255,170,0.22) inset,
+    0 0 30px rgba(140,255,170,0.62),
+    0 0 70px rgba(140,255,170,0.28),
+    0 18px 36px rgba(0,0,0,0.70);
+  animation: menuPulseGreen 1.05s ease-in-out infinite;
 }
+
+@keyframes menuPulseGreen{
+  0%,100% { filter: brightness(1); }
+  50% { filter: brightness(1.22); }
+}
+
 
 @keyframes menuPulse{
   0%,100% { filter: brightness(1); }
@@ -557,14 +572,15 @@ style.textContent = `
 
 /* Inline helper text under buttons (like Empire+Rebel etc.) */
 .menu-hint{
-  margin-top: -2px;
+  margin: 6px 0 0 0;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  opacity: 0.92;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+  opacity: 0.95;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
 }
+
 
 /* Toggle row */
 .toggle-row{
@@ -2468,6 +2484,25 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   // Heuristic grouping by button text
   const factionBtns = buttons.filter(b => /^(blue|red)$/i.test((b.textContent || "").trim()));
   const modeBtns = buttons.filter(b => /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim()));
+// --- mockup hint lines under OG/CW/MIXED/RANDOM ---
+const modeHintText = {
+  "original trilogy": "EMPIRE+REBEL",
+  "clone wars": "SEPERATIST+REPUBLIC",
+  "mixed": "EMPIRE+REBEL\nSEPERATIST+REPUBLIC",
+  "random": "WHERE WILL YOUR\nALLEGIANCE LIE?"
+};
+
+modeBtns.forEach(btn => {
+  const key = (btn.textContent || "").trim().toLowerCase();
+  if (btn.dataset.hintAdded === "1") return; // prevents duplicates on reload
+  btn.dataset.hintAdded = "1";
+
+  const hint = document.createElement("div");
+  hint.className = "menu-hint";
+  hint.textContent = modeHintText[key] || "";
+  hint.style.whiteSpace = "pre-line"; // respects \n line breaks
+  btn.insertAdjacentElement("afterend", hint);
+});
 
   // Add style classes used by CSS above (optional but helps)
   factionBtns.forEach(b => {
