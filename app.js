@@ -404,6 +404,72 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
     border-color: rgba(255,255,255,0.30);
   }
+/* --- START MENU POPUP --- */
+
+#startMenu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+.start-menu-window {
+  width: 600px;
+  padding: 28px;
+  border-radius: 18px;
+  background-image: url("C:\Users\Elle Jewell\Documents\Star-Wars-VTT-Project\assets\images\backgrounds\menu popup background.jpeg");
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  color: white;
+  text-align: center;
+}
+
+.menu-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.menu-section {
+  margin: 14px 0;
+}
+
+.menu-btn {
+  padding: 10px 18px;
+  margin: 6px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.menu-btn:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+.menu-btn.play {
+  background: #2ecc71;
+}
+
+.menu-btn.cancel {
+  background: #e74c3c;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
 `;
 document.head.appendChild(style);
 
@@ -1864,7 +1930,10 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
 }
-build();
+function initBoard() {
+  build();
+}
+
 
 window.addEventListener("resize", () => fitToScreen());
 if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitToScreen());
@@ -2214,6 +2283,15 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
+document.getElementById("playBtn").addEventListener("click", () => {
+  document.getElementById("startMenu").style.display = "none";
+  initBoard();
+});
+
+document.getElementById("cancelBtn").addEventListener("click", () => {
+  document.getElementById("startMenu").style.display = "none";
+});
+
 
 // ---------- NOTE: for now keep tray glow BLUE (testing) ----------
 setTrayPlayerColor("blue");
