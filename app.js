@@ -488,6 +488,29 @@ style.textContent = `
 
 `;
 document.head.appendChild(style);
+// ================= START MENU (STEP 1: container only) =================
+const startMenuBackdrop = document.createElement("div");
+startMenuBackdrop.id = "startMenuBackdrop";
+startMenuBackdrop.style.display = "none"; // hidden for now
+startMenuBackdrop.style.position = "fixed";
+startMenuBackdrop.style.inset = "0";
+startMenuBackdrop.style.zIndex = "300000";
+startMenuBackdrop.style.background = "rgba(0,0,0,0.75)";
+
+// simple placeholder content (we will replace later)
+const startMenuCard = document.createElement("div");
+startMenuCard.textContent = "START MENU PLACEHOLDER";
+startMenuCard.style.color = "white";
+startMenuCard.style.fontSize = "24px";
+startMenuCard.style.fontWeight = "900";
+startMenuCard.style.display = "flex";
+startMenuCard.style.alignItems = "center";
+startMenuCard.style.justifyContent = "center";
+startMenuCard.style.width = "100%";
+startMenuCard.style.height = "100%";
+
+startMenuBackdrop.appendChild(startMenuCard);
+document.body.appendChild(startMenuBackdrop);
 
 // ---------- table + hud + stage ----------
 const table = document.createElement("div");
