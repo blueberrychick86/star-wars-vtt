@@ -601,6 +601,14 @@ style.textContent = `
 .toggle-row input{
   width: 18px;
   height: 18px;
+  accent-color: rgba(140,255,170,0.98);
+  filter: drop-shadow(0 0 0 rgba(140,255,170,0));
+}
+
+.toggle-row input:checked{
+  filter:
+    drop-shadow(0 0 10px rgba(140,255,170,0.85))
+    drop-shadow(0 0 22px rgba(140,255,170,0.35));
 }
 
 /* bottom right play/cancel cluster */
