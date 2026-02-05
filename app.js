@@ -443,6 +443,10 @@ style.textContent = `
   position: relative;
   z-index: 1;
   width: min(980px, 96vw);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+
   border: 2px solid rgba(190,110,255,0.85);
   box-shadow:
     0 0 0 3px rgba(255,255,255,0.06) inset,
@@ -453,8 +457,8 @@ style.textContent = `
   box-sizing: border-box;
   color: #fff;
   text-align: center;
-  overflow: hidden;
 }
+
 
 .menu-title{
   margin: 0;
