@@ -418,7 +418,13 @@ style.textContent = `
 
   /* Space backdrop */
   background: #000;
+
+  /* IMPORTANT: allow touch scroll inside menu (body is locked) */
+  overflow: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
+
 
 #startMenu::before{
   content:"";
