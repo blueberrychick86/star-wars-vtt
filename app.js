@@ -405,6 +405,13 @@ style.textContent = `
     border-color: rgba(255,255,255,0.30);
   }
 /* ===== BEGIN START MENU CSS (MOCKUP) ===== */
+@font-face{
+  font-family: "SWTitle";
+  src: url("./fonts/Starjout.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 #startMenu{
   position: fixed;
@@ -468,15 +475,20 @@ style.textContent = `
 
 .menu-title{
   margin: 0;
+  font-family: "SWTitle", Arial, sans-serif;
   font-size: clamp(44px, 7vw, 84px);
   letter-spacing: 2px;
   font-weight: 900;
   text-transform: uppercase;
+
+  /* Star Wars-style yellow */
+  color: #000; /* black fill like the classic logo */
+  -webkit-text-stroke: 3px #ffd54a; /* yellow outline */
   text-shadow:
-    0 6px 18px rgba(0,0,0,0.8),
-    0 0 18px rgba(255,255,255,0.18);
-  -webkit-text-stroke: 2px rgba(0,0,0,0.55);
+    0 6px 18px rgba(0,0,0,0.85),
+    0 0 18px rgba(255,213,74,0.20);
 }
+
 
 .start-menu-window h1 + .menu-section{
   margin-top: 20px;
