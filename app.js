@@ -2633,8 +2633,20 @@ updateModeHints();
 
 
   modeBtns.forEach(btn => {
-    btn.addEventListener("click", () => selectOne(modeBtns, btn));
+  btn.addEventListener("click", () => {
+    selectOne(modeBtns, btn);
+
+    const key = (btn.textContent || "").trim().toLowerCase();
+
+    // If RANDOM is selected, clear faction selection (computer decides)
+    if (key === "random") {
+      clearSelected(factionBtns);
+    }
+
+    updateModeHints();
   });
+});
+
 
   // Optional: make "Invite a Friend" a no-op placeholder (does not touch board)
   const inviteBtn = buttons.find(b => /invite a friend/i.test((b.textContent || "").trim()));
