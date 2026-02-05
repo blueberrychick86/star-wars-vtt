@@ -10,6 +10,198 @@
 </head>
 <body>
   <div id="app"></div>
+Absolutely, Danielle.
+Let’s wipe the slate clean and start fresh — no assumptions, no leftover confusion, just a clean, precise plan that matches your project exactly.
+Here is the reset, based entirely on your actual code structure and what you want the popup to be.
+
+✅ Your Project Structure (confirmed)
+index.html
+- Very minimal
+- No <style> tags
+- Loads app.js
+- Contains your #app, #table, #stage elements
+app.js
+- Injects all CSS using:
+const style = document.createElement("style");
+style.textContent = `
+   ...all CSS here...
+`;
+document.head.appendChild(style);
+
+
+- Contains all game logic
+- Calls build() immediately (we will change this)
+Your goal
+You want:
+⭐ A popup window
+⭐ The popup window has your nebula image as its background
+⭐ The popup window is centered on the screen
+⭐ The popup window contains your buttons
+⭐ The popup window appears BEFORE the board loads
+⭐ The nebula image is ONLY inside the popup, not the whole screen
+This is exactly like your mockup.
+
+✅ Clean, Fresh Instructions (Step‑by‑Step)
+We will do three things:
+
+STEP 1 — Add the popup HTML to index.html
+Open index.html and add this right above your <script src="app.js">:
+<div id="startMenu">
+  <div class="start-menu-window">
+    <h1 class="menu-title">Star Wars Deckbuilder</h1>
+
+    <div class="menu-section">
+      <button class="menu-btn">Blue</button>
+      <button class="menu-btn">Red</button>
+    </div>
+
+    <div class="menu-section">
+      <button class="menu-btn">Original Trilogy</button>
+      <button class="menu-btn">Clone Wars</button>
+      <button class="menu-btn">Mixed</button>
+      <button class="menu-btn">Random</button>
+    </div>
+
+    <div class="menu-section">
+      <label class="toggle-row">
+        <input type="checkbox" id="mandoToggle">
+        <span>Include Mandalorian Cards</span>
+      </label>
+    </div>
+
+    <div class="menu-section">
+      <button class="menu-btn">Invite a Friend</button>
+    </div>
+
+    <div class="menu-section">
+      <button id="playBtn" class="menu-btn play">Play</button>
+      <button id="cancelBtn" class="menu-btn cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+This creates the popup window.
+
+STEP 2 — Add popup CSS inside your existing CSS block in app.js
+Find the giant CSS block inside:
+style.textContent = `
+   ...CSS...
+`;
+
+
+Scroll to the bottom of that CSS and add:
+/* --- START MENU POPUP --- */
+
+#startMenu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+.start-menu-window {
+  width: 600px;
+  padding: 28px;
+  border-radius: 18px;
+  background-image: url('YOUR-NEBULA-IMAGE.jpg');
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  color: white;
+  text-align: center;
+}
+
+.menu-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.menu-section {
+  margin: 14px 0;
+}
+
+.menu-btn {
+  padding: 10px 18px;
+  margin: 6px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.menu-btn:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+.menu-btn.play {
+  background: #2ecc71;
+}
+
+.menu-btn.cancel {
+  background: #e74c3c;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+
+Replace:
+YOUR-NEBULA-IMAGE.jpg
+
+
+with the filename of the nebula image you uploaded.
+
+STEP 3 — Modify app.js so the board loads only after PLAY
+1. Find this line:
+build();
+
+
+Replace it with:
+function initBoard() {
+  build();
+}
+
+
+2. Add this at the very bottom of app.js:
+// --- Start Menu Logic ---
+document.getElementById("playBtn").addEventListener("click", () => {
+  document.getElementById("startMenu").style.display = "none";
+  initBoard();
+});
+
+document.getElementById("cancelBtn").addEventListener("click", () => {
+  document.getElementById("startMenu").style.display = "none";
+});
+
+
+
+🎉 That’s it
+This gives you:
+- A centered popup window
+- Nebula background inside the popup
+- Buttons on top
+- Board stays hidden until PLAY
+- No CSS in index.html
+- No confusion about where anything goes
+If you want, I can now help you:
+- Style the buttons to match your mockup
+- Add animations
+- Add faction selection logic
+- Add “Invite a Friend” functionality
+Just tell me what you want next.
 
   <!-- IMPORTANT: bump this when you paste a new app.js so cache can't lie -->
   <script src="./app.js?v=STARTMENU_DEBUG_2026_02_05K"></script>
