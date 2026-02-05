@@ -404,86 +404,221 @@ style.textContent = `
     background: linear-gradient(145deg, rgba(255,235,160,0.98), rgba(145,95,10,0.98));
     border-color: rgba(255,255,255,0.30);
   }
-/* --- START MENU POPUP --- */
+/* ===== BEGIN START MENU CSS (MOCKUP) ===== */
 
-#startMenu {
+#startMenu{
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  z-index: 300000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99999;
+  padding: 18px;
+  box-sizing: border-box;
+
+  /* Space backdrop */
+  background: #000;
 }
 
-.start-menu-window {
-  width: 600px;
-  padding: 28px;
-  border-radius: 18px;
- background-image: url("assets/images/backgrounds/menu popup background.jpeg");
-
-
+#startMenu::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image: url("assets/images/backgrounds/menu popup background.jpeg");
   background-size: cover;
   background-position: center;
-  box-shadow: 0 0 40px rgba(0,0,0,0.6);
-  color: white;
+  filter: saturate(1.05) contrast(1.05);
+  opacity: 1;
+}
+
+/* subtle dark veil for readability */
+#startMenu::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.22);
+}
+
+.start-menu-window{
+  position: relative;
+  z-index: 1;
+  width: min(980px, 96vw);
+  border: 2px solid rgba(190,110,255,0.85);
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,0.06) inset,
+    0 0 40px rgba(140,80,255,0.25),
+    0 20px 70px rgba(0,0,0,0.75);
+  border-radius: 12px;
+  padding: 30px 26px;
+  box-sizing: border-box;
+  color: #fff;
   text-align: center;
+  overflow: hidden;
 }
 
-.menu-title {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 32px;
-  font-weight: 700;
+.menu-title{
+  margin: 0;
+  font-size: clamp(44px, 7vw, 84px);
+  letter-spacing: 2px;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow:
+    0 6px 18px rgba(0,0,0,0.8),
+    0 0 18px rgba(255,255,255,0.18);
+  -webkit-text-stroke: 2px rgba(0,0,0,0.55);
 }
 
-.menu-section {
+.start-menu-window h1 + .menu-section{
+  margin-top: 20px;
+}
+
+/* subtitle line like your mockup */
+.start-menu-window .menu-subtitle{
+  margin: 6px 0 18px 0;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
+}
+
+.menu-section{
   margin: 14px 0;
 }
 
-.menu-btn {
+/* “button” look in mockup: black tile with white outline */
+.menu-btn{
+  background: rgba(0,0,0,0.68);
+  color: #fff;
+  border: 2px solid rgba(255,255,255,0.70);
+  border-radius: 6px;
   padding: 10px 18px;
-  margin: 6px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(0,0,0,0.55);
-  color: white;
-  font-size: 16px;
+  margin: 8px 10px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: 0.2s;
+  user-select: none;
+  touch-action: manipulation;
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.55),
+    0 0 0 0 rgba(255,255,255,0);
+  transition: transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
 }
 
-.menu-btn:hover {
-  background: rgba(255,255,255,0.25);
+.menu-btn:hover{
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(0,0,0,0.60),
+    0 0 18px rgba(255,255,255,0.14);
 }
 
-.menu-btn.play {
-  background: #2ecc71;
+.menu-btn:active{
+  transform: translateY(0px) scale(0.99);
 }
 
-.menu-btn.cancel {
-  background: #e74c3c;
+/* Top BLUE / RED buttons */
+.menu-btn.faction{
+  width: min(220px, 40vw);
+  padding: 12px 18px;
+  font-size: 13px;
 }
 
-.toggle-row {
-  display: flex;
+.menu-btn.faction.blue{
+  background: rgba(70,105,255,0.75);
+  border-color: rgba(210,225,255,0.85);
+}
+.menu-btn.faction.red{
+  background: rgba(255,60,60,0.78);
+  border-color: rgba(255,220,220,0.85);
+}
+
+/* Row buttons OG / CW / Mixed / Random */
+.menu-btn.mode{
+  width: min(220px, 42vw);
+}
+
+/* Selected state: strong glow/pulse */
+.menu-btn.selected{
+  border-color: rgba(255,255,255,0.95);
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,0.16) inset,
+    0 0 26px rgba(255,255,255,0.32),
+    0 18px 36px rgba(0,0,0,0.65);
+  animation: menuPulse 1.35s ease-in-out infinite;
+}
+
+@keyframes menuPulse{
+  0%,100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
+/* Inline helper text under buttons (like Empire+Rebel etc.) */
+.menu-hint{
+  margin-top: -2px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.92;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+}
+
+/* Toggle row */
+.toggle-row{
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-}
-/* --- Start Menu Button Selection States --- */
-.menu-btn.selected {
-  outline: 3px solid #fff;
-  box-shadow: 0 0 12px rgba(255,255,255,0.7);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  background: rgba(0,0,0,0.48);
+  border: 2px solid rgba(255,255,255,0.55);
+  border-radius: 8px;
+  padding: 10px 14px;
 }
 
-.menu-btn.blue-selected {
-  background-color: #1e90ff;
+.toggle-row input{
+  width: 18px;
+  height: 18px;
 }
 
-.menu-btn.red-selected {
-  background-color: #ff4040;
+/* bottom right play/cancel cluster */
+.menu-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 10px;
 }
+
+.menu-btn.play,
+.menu-btn.cancel{
+  width: min(220px, 42vw);
+  padding: 12px 18px;
+  font-size: 14px;
+}
+
+.menu-btn.play{
+  border-color: rgba(255,255,255,0.85);
+}
+
+.menu-btn.cancel{
+  border-color: rgba(255,255,255,0.70);
+}
+
+/* Mobile spacing */
+@media (max-width: 720px){
+  .start-menu-window{ padding: 18px 14px; }
+  .menu-btn{ margin: 8px 6px; }
+  .menu-actions{ justify-content: center; }
+}
+
+/* ===== END START MENU CSS (MOCKUP) ===== */
+
 
 
 `;
@@ -2322,6 +2457,57 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
+// ===== BEGIN START MENU BEHAVIOR (NO PRESELECT) =====
+(function startMenuBehavior(){
+  const menu = document.getElementById("startMenu");
+  if (!menu) return;
+
+  // Mark up existing buttons into groups WITHOUT changing HTML
+  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
+
+  // Heuristic grouping by button text
+  const factionBtns = buttons.filter(b => /^(blue|red)$/i.test((b.textContent || "").trim()));
+  const modeBtns = buttons.filter(b => /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim()));
+
+  // Add style classes used by CSS above (optional but helps)
+  factionBtns.forEach(b => {
+    b.classList.add("faction");
+    const t = (b.textContent || "").trim().toLowerCase();
+    if (t === "blue") b.classList.add("blue");
+    if (t === "red")  b.classList.add("red");
+  });
+  modeBtns.forEach(b => b.classList.add("mode"));
+
+  function clearSelected(group){
+    group.forEach(btn => btn.classList.remove("selected"));
+  }
+  function selectOne(group, btn){
+    clearSelected(group);
+    btn.classList.add("selected");
+  }
+
+  // No defaults selected (as requested)
+  clearSelected(factionBtns);
+  clearSelected(modeBtns);
+
+  factionBtns.forEach(btn => {
+    btn.addEventListener("click", () => selectOne(factionBtns, btn));
+  });
+
+  modeBtns.forEach(btn => {
+    btn.addEventListener("click", () => selectOne(modeBtns, btn));
+  });
+
+  // Optional: make "Invite a Friend" a no-op placeholder (does not touch board)
+  const inviteBtn = buttons.find(b => /invite a friend/i.test((b.textContent || "").trim()));
+  if (inviteBtn) {
+    inviteBtn.addEventListener("click", () => {
+      // placeholder: later we can wire this to a share link / room code
+      alert("Invite feature coming soon.");
+    });
+  }
+})();
+// ===== END START MENU BEHAVIOR (NO PRESELECT) =====
 
 // --- Start Menu Logic ---
 document.getElementById("playBtn").addEventListener("click", () => {
