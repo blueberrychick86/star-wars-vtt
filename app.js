@@ -420,7 +420,9 @@ style.textContent = `
   width: 600px;
   padding: 28px;
   border-radius: 18px;
-  background-image: url("C:\Users\Elle Jewell\Documents\Star-Wars-VTT-Project\assets\images\backgrounds\menu popup background.jpeg");
+ background-image: url("assets/images/backgrounds/menu popup background.jpeg");
+
+
   background-size: cover;
   background-position: center;
   box-shadow: 0 0 40px rgba(0,0,0,0.6);
@@ -469,6 +471,20 @@ style.textContent = `
   justify-content: center;
   gap: 10px;
 }
+/* --- Start Menu Button Selection States --- */
+.menu-btn.selected {
+  outline: 3px solid #fff;
+  box-shadow: 0 0 12px rgba(255,255,255,0.7);
+}
+
+.menu-btn.blue-selected {
+  background-color: #1e90ff;
+}
+
+.menu-btn.red-selected {
+  background-color: #ff4040;
+}
+
 
 `;
 document.head.appendChild(style);
