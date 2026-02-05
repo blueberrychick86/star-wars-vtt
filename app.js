@@ -591,7 +591,7 @@ style.textContent = `
 }
 
 .menu-btn.faction.red.selected{
-  border-color: rgba(140,255,170,0.98);
+  border-color: rgba(255,110,110,0.95);
   box-shadow:
     0 0 0 3px rgba(140,255,170,0.22) inset,
     0 0 20px rgba(255,110,110,0.75),
