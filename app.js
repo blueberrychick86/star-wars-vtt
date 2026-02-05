@@ -626,6 +626,21 @@ style.textContent = `
   text-shadow: 0 2px 10px rgba(0,0,0,0.75);
 }
 
+/* Random mode: subtitle shifts Blue <-> Red like the game is deciding */
+.menu-hint.allegiance-shift{
+  animation: allegianceShift 0.85s linear infinite;
+  text-shadow:
+    0 0 10px rgba(120,180,255,0.55),
+    0 0 10px rgba(255,110,110,0.55),
+    0 2px 10px rgba(0,0,0,0.75);
+}
+
+@keyframes allegianceShift{
+  0%   { color: rgba(120,180,255,0.98); filter: brightness(1.05); }
+  50%  { color: rgba(255,110,110,0.98); filter: brightness(1.18); }
+  100% { color: rgba(120,180,255,0.98); filter: brightness(1.05); }
+}
+
 
 /* Toggle row */
 .toggle-row{
@@ -2595,7 +2610,20 @@ function updateModeHints(){
     const hint = btn.nextElementSibling;
     if (!hint || !hint.classList || !hint.classList.contains("menu-hint")) return;
     hint.textContent = hintFor(key, factionKey);
-  });
+    });
+  // --- RANDOM subtitle animation (blue <-> red) ---
+const randomBtn = modeBtns.find(
+  b => (b.textContent || "").trim().toLowerCase() === "random"
+);
+
+if (randomBtn) {
+  const randomHint = randomBtn.nextElementSibling;
+  if (randomHint && randomHint.classList.contains("menu-hint")) {
+    const randomSelected = randomBtn.classList.contains("selected");
+    randomHint.classList.toggle("allegiance-shift", randomSelected);
+  }
+}
+
 }
 
 // build hints once, then update whenever selection changes
