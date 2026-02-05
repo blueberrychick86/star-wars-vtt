@@ -2283,6 +2283,8 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   baseCard.style.zIndex = "12000";
   stage.appendChild(baseCard);
 }
+
+// --- Start Menu Logic ---
 document.getElementById("playBtn").addEventListener("click", () => {
   document.getElementById("startMenu").style.display = "none";
   initBoard();
@@ -2292,6 +2294,3 @@ document.getElementById("cancelBtn").addEventListener("click", () => {
   document.getElementById("startMenu").style.display = "none";
 });
 
-
-// ---------- NOTE: for now keep tray glow BLUE (testing) ----------
-setTrayPlayerColor("blue");
