@@ -579,6 +579,28 @@ style.textContent = `
   animation: menuPulseGreen 1.05s ease-in-out infinite;
 }
 
+/* IMPORTANT: keep faction glow when selected (override the green-only glow) */
+.menu-btn.faction.blue.selected{
+  border-color: rgba(140,255,170,0.98);
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.22) inset,
+    0 0 20px rgba(120,180,255,0.75),
+    0 0 48px rgba(120,180,255,0.35),
+    0 18px 36px rgba(0,0,0,0.70);
+  animation: menuPulseGreen 1.05s ease-in-out infinite;
+}
+
+.menu-btn.faction.red.selected{
+  border-color: rgba(140,255,170,0.98);
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.22) inset,
+    0 0 20px rgba(255,110,110,0.75),
+    0 0 48px rgba(255,110,110,0.35),
+    0 18px 36px rgba(0,0,0,0.70);
+  animation: menuPulseGreen 1.05s ease-in-out infinite;
+}
+
+
 @keyframes menuPulseGreen{
   0%,100% { filter: brightness(1); }
   50% { filter: brightness(1.22); }
@@ -2512,25 +2534,71 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   // Heuristic grouping by button text
   const factionBtns = buttons.filter(b => /^(blue|red)$/i.test((b.textContent || "").trim()));
   const modeBtns = buttons.filter(b => /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim()));
-// --- mockup hint lines under OG/CW/MIXED/RANDOM ---
-const modeHintText = {
-  "original trilogy": "EMPIRE+REBEL",
-  "clone wars": "SEPERATIST+REPUBLIC",
-  "mixed": "EMPIRE+REBEL\nSEPERATIST+REPUBLIC",
-  "random": "WHERE WILL YOUR\nALLEGIANCE LIE?"
-};
+// --- mode hint lines under OG/CW/MIXED/RANDOM (DYNAMIC) ---
+function getSelectedFaction(){
+  const sel = factionBtns.find(b => b.classList.contains("selected"));
+  return sel ? (sel.textContent || "").trim().toLowerCase() : ""; // "blue" | "red" | ""
+}
 
-modeBtns.forEach(btn => {
-  const key = (btn.textContent || "").trim().toLowerCase();
-  if (btn.dataset.hintAdded === "1") return; // prevents duplicates on reload
-  btn.dataset.hintAdded = "1";
+function hintFor(modeKey, factionKey){
+  // modeKey: "original trilogy" | "clone wars" | "mixed" | "random"
+  // factionKey: "" | "blue" | "red"
+  if (modeKey === "random") return "WHERE WILL YOUR\nALLEGIANCE LIE?";
 
-  const hint = document.createElement("div");
-  hint.className = "menu-hint";
-  hint.textContent = modeHintText[key] || "";
-  hint.style.whiteSpace = "pre-line"; // respects \n line breaks
-  btn.insertAdjacentElement("afterend", hint);
-});
+  // If no faction picked yet:
+  if (!factionKey){
+    if (modeKey === "original trilogy") return "EMPIRE+REBEL";
+    if (modeKey === "clone wars") return "SEPERATIST+REPUBLIC";
+    if (modeKey === "mixed") return "EMPIRE+REBEL\nSEPERATIST+REPUBLIC";
+    return "";
+  }
+
+  // If faction picked:
+  if (modeKey === "original trilogy"){
+    return (factionKey === "blue") ? "EMPIRE" : "REBEL";
+  }
+  if (modeKey === "clone wars"){
+    return (factionKey === "blue") ? "SEPERATIST" : "REPUBLIC";
+  }
+  if (modeKey === "mixed"){
+    // Mixed means "both factions of the chosen color"
+    return (factionKey === "blue") ? "EMPIRE+SEPERATIST" : "REBEL+REPUBLIC";
+  }
+  return "";
+}
+
+function ensureModeHints(){
+  modeBtns.forEach(btn => {
+    const key = (btn.textContent || "").trim().toLowerCase();
+
+    let hint = btn.nextElementSibling;
+    const isHint = hint && hint.classList && hint.classList.contains("menu-hint");
+
+    if (!isHint){
+      hint = document.createElement("div");
+      hint.className = "menu-hint";
+      hint.style.whiteSpace = "pre-line"; // respects \n
+      btn.insertAdjacentElement("afterend", hint);
+    }
+
+    hint.dataset.modeKey = key;
+  });
+}
+
+function updateModeHints(){
+  const factionKey = getSelectedFaction();
+  modeBtns.forEach(btn => {
+    const key = (btn.textContent || "").trim().toLowerCase();
+    const hint = btn.nextElementSibling;
+    if (!hint || !hint.classList || !hint.classList.contains("menu-hint")) return;
+    hint.textContent = hintFor(key, factionKey);
+  });
+}
+
+// build hints once, then update whenever selection changes
+ensureModeHints();
+updateModeHints();
+
 
   // Add style classes used by CSS above (optional but helps)
   factionBtns.forEach(b => {
@@ -2553,9 +2621,13 @@ modeBtns.forEach(btn => {
   clearSelected(factionBtns);
   clearSelected(modeBtns);
 
-  factionBtns.forEach(btn => {
-    btn.addEventListener("click", () => selectOne(factionBtns, btn));
+ factionBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    selectOne(factionBtns, btn);
+    updateModeHints();
   });
+});
+
 
   modeBtns.forEach(btn => {
     btn.addEventListener("click", () => selectOne(modeBtns, btn));
