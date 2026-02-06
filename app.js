@@ -406,16 +406,26 @@ style.textContent = `
   }
 /* ===== BEGIN START MENU CSS (MOCKUP) ===== */
 @font-face{
-  font-family: "StarWarsTitle";
-  src: url("Strjmono.woff") format("woff2");
-  font-weight: 400;
+  font-family: "MenuTitleFont";
+  src: url("fonts/TitleFont.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face{
+  font-family: "MenuFont";
+  src: url("fonts/MenuFont.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 
 
+
 #startMenu{
+  font-family: Arial, sans-serif;
   position: fixed;
   inset: 0;
   z-index: 300000;
@@ -439,12 +449,20 @@ style.textContent = `
   content:"";
   position:absolute;
   inset:0;
-  background-image: url("assets/images/backgrounds/menu popup background.jpeg");
-  background-size: cover;
-  background-position: center;
-  filter: saturate(1.05) contrast(1.05);
+
+  /* simple starfield */
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.6) 50%, transparent 51%),
+    radial-gradient(2px 2px at 60% 60%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 85% 75%, rgba(255,255,255,0.5) 50%, transparent 51%),
+    #000;
+
+  background-size: 100% 100%;
   opacity: 1;
 }
+
 
 /* subtle dark veil for readability */
 #startMenu::after{
@@ -462,11 +480,11 @@ style.textContent = `
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 
-  border: 2px solid rgba(190,110,255,0.85);
-  box-shadow:
-    0 0 0 3px rgba(255,255,255,0.06) inset,
-    0 0 40px rgba(140,80,255,0.25),
-    0 20px 70px rgba(0,0,0,0.75);
+ border: 1px solid rgba(255,255,255,0.25);
+box-shadow:
+  0 0 0 2px rgba(255,255,255,0.04) inset,
+  0 20px 70px rgba(0,0,0,0.75);
+
   border-radius: 12px;
   padding: 30px 26px;
   box-sizing: border-box;
@@ -477,18 +495,18 @@ style.textContent = `
 
 .menu-title{
   margin: 0;
-  font-family: "StarWarsTitle", Arial, sans-serif;
+  font-family: "MenuTitleFont", Arial, sans-serif;
   font-size: clamp(44px, 7vw, 84px);
-  letter-spacing: 2px;
   font-weight: 900;
+  letter-spacing: 2px;
   text-transform: uppercase;
 
-  color: #000; /* fill */
-  -webkit-text-stroke: 3px #f7d117; /* yellow outline */
-  text-shadow:
-    0 6px 18px rgba(0,0,0,0.8),
-    0 0 18px rgba(255,255,255,0.10);
+  /* simple Star-Wars feel: yellow outline */
+  color: #000;
+  -webkit-text-stroke: 3px #f6d44a;
+  paint-order: stroke fill;
 }
+
 
 
 
@@ -518,9 +536,10 @@ style.textContent = `
   color: #fff;
   border: 2px solid rgba(255,255,255,0.70);
   border-radius: 6px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   margin: 8px 10px;
-  font-size: 14px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 12.5px;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -547,9 +566,9 @@ style.textContent = `
 /* Top BLUE / RED buttons */
 /* Top BLUE / RED buttons */
 .menu-btn.faction{
-  width: min(220px, 40vw);
-  padding: 12px 18px;
-  font-size: 13px;
+  width: min(160px, 32vw);
+  padding: 10px 16px;
+  font-size: 14px;
 }
 
 .menu-btn.faction.blue{
@@ -593,7 +612,8 @@ style.textContent = `
 
 /* Row buttons OG / CW / Mixed / Random */
 .menu-btn.mode{
-  width: min(220px, 42vw);
+  font-size: 12px;
+width: min(220px, 42vw);
 }
 
 /* Selected state: strong glow/pulse */
@@ -644,6 +664,7 @@ style.textContent = `
 .menu-hint{
   margin: 6px 0 0 0;
   font-size: 12px;
+  font-family: Arial, sans-serif;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -673,8 +694,9 @@ style.textContent = `
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 13px;
-  font-weight: 900;
+ font-family: "MenuFont", Arial, sans-serif;
+font-size: 12.5px;
+font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
   background: rgba(0,0,0,0.48);
