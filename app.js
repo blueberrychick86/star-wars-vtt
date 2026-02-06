@@ -2846,4 +2846,42 @@ if (cancelBtn) cancelBtn.addEventListener("click", () => {
 
   document.getElementById("startMenu").style.display = "none";
 });
+// ===== ADDITIVE SAFETY: ensure menu wiring runs even if app.js loads before HTML =====
+(function ensureMenuBehaviorRuns(){
+  // If it's already initialized, do nothing
+  if (window.__menuSelection) return;
+
+  let tries = 0;
+  const MAX_TRIES = 200; // ~4 seconds at 20ms
+
+  const timer = setInterval(() => {
+    tries++;
+
+    const menu = document.getElementById("startMenu");
+    if (!menu) {
+      if (tries >= MAX_TRIES) clearInterval(timer);
+      return;
+    }
+
+    // Create the shared selection state (what Play reads)
+    window.__menuSelection = window.__menuSelection || {
+      faction: "",
+      mode: "",
+      mandoNeutral: false,
+    };
+
+    // Hook the checkbox (this is what you were looking for)
+    const mandoToggle = document.getElementById("mandoToggle");
+    if (mandoToggle) {
+      window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
+      mandoToggle.addEventListener("change", () => {
+        window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
+      });
+    }
+
+    clearInterval(timer);
+    console.log("Menu wiring initialized:", window.__menuSelection);
+  }, 20);
+})();
+
 
