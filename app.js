@@ -2811,6 +2811,36 @@ updateModeHints();
   }
 })();
 // ===== END START MENU BEHAVIOR (NO PRESELECT) =====
+// ===== MENU BUTTON STATE BINDING (STEP 2) =====
+(function bindMenuButtons(){
+  const menu = document.getElementById("startMenu");
+  if (!menu) return;
+
+  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
+
+  const factionBtns = buttons.filter(b =>
+    /^(blue|red)$/i.test((b.textContent || "").trim())
+  );
+
+  // Safety: don’t bind twice
+  if (menu.dataset.factionBound === "1") return;
+  menu.dataset.factionBound = "1";
+
+  factionBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      // visual selection
+      factionBtns.forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+
+      // state update
+      window.__menuSelection.faction =
+        (btn.textContent || "").trim().toLowerCase();
+
+      console.log("FACTION SET:", window.__menuSelection);
+    });
+  });
+})();
+
 // ===== BEGIN MENU WIRING V2 (ADDITIVE, CAPTURE TO OVERRIDE OLD) =====
 (function menuWiringV2(){
   if (window.__menuWiringV2Bound) return;
