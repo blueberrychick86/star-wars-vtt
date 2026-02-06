@@ -560,7 +560,7 @@ style.textContent = `
 .menu-btn.faction{
   width: min(220px, 40vw);
   padding: 10px 16px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .menu-btn.faction.blue{
@@ -687,7 +687,7 @@ width: min(220px, 42vw);
   justify-content: center;
   gap: 10px;
  font-family: "MenuFont", Arial, sans-serif;
-font-size: 14px;
+font-size: 12.5px;
 font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
