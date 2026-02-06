@@ -449,12 +449,20 @@ style.textContent = `
   content:"";
   position:absolute;
   inset:0;
-  background-image: url("assets/images/backgrounds/menu popup background.jpeg");
-  background-size: cover;
-  background-position: center;
-  filter: saturate(1.05) contrast(1.05);
+
+  /* simple starfield */
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.6) 50%, transparent 51%),
+    radial-gradient(2px 2px at 60% 60%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 85% 75%, rgba(255,255,255,0.5) 50%, transparent 51%),
+    #000;
+
+  background-size: 100% 100%;
   opacity: 1;
 }
+
 
 /* subtle dark veil for readability */
 #startMenu::after{
@@ -472,11 +480,11 @@ style.textContent = `
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 
-  border: 2px solid rgba(190,110,255,0.85);
-  box-shadow:
-    0 0 0 3px rgba(255,255,255,0.06) inset,
-    0 0 40px rgba(140,80,255,0.25),
-    0 20px 70px rgba(0,0,0,0.75);
+ border: 1px solid rgba(255,255,255,0.25);
+box-shadow:
+  0 0 0 2px rgba(255,255,255,0.04) inset,
+  0 20px 70px rgba(0,0,0,0.75);
+
   border-radius: 12px;
   padding: 30px 26px;
   box-sizing: border-box;
