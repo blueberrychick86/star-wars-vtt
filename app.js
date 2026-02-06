@@ -407,7 +407,7 @@ style.textContent = `
 /* ===== BEGIN START MENU CSS (MOCKUP) ===== */
 @font-face{
   font-family: "StarWarsTitle";
-  src: url("fonts/YourFontFile.woff2") format("woff2");
+  src: url("Strjmono.woff") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
