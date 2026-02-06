@@ -2840,6 +2840,47 @@ updateModeHints();
     });
   });
 })();
+// ===== MENU MODE STATE BINDING (STEP 3) =====
+(function bindMenuModes(){
+  const menu = document.getElementById("startMenu");
+  if (!menu) return;
+
+  // Safety: don’t bind twice
+  if (menu.dataset.modeBound === "1") return;
+  menu.dataset.modeBound = "1";
+
+  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
+
+  const modeBtns = buttons.filter(b =>
+    /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim())
+  );
+
+  function clearSelected(group){
+    group.forEach(b => b.classList.remove("selected"));
+  }
+
+  modeBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      clearSelected(modeBtns);
+      btn.classList.add("selected");
+
+      const key = (btn.textContent || "").trim().toLowerCase();
+      window.__menuSelection.mode = key;
+
+      // If RANDOM is selected, clear faction selection (computer decides)
+      if (key === "random") {
+        // clear faction UI + state
+        const factionBtns = buttons.filter(b =>
+          /^(blue|red)$/i.test((b.textContent || "").trim())
+        );
+        clearSelected(factionBtns);
+        window.__menuSelection.faction = "";
+      }
+
+      console.log("MODE SET:", window.__menuSelection);
+    });
+  });
+})();
 
 // ===== BEGIN MENU WIRING V2 (ADDITIVE, CAPTURE TO OVERRIDE OLD) =====
 (function menuWiringV2(){
