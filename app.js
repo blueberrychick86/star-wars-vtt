@@ -2881,6 +2881,27 @@ updateModeHints();
     });
   });
 })();
+// ===== MENU MANDO TOGGLE BINDING (STEP 4) =====
+(function bindMandoToggle(){
+  const menu = document.getElementById("startMenu");
+  if (!menu) return;
+
+  const toggle = document.getElementById("mandoToggle");
+  if (!toggle) {
+    console.warn("mandoToggle not found in DOM.");
+    return;
+  }
+
+  // initialize state from checkbox
+  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
+  window.__menuSelection.mandoNeutral = !!toggle.checked;
+
+  // update on change
+  toggle.addEventListener("change", () => {
+    window.__menuSelection.mandoNeutral = !!toggle.checked;
+    console.log("MANDO TOGGLE:", window.__menuSelection);
+  });
+})();
 
 // ===== BEGIN MENU WIRING V2 (ADDITIVE, CAPTURE TO OVERRIDE OLD) =====
 (function menuWiringV2(){
