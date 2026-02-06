@@ -414,17 +414,18 @@ style.textContent = `
 }
 
 @font-face{
-  font-family: "MenuUIFont";
+  font-family: "MenuFont";
   src: url("fonts/MenuFont.woff2") format("woff2");
-  font-weight: 400;
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 
 
+
 #startMenu{
-  font-family: "MenuUIFont", Arial, sans-serif;
+  font-family: Arial, sans-serif;
   position: fixed;
   inset: 0;
   z-index: 300000;
