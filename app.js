@@ -443,6 +443,32 @@ style.textContent = `
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
+/* ===== MENU SCROLLBAR (DARK, SUBTLE) ===== */
+
+/* Firefox */
+#startMenu{
+  scrollbar-width: thin;
+  scrollbar-color: #444 #111;
+}
+
+/* Chrome, Edge, Safari */
+#startMenu::-webkit-scrollbar{
+  width: 10px;
+}
+
+#startMenu::-webkit-scrollbar-track{
+  background: #111;
+}
+
+#startMenu::-webkit-scrollbar-thumb{
+  background-color: #444;
+  border-radius: 8px;
+  border: 2px solid #111;
+}
+
+#startMenu::-webkit-scrollbar-thumb:hover{
+  background-color: #555;
+}
 
 
 #startMenu::before{
