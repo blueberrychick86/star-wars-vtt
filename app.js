@@ -685,8 +685,9 @@ style.textContent = `
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 13px;
-  font-weight: 900;
+ font-family: "MenuFont", Arial, sans-serif;
+font-size: 14px;
+font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
   background: rgba(0,0,0,0.48);
