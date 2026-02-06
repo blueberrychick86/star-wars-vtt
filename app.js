@@ -811,6 +811,7 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
 
+
 // ================= START MENU (STEP 1: container only) =================
 const startMenuBackdrop = document.createElement("div");
 startMenuBackdrop.id = "startMenuBackdrop";
