@@ -406,12 +406,13 @@ style.textContent = `
   }
 /* ===== BEGIN START MENU CSS (MOCKUP) ===== */
 @font-face{
-  font-family: "SWTitle";
-  src: url("fonts/Strjmono.woff") format("woff2");
-  font-weight: 900;
+  font-family: "StarWarsTitle";
+  src: url("fonts/YourFontFile.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
+
 
 
 #startMenu{
@@ -476,22 +477,19 @@ style.textContent = `
 
 .menu-title{
   margin: 0;
-  font-family: "SWTitle", Arial, sans-serif;
+  font-family: "StarWarsTitle", Arial, sans-serif;
   font-size: clamp(44px, 7vw, 84px);
   letter-spacing: 2px;
   font-weight: 900;
   text-transform: uppercase;
 
-  /* solid fill (black) + yellow outline */
-  color: #000;
-  -webkit-text-stroke: 3px #f7d14a; /* Star Wars-ish yellow */
-  paint-order: stroke fill;
-
-  /* depth/glow */
+  color: #000; /* fill */
+  -webkit-text-stroke: 4px #f7d117; /* yellow outline */
   text-shadow:
-    0 6px 18px rgba(0,0,0,0.85),
-    0 0 22px rgba(247,209,74,0.22);
+    0 6px 18px rgba(0,0,0,0.8),
+    0 0 18px rgba(255,255,255,0.10);
 }
+
 
 
 
