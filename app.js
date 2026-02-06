@@ -2811,6 +2811,143 @@ updateModeHints();
   }
 })();
 // ===== END START MENU BEHAVIOR (NO PRESELECT) =====
+// ===== BEGIN MENU WIRING V2 (ADDITIVE, CAPTURE TO OVERRIDE OLD) =====
+(function menuWiringV2(){
+  if (window.__menuWiringV2Bound) return;
+  window.__menuWiringV2Bound = true;
+
+  function getBtnByIdOrText(id, text){
+    const byId = document.getElementById(id);
+    if (byId) return byId;
+    const menu = document.getElementById("startMenu");
+    if (!menu) return null;
+    const btns = Array.from(menu.querySelectorAll("button, .menu-btn"));
+    const t = (text || "").trim().toLowerCase();
+    return btns.find(b => ((b.textContent || "").trim().toLowerCase() === t)) || null;
+  }
+
+  const menu = document.getElementById("startMenu");
+  const playBtn   = getBtnByIdOrText("playBtn", "play");
+  const cancelBtn = getBtnByIdOrText("cancelBtn", "cancel");
+  const inviteBtn = getBtnByIdOrText("inviteBtn", "invite a friend");
+  const mandoToggle = document.getElementById("mandoToggle");
+
+  // Keep selection object alive even if this runs before your startMenuBehavior
+  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
+
+  // Keep mando checkbox synced into selection
+  if (mandoToggle && !mandoToggle.__boundV2){
+    mandoToggle.__boundV2 = true;
+    mandoToggle.addEventListener("change", () => {
+      window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
+      // debug:
+      console.log("Menu: mandoNeutral =", window.__menuSelection.mandoNeutral);
+    });
+  }
+
+  // Apply selection to game (stub now — we’ll expand later)
+  function applyMenuSelection(sel){
+    const out = { ...sel };
+
+    // Random mode decides faction automatically
+    if (out.mode === "random"){
+      out.faction = (Math.random() < 0.5) ? "blue" : "red";
+    }
+
+    // Default faction if user didn’t pick one
+    if (!out.faction) out.faction = "blue";
+
+    // Set board-facing player color (used by your tray + any future UI)
+    try {
+      if (typeof setTrayPlayerColor === "function") setTrayPlayerColor(out.faction);
+      else window.PLAYER_COLOR = out.faction; // fallback
+    } catch {}
+
+    // Future hooks:
+    // - load correct deck set (OT / CW / Mixed)
+    // - include/exclude mando cards as neutral in market/decks
+    console.log("Menu applied:", out);
+    return out;
+  }
+
+  // PLAY — capture phase so it runs BEFORE older listeners and blocks them
+  if (playBtn && !playBtn.__boundV2){
+    playBtn.__boundV2 = true;
+
+    playBtn.addEventListener("click", (e) => {
+      // block any older play handlers you still have
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const sel = window.__menuSelection || { faction:"blue", mode:"", mandoNeutral:false };
+      const applied = applyMenuSelection(sel);
+
+      // Hide menu
+      const m = document.getElementById("startMenu");
+      if (m) m.style.display = "none";
+
+      // Init board
+      try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
+
+      // Ensure table visible
+      const tableEl = document.getElementById("table");
+      if (tableEl){
+        tableEl.style.display = "block";
+        tableEl.style.position = "fixed";
+        tableEl.style.inset = "0";
+        tableEl.style.zIndex = "2000";
+      }
+
+      // Optional: store applied selection globally for later deck setup
+      window.__appliedSelection = applied;
+
+    }, true); // <-- capture
+  }
+
+  // CANCEL — just hides menu for now (capture + blocks old)
+  if (cancelBtn && !cancelBtn.__boundV2){
+    cancelBtn.__boundV2 = true;
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const m = document.getElementById("startMenu");
+      if (m) m.style.display = "none";
+    }, true); // capture
+  }
+
+  // INVITE A FRIEND — simple share/copy link (no servers needed)
+  if (inviteBtn && !inviteBtn.__boundV2){
+    inviteBtn.__boundV2 = true;
+
+    inviteBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const url = window.location.href;
+
+      // Prefer native share on mobile
+      if (navigator.share){
+        try {
+          await navigator.share({ title: "Star Wars VTT", text: "Join my game:", url });
+          return;
+        } catch {}
+      }
+
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied! Send it to your friend:\n\n" + url);
+      } catch {
+        prompt("Copy this link and send it to your friend:", url);
+      }
+    });
+  }
+})();
+/// ===== END MENU WIRING V2 =====
 
 // --- Start Menu Logic ---
 const playBtn = document.getElementById("playBtn");
