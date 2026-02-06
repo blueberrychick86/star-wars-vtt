@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>Star Wars VTT</title>
+  <style>
+  /* Prevent white “unstyled menu” flash before app.js injects CSS */
+  #startMenu { visibility: hidden; }
+  body.menuReady #startMenu { visibility: visible; }
+</style>
+
 </head>
 
 <body>
