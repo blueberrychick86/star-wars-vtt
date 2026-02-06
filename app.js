@@ -2811,6 +2811,8 @@ updateModeHints();
   }
 })();
 // ===== END START MENU BEHAVIOR (NO PRESELECT) =====
+  stopMenuMusic();
+
 // ===== MENU BUTTON STATE BINDING (STEP 2) =====
 (function bindMenuButtons(){
   const menu = document.getElementById("startMenu");
@@ -3040,6 +3042,34 @@ updateModeHints();
   }
 })();
 /// ===== END MENU WIRING V2 =====
+// ===== MENU MUSIC (STEP 5 — ADDITIVE) =====
+let __menuAudio = null;
+
+function startMenuMusic(){
+  if (__menuAudio) return;
+
+  __menuAudio = new Audio("assets/audio/menu_theme.mp3");
+  __menuAudio.loop = true;
+  __menuAudio.volume = 0.35;
+  __menuAudio.preload = "auto";
+
+  // Browsers require a user gesture
+  const tryPlay = () => {
+    __menuAudio.play().catch(() => {});
+    window.removeEventListener("pointerdown", tryPlay, true);
+  };
+
+  __menuAudio.play().catch(() => {
+    window.addEventListener("pointerdown", tryPlay, true);
+  });
+}
+
+function stopMenuMusic(){
+  if (!__menuAudio) return;
+  try { __menuAudio.pause(); } catch {}
+  try { __menuAudio.currentTime = 0; } catch {}
+  __menuAudio = null;
+}
 
 // --- Start Menu Logic ---
 const playBtn = document.getElementById("playBtn");
