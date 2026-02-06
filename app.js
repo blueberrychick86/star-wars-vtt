@@ -484,7 +484,7 @@ style.textContent = `
   text-transform: uppercase;
 
   color: #000; /* fill */
-  -webkit-text-stroke: 4px #f7d117; /* yellow outline */
+  -webkit-text-stroke: 3px #f7d117; /* yellow outline */
   text-shadow:
     0 6px 18px rgba(0,0,0,0.8),
     0 0 18px rgba(255,255,255,0.10);
