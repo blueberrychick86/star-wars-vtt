@@ -443,6 +443,33 @@ style.textContent = `
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
+/* ===== TRAY SCROLLBAR (DARK, MATCHES MENU) ===== */
+
+/* Firefox */
+#trayCarousel{
+  scrollbar-width: thin;
+  scrollbar-color: #444 #111;
+}
+
+/* Chrome, Edge, Safari */
+#trayCarousel::-webkit-scrollbar{
+  width: 8px;
+}
+
+#trayCarousel::-webkit-scrollbar-track{
+  background: #111;
+}
+
+#trayCarousel::-webkit-scrollbar-thumb{
+  background-color: #444;
+  border-radius: 6px;
+  border: 2px solid #111;
+}
+
+#trayCarousel::-webkit-scrollbar-thumb:hover{
+  background-color: #555;
+}
+
 /* ===== MENU SCROLLBAR (DARK, SUBTLE) ===== */
 
 /* Firefox */
