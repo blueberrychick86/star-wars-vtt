@@ -93,6 +93,10 @@ style.textContent = `
     touch-action:manipulation;
     cursor:pointer;
   }
+  /* Prevent “unstyled menu flash” before app.js finishes loading */
+#startMenu{ visibility: hidden; }
+body.menuReady #startMenu{ visibility: visible; }
+
 
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
 
@@ -789,6 +793,8 @@ font-weight: 900;
 .menu-btn.cancel{
   border-color: rgba(255,255,255,0.70);
 }
+body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
+#startMenu{ opacity: 0; }
 
 /* Mobile spacing */
 @media (max-width: 720px){
@@ -803,6 +809,8 @@ font-weight: 900;
 
 `;
 document.head.appendChild(style);
+document.body.classList.add("menuReady");
+
 // ================= START MENU (STEP 1: container only) =================
 const startMenuBackdrop = document.createElement("div");
 startMenuBackdrop.id = "startMenuBackdrop";
