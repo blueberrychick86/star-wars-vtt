@@ -450,18 +450,14 @@ style.textContent = `
   position:absolute;
   inset:0;
 
-  /* simple starfield */
-  background:
-    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 50%, transparent 51%),
-    radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,0.7) 50%, transparent 51%),
-    radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.6) 50%, transparent 51%),
-    radial-gradient(2px 2px at 60% 60%, rgba(255,255,255,0.9) 50%, transparent 51%),
-    radial-gradient(1px 1px at 85% 75%, rgba(255,255,255,0.5) 50%, transparent 51%),
-    #000;
+  background-image: url("assets/images/backgrounds/menu_bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 
-  background-size: 100% 100%;
   opacity: 1;
 }
+
 
 
 /* subtle dark veil for readability */
