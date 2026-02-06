@@ -529,6 +529,7 @@ style.textContent = `
   border-radius: 6px;
   padding: 10px 18px;
   margin: 8px 10px;
+  font-family: "MenuFont", Arial, sans-serif;
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.8px;
@@ -653,6 +654,7 @@ style.textContent = `
 .menu-hint{
   margin: 6px 0 0 0;
   font-size: 12px;
+  font-family: Arial, sans-serif;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
