@@ -2785,8 +2785,29 @@ updateModeHints();
 
 // --- Start Menu Logic ---
 document.getElementById("playBtn").addEventListener("click", () => {
-  document.getElementById("startMenu").style.display = "none";
+   // Hide menu
+  const menu = document.getElementById("startMenu");
+  if (menu) menu.style.display = "none";
+
+  // Build / init board (your existing function)
   initBoard();
+
+  // Ensure board is visible and layered above anything else
+  const appEl = document.getElementById("app");
+  const tableEl = document.getElementById("table");
+  const stageEl = document.getElementById("stage");
+
+  if (appEl) appEl.style.display = "block";
+
+  if (tableEl) {
+    tableEl.style.display = "block";
+    tableEl.style.position = "fixed";
+    tableEl.style.inset = "0";
+    tableEl.style.zIndex = "2000";
+  }
+
+  if (stageEl) stageEl.style.zIndex = "2001";
+
 });
 
 document.getElementById("cancelBtn").addEventListener("click", () => {
