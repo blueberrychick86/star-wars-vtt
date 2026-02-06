@@ -407,11 +407,12 @@ style.textContent = `
 /* ===== BEGIN START MENU CSS (MOCKUP) ===== */
 @font-face{
   font-family: "SWTitle";
-  src: url("./fonts/Starjout.woff2") format("woff2");
+  src: url("fonts/Strjmono.woff") format("woff2");
   font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
+
 
 #startMenu{
   position: fixed;
@@ -481,13 +482,17 @@ style.textContent = `
   font-weight: 900;
   text-transform: uppercase;
 
-  /* Star Wars-style yellow */
-  color: #000; /* black fill like the classic logo */
-  -webkit-text-stroke: 3px #ffd54a; /* yellow outline */
+  /* solid fill (black) + yellow outline */
+  color: #000;
+  -webkit-text-stroke: 3px #f7d14a; /* Star Wars-ish yellow */
+  paint-order: stroke fill;
+
+  /* depth/glow */
   text-shadow:
     0 6px 18px rgba(0,0,0,0.85),
-    0 0 18px rgba(255,213,74,0.20);
+    0 0 22px rgba(247,209,74,0.22);
 }
+
 
 
 .start-menu-window h1 + .menu-section{
