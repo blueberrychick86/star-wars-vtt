@@ -558,7 +558,7 @@ style.textContent = `
 /* Top BLUE / RED buttons */
 /* Top BLUE / RED buttons */
 .menu-btn.faction{
-  width: min(220px, 40vw);
+  width: min(160px, 32vw);
   padding: 10px 16px;
   font-size: 14px;
 }
