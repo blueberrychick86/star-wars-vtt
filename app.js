@@ -528,10 +528,10 @@ style.textContent = `
   color: #fff;
   border: 2px solid rgba(255,255,255,0.70);
   border-radius: 6px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   margin: 8px 10px;
   font-family: "MenuFont", Arial, sans-serif;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 900;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -559,8 +559,8 @@ style.textContent = `
 /* Top BLUE / RED buttons */
 .menu-btn.faction{
   width: min(220px, 40vw);
-  padding: 12px 18px;
-  font-size: 13px;
+  padding: 10px 16px;
+  font-size: 12px;
 }
 
 .menu-btn.faction.blue{
@@ -604,7 +604,8 @@ style.textContent = `
 
 /* Row buttons OG / CW / Mixed / Random */
 .menu-btn.mode{
-  width: min(220px, 42vw);
+  font-size: 12px;
+width: min(220px, 42vw);
 }
 
 /* Selected state: strong glow/pulse */
