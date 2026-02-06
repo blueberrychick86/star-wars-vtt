@@ -2650,6 +2650,12 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
 (function startMenuBehavior(){
   const menu = document.getElementById("startMenu");
   if (!menu) return;
+  // --- ADDITIVE: shared selection state (read by Play) ---
+  window.__menuSelection = window.__menuSelection || {
+    faction: "",          // "blue" | "red" | ""
+    mode: "",             // "original trilogy" | "clone wars" | "mixed" | "random" | ""
+    mandoNeutral: false,  // checkbox
+  };
 
   // Mark up existing buttons into groups WITHOUT changing HTML
   const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
@@ -2657,7 +2663,19 @@ for (let i = 0; i < BASE_TEST_COUNT; i++) {
   // Heuristic grouping by button text
   const factionBtns = buttons.filter(b => /^(blue|red)$/i.test((b.textContent || "").trim()));
   const modeBtns = buttons.filter(b => /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim()));
-// --- mode hint lines under OG/CW/MIXED/RANDOM (DYNAMIC) ---
+  // --- ADDITIVE: Mandalorian neutral toggle (checkbox) ---
+  const mandoToggle = document.getElementById("mandoToggle");
+  if (mandoToggle) {
+    // initial value
+    window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
+
+    // keep updated
+    mandoToggle.addEventListener("change", () => {
+      window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
+    });
+  }
+
+  // --- mode hint lines under OG/CW/MIXED/RANDOM (DYNAMIC) ---
 function getSelectedFaction(){
   const sel = factionBtns.find(b => b.classList.contains("selected"));
   return sel ? (sel.textContent || "").trim().toLowerCase() : ""; // "blue" | "red" | ""
@@ -2760,6 +2778,7 @@ updateModeHints();
  factionBtns.forEach(btn => {
   btn.addEventListener("click", () => {
     selectOne(factionBtns, btn);
+    window.__menuSelection.faction = (btn.textContent || "").trim().toLowerCase();
     updateModeHints();
   });
 });
@@ -2770,6 +2789,7 @@ updateModeHints();
     selectOne(modeBtns, btn);
 
     const key = (btn.textContent || "").trim().toLowerCase();
+    window.__menuSelection.mode = key;
 
     // If RANDOM is selected, clear faction selection (computer decides)
     if (key === "random") {
@@ -2793,7 +2813,9 @@ updateModeHints();
 // ===== END START MENU BEHAVIOR (NO PRESELECT) =====
 
 // --- Start Menu Logic ---
-document.getElementById("playBtn").addEventListener("click", () => {
+const playBtn = document.getElementById("playBtn");
+if (playBtn) playBtn.addEventListener("click", () => {
+
    // Hide menu
   const menu = document.getElementById("startMenu");
   if (menu) menu.style.display = "none";
@@ -2819,7 +2841,9 @@ document.getElementById("playBtn").addEventListener("click", () => {
 
 });
 
-document.getElementById("cancelBtn").addEventListener("click", () => {
+const cancelBtn = document.getElementById("cancelBtn");
+if (cancelBtn) cancelBtn.addEventListener("click", () => {
+
   document.getElementById("startMenu").style.display = "none";
 });
 
