@@ -895,7 +895,20 @@ function setMenuMusicVolume(v) {
       AudioMix.musicGain.gain.setValueAtTime(MENU_MUSIC_VOL, AudioMix.ctx.currentTime);
     }
   } catch {}
+}// Soft fade for menu music (prevents sudden loud start)
+function fadeMenuMusicTo(targetVol, ms = 700) {
+  targetVol = Math.max(0, Math.min(1, targetVol));
+  try {
+    if (!AudioMix.musicGain || !AudioMix.ctx) return;
+    const t = AudioMix.ctx.currentTime;
+    const g = AudioMix.musicGain.gain;
+
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(targetVol, t + ms / 1000);
+  } catch {}
 }
+
 
 function setUiClickVolume(v) {
   UI_CLICK_VOL = Math.max(0, Math.min(1, v));
@@ -917,8 +930,21 @@ function playUiClick() {
 function startMenuMusic() {
   if (!AudioMix.unlocked) return;
   AudioMix.wantMenu = true;
+
+  // Start silent and fade up to menu volume
+  try {
+    if (AudioMix.musicGain && AudioMix.ctx) {
+      AudioMix.musicGain.gain.setValueAtTime(
+        0,
+        AudioMix.ctx.currentTime
+      );
+    }
+  } catch {}
+
   tryStartMenuMusic();
+  fadeMenuMusicTo(MENU_MUSIC_VOL, 700);
 }
+
 
 function stopMenuMusic() {
   AudioMix.wantMenu = false;
