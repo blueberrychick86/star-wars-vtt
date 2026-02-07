@@ -1210,10 +1210,13 @@ window.addEventListener("pointerdown", async () => {
   const menuEl = document.getElementById("startMenu");
   const inviteEl = document.getElementById("inviteMenu");
 
-  const inviteShowing = inviteEl && inviteEl.style.display !== "none";
-  const menuShowing = menuEl && menuEl.style.display !== "none";
+  const menuShowing =
+    !!menuEl && window.getComputedStyle(menuEl).display !== "none";
 
-  // Only start menu music if we are actually on the main menu (not invite modal)
+  const inviteShowing =
+    !!inviteEl && window.getComputedStyle(inviteEl).display !== "none";
+
+  // Only start menu music on the MAIN menu (not while invite modal is up)
   if (menuShowing && !inviteShowing) {
     startMenuMusic();
   }
