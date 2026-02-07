@@ -807,6 +807,133 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 `;
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
+// ===== INVITE MODAL CSS (ADDITIVE) =====
+const inviteStyle = document.createElement("style");
+inviteStyle.textContent = `
+  #inviteMenu{
+    font-family: Arial, sans-serif;
+    position: fixed;
+    inset: 0;
+    z-index: 350000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    box-sizing: border-box;
+
+    background: #000;
+    overflow: auto;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Same background treatment as start menu */
+  #inviteMenu::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image: url("assets/images/backgrounds/menu_bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 1;
+  }
+  #inviteMenu::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background: rgba(0,0,0,0.22);
+  }
+
+  .invite-window{
+    position: relative;
+    z-index: 1;
+    width: min(820px, 96vw);
+    max-height: calc(100vh - 36px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow:
+      0 0 0 2px rgba(255,255,255,0.04) inset,
+      0 20px 70px rgba(0,0,0,0.75);
+
+    border-radius: 12px;
+    padding: 26px 22px;
+    box-sizing: border-box;
+    color: #fff;
+    text-align: center;
+  }
+
+  /* Title uses the SAME font as buttons, just bigger */
+  .invite-title{
+    margin: 0 0 8px 0;
+    font-family: "MenuFont", Arial, sans-serif;
+    font-size: clamp(26px, 4.2vw, 44px);
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.65);
+  }
+
+  .invite-sub{
+    margin: 0 0 16px 0;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    opacity: 0.92;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.65);
+    white-space: pre-line;
+  }
+
+  .invite-details{
+    margin: 0 auto 18px auto;
+    max-width: 560px;
+    text-align: left;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.35;
+    background: rgba(0,0,0,0.48);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+    white-space: pre-line;
+  }
+
+  .invite-actions{
+    display:flex;
+    justify-content:center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  /* Use your existing .menu-btn look, but give invite actions a BLUE selected glow */
+  .menu-btn.inviteAction.selected{
+    border-color: rgba(120,180,255,0.98) !important;
+    box-shadow:
+      0 0 0 3px rgba(120,180,255,0.22) inset,
+      0 0 22px rgba(120,180,255,0.75),
+      0 0 54px rgba(120,180,255,0.35),
+      0 18px 36px rgba(0,0,0,0.70);
+    animation: invitePulseBlue 1.05s ease-in-out infinite;
+  }
+
+  @keyframes invitePulseBlue{
+    0%,100% { filter: brightness(1); }
+    50% { filter: brightness(1.22); }
+  }
+
+  @media (max-width: 720px){
+    .invite-window{ padding: 18px 14px; }
+  }
+`;
+document.head.appendChild(inviteStyle);
+// ===== END INVITE MODAL CSS =====
+
 // ===================== AUDIO (WebAudio mixer) =====================
 // GainNodes so volume always works. Unlocks on first gesture.
 // IMPORTANT: we do NOT await loading before allowing the game to continue,
@@ -2822,6 +2949,156 @@ if (DEV_SPAWN_TEST_CARDS) {
 
 // ---------- START MENU (ROBUST FOR YOUR HTML) ----------
 function initStartMenu() {
+    // ================= INVITE LINK + JOIN MODAL (CONFIG-ONLY) =================
+  function qsGet(key){
+    try { return new URLSearchParams(location.search).get(key); } catch { return null; }
+  }
+  function qsSet(url, key, val){
+    const u = new URL(url);
+    if (val === undefined || val === null || val === "") u.searchParams.delete(key);
+    else u.searchParams.set(key, String(val));
+    return u.toString();
+  }
+  function stripJoinQuery(){
+    try {
+      const u = new URL(location.href);
+      ["join","host","hostFaction","mode","mando"].forEach(k => u.searchParams.delete(k));
+      history.replaceState(null, "", u.toString());
+    } catch {}
+  }
+  function oppositeFaction(f){ return (String(f).toLowerCase() === "blue") ? "red" : "blue"; }
+
+  // If you add a name input later (#hostNameInput), this will use it automatically.
+  function getHostName(){
+    const el = document.getElementById("hostNameInput");
+    const v = el && el.value ? el.value.trim() : "";
+    return v || "Player";
+  }
+
+  // Create invite modal once (hidden by default)
+  const inviteMenu = document.createElement("div");
+  inviteMenu.id = "inviteMenu";
+  inviteMenu.innerHTML = `
+    <div class="invite-window">
+      <h1 class="invite-title">GAME INVITE</h1>
+      <div class="invite-sub" id="inviteSub"></div>
+      <div class="invite-details" id="inviteDetails"></div>
+
+      <div class="invite-actions">
+        <button class="menu-btn inviteAction" id="inviteAcceptBtn" type="button">Accept</button>
+        <button class="menu-btn inviteAction" id="inviteDeclineBtn" type="button">Decline</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(inviteMenu);
+
+  function showInviteModal(textSub, textDetails){
+    const sub = inviteMenu.querySelector("#inviteSub");
+    const det = inviteMenu.querySelector("#inviteDetails");
+    sub.textContent = textSub || "";
+    det.textContent = textDetails || "";
+    inviteMenu.style.display = "flex";
+  }
+  function hideInviteModal(){
+    inviteMenu.style.display = "none";
+  }
+
+  function readJoinConfig(){
+    const join = qsGet("join") === "1";
+    if (!join) return null;
+
+    const mode = (qsGet("mode") || "").toLowerCase();
+    const mandoNeutral = (qsGet("mando") === "1");
+    const host = (qsGet("host") || "Player").trim();
+    const hostFaction = (qsGet("hostFaction") || "").toLowerCase(); // may be blank if host didn’t choose
+
+    return { join:true, host, mode, mandoNeutral, hostFaction: hostFaction || null };
+  }
+
+  function applyGuestConfigAndStart(cfg){
+    // Guest becomes opposite of host faction
+    const guestFaction = oppositeFaction(cfg.hostFaction);
+
+    window.__gameConfig = {
+      role: "guest",
+      hostName: cfg.host,
+      mode: cfg.mode || "original trilogy",
+      mandoNeutral: !!cfg.mandoNeutral,
+      p1Faction: cfg.hostFaction,   // host is P1
+      p2Faction: guestFaction,      // guest is P2
+      youAre: "p2",
+    };
+
+    // Also set your existing menu selection so everything uses the same path
+    window.__menuSelection = window.__menuSelection || {};
+    window.__menuSelection.mode = window.__gameConfig.mode;
+    window.__menuSelection.mandoNeutral = window.__gameConfig.mandoNeutral;
+    window.__menuSelection.faction = guestFaction;
+
+    // Color the tray / view
+    try { if (typeof setTrayPlayerColor === "function") setTrayPlayerColor(guestFaction); } catch {}
+
+    // Hide menus + start board
+    try { document.getElementById("startMenu").style.display = "none"; } catch {}
+    hideInviteModal();
+    try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
+
+    console.log("Joined as guest (P2):", window.__gameConfig);
+  }
+
+  // Hook up invite modal buttons
+  (function wireInviteButtons(){
+    const acceptBtn = inviteMenu.querySelector("#inviteAcceptBtn");
+    const declineBtn = inviteMenu.querySelector("#inviteDeclineBtn");
+
+    function selectBlue(btn){
+      acceptBtn.classList.remove("selected");
+      declineBtn.classList.remove("selected");
+      btn.classList.add("selected");
+    }
+
+    acceptBtn.addEventListener("click", () => {
+      playUiClick();
+      selectBlue(acceptBtn);
+
+      const cfg = readJoinConfig();
+      if (!cfg || !cfg.hostFaction){
+        // Not enough info – just close the modal and show the normal menu
+        hideInviteModal();
+        return;
+      }
+      applyGuestConfigAndStart(cfg);
+    });
+
+    declineBtn.addEventListener("click", () => {
+      playUiClick();
+      selectBlue(declineBtn);
+
+      // Clear join params and send them back to the normal menu
+      stripJoinQuery();
+      hideInviteModal();
+
+      try {
+        const m = document.getElementById("startMenu");
+        if (m) m.style.display = "flex";
+      } catch {}
+    });
+
+    // Click outside closes (optional)
+    inviteMenu.addEventListener("pointerdown", (e) => {
+      if (e.target === inviteMenu){
+        playUiClick();
+        stripJoinQuery();
+        hideInviteModal();
+        try {
+          const m = document.getElementById("startMenu");
+          if (m) m.style.display = "flex";
+        } catch {}
+      }
+    });
+  })();
+  // ================= END INVITE LINK + JOIN MODAL =================
+
   const menu = document.getElementById("startMenu");
   const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));
 
@@ -2970,22 +3247,59 @@ function initStartMenu() {
     });
   });
 
-  if (inviteBtn){
+    if (inviteBtn){
     inviteBtn.addEventListener("click", async () => {
-      const url = window.location.href;
+      const hostName = getHostName();
+      const modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
+      const mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
+      const faction = (window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "";
 
-      if (navigator.share){
-        try { await navigator.share({ title:"Star Wars VTT", text:"Join my game:", url }); return; } catch {}
+      if (!modeKey){
+        alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
+        return;
+      }
+      if (!faction && modeKey !== "random"){
+        alert("Pick Blue or Red first (or choose Random mode).");
+        return;
       }
 
+      // Build join link (CONFIG ONLY)
+      let url = location.href.split("#")[0];
+      url = qsSet(url, "join", "1");
+      url = qsSet(url, "host", hostName);
+      url = qsSet(url, "mode", modeKey);
+      url = qsSet(url, "mando", mando ? "1" : "0");
+      url = qsSet(url, "hostFaction", faction || ""); // can be blank if random
+
+      const hostFactionText = faction ? faction.toUpperCase() : "RANDOM (host will lock on PLAY)";
+      const guestFactionText = faction ? oppositeFaction(faction).toUpperCase() : "ASSIGNED AFTER HOST LOCKS";
+      const mandoText = mando ? "YES (as Neutral)" : "NO";
+
+      const msg =
+`INVITE FROM: ${hostName}
+MODE: ${String(modeKey).toUpperCase()}
+HOST FACTION: ${hostFactionText}
+YOU WILL BE: ${guestFactionText}
+MANDALORIANS: ${mandoText}`;
+
+      // Share sheet if available
+      if (navigator.share){
+        try {
+          await navigator.share({ title:"Star Wars VTT Invite", text: msg, url });
+          return;
+        } catch {}
+      }
+
+      // Clipboard fallback
       try {
-        await navigator.clipboard.writeText(url);
-        alert("Link copied!\n\n" + url);
+        await navigator.clipboard.writeText(msg + "\n\n" + url);
+        alert("Invite copied!\n\n" + msg + "\n\n" + url);
       } catch {
-        prompt("Copy this link:", url);
+        prompt("Copy this invite:", msg + "\n\n" + url);
       }
     });
   }
+
 
   function applyMenuSelection(sel){
     const out = { ...sel };
@@ -3021,6 +3335,26 @@ setMenuMusicVolume(0.003);
       e.preventDefault();
       menu.style.display = "none";
     });
+  }
+  // -------- If this is a join link, show the invite modal instead of auto-starting --------
+  const joinCfg = readJoinConfig();
+  if (joinCfg && joinCfg.join) {
+    const hostFactionText = joinCfg.hostFaction ? joinCfg.hostFaction.toUpperCase() : "NOT LOCKED YET";
+    const youWillBeText = joinCfg.hostFaction ? oppositeFaction(joinCfg.hostFaction).toUpperCase() : "WAITING ON HOST";
+    const mandoText = joinCfg.mandoNeutral ? "YES (as Neutral)" : "NO";
+
+    showInviteModal(
+      `INVITE FROM: ${joinCfg.host}`,
+      `MODE: ${String(joinCfg.mode || "—").toUpperCase()}
+HOST FACTION: ${hostFactionText}
+YOU WILL BE: ${youWillBeText}
+MANDALORIANS: ${mandoText}
+
+Click ACCEPT to join and start as Player 2.`
+    );
+
+    // Keep the normal start menu hidden while invite is shown
+    try { menu.style.display = "none"; } catch {}
   }
 
   return true;
