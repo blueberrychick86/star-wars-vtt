@@ -894,6 +894,74 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
   color: #fff;
   text-align: center;
 }
+/* ===== INVITE TITLE (2 PARTS) ===== */
+.invite-titleTop{
+  margin: 0 0 10px 0;
+  font-family: "MenuFont", Arial, sans-serif; /* same as buttons */
+  font-size: clamp(14px, 2.2vw, 18px);
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.98);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+.invite-titleMain{
+  margin: 0 0 18px 0;
+  font-family: "MenuFont", Arial, sans-serif; /* keep consistent */
+  font-size: clamp(22px, 4.6vw, 38px);
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #f6d44a;
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.85),
+    0 0 14px rgba(246,212,74,0.35);
+}
+
+/* ===== INVITE BODY (2 LINES WITH GAP) ===== */
+.invite-body{
+  margin: 0 auto 14px auto;
+  max-width: 740px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  line-height: 1.35;
+  opacity: 0.98;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+/* Smaller second line */
+.invite-bodySub{
+  margin: 10px auto 18px auto; /* this creates the “spaced a couple times” feel */
+  max-width: 740px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 11.5px;          /* slightly smaller */
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+/* ===== INVITE BUTTON GREEN GLOW (LIKE SELECTED MENU) ===== */
+.inviteActionBtn{
+  border-color: rgba(140,255,170,0.98) !important;
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.22) inset,
+    0 0 30px rgba(140,255,170,0.55),
+    0 0 70px rgba(140,255,170,0.22),
+    0 18px 36px rgba(0,0,0,0.70) !important;
+}
+.inviteActionBtn:hover{
+  box-shadow:
+    0 0 0 3px rgba(140,255,170,0.25) inset,
+    0 0 36px rgba(140,255,170,0.65),
+    0 0 86px rgba(140,255,170,0.28),
+    0 18px 36px rgba(0,0,0,0.70) !important;
+}
 
 .invite-title{
   margin: 0 0 18px 0;
@@ -928,6 +996,119 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
   display:flex;
   justify-content:center;
   gap: 16px;
+  flex-wrap: wrap;
+}
+/* ===== INVITE OVERLAY ===== */
+#inviteOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 320000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+#inviteOverlay::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image: url("assets/images/backgrounds/menu_bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
+}
+
+#inviteOverlay::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.22);
+}
+
+.invite-window{
+  position: relative;
+  z-index: 1;
+  width: min(980px, 96vw);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,0.04) inset,
+    0 20px 70px rgba(0,0,0,0.75);
+  border-radius: 12px;
+  padding: 30px 26px;
+  box-sizing: border-box;
+  color: #fff;
+  text-align: center;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(2px);
+}
+
+/* Title line 1 (white, smaller) */
+.invite-titleTop{
+  margin: 0 0 10px 0;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: clamp(14px, 2.2vw, 18px);
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.98);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+/* Title line 2 (yellow, big) */
+.invite-titleMain{
+  margin: 0 0 18px 0;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: clamp(22px, 4.6vw, 38px);
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #f6d44a;
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.85),
+    0 0 14px rgba(246,212,74,0.35);
+}
+
+/* Body line 1 */
+.invite-body{
+  margin: 0 auto 14px auto;
+  max-width: 740px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  line-height: 1.35;
+  opacity: 0.98;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+/* Body line 2 (smaller + more space before it) */
+.invite-bodySub{
+  margin: 10px auto 18px auto;
+  max-width: 740px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+}
+
+.invite-actions{
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 10px;
   flex-wrap: wrap;
 }
 
@@ -1203,6 +1384,25 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
+// ---------- invite overlay ----------
+const inviteOverlay = document.createElement("div");
+inviteOverlay.id = "inviteOverlay";
+inviteOverlay.style.display = "none";
+inviteOverlay.innerHTML = `
+  <div class="invite-window">
+    <div class="invite-titleTop" id="inviteTitleTop"></div>
+    <div class="invite-titleMain" id="inviteTitleMain"></div>
+
+    <div class="invite-body" id="inviteBodyMain"></div>
+    <div class="invite-bodySub" id="inviteBodySub"></div>
+
+    <div class="invite-actions">
+      <button id="inviteAcceptBtn" class="menu-btn play selected" type="button">Accept</button>
+      <button id="inviteDeclineBtn" class="menu-btn cancel selected" type="button">Decline</button>
+    </div>
+  </div>
+`;
+table.appendChild(inviteOverlay);
 
 // HARD-MODAL preview (block board input)
 (function trapPreviewInteractions(){
@@ -3121,21 +3321,30 @@ function initStartMenu() {
     inviteOverlay = document.createElement("div");
     inviteOverlay.id = "inviteOverlay";
     inviteOverlay.innerHTML = `
-      <div class="invite-window">
-        <h2 class="invite-title" id="inviteTitle"></h2>
-        <div class="invite-body" id="inviteBody"></div>
-        <div class="invite-actions">
-          <button class="menu-btn play" id="inviteAcceptBtn" type="button">Accept</button>
-          <button class="menu-btn cancel" id="inviteDeclineBtn" type="button">Decline</button>
-        </div>
-      </div>
-    `;
+      inviteOverlay.innerHTML = `
+  <div class="invite-window">
+    <div class="invite-titleTop" id="inviteTitleTop"></div>
+    <div class="invite-titleMain" id="inviteTitleMain"></div>
+
+    <div class="invite-body" id="inviteBodyMain"></div>
+    <div class="invite-bodySub" id="inviteBodySub"></div>
+
+    <div class="invite-actions">
+      <button class="menu-btn play inviteActionBtn" id="inviteAcceptBtn" type="button">Accept</button>
+      <button class="menu-btn cancel inviteActionBtn" id="inviteDeclineBtn" type="button">Decline</button>
+    </div>
+  </div>
+`;
+
     document.body.appendChild(inviteOverlay);
   }
 
   function showInviteOverlay(params){
-    const titleEl = inviteOverlay.querySelector("#inviteTitle");
-    const bodyEl  = inviteOverlay.querySelector("#inviteBody");
+    const titleTopEl  = inviteOverlay.querySelector("#inviteTitleTop");
+const titleMainEl = inviteOverlay.querySelector("#inviteTitleMain");
+const bodyMainEl  = inviteOverlay.querySelector("#inviteBodyMain");
+const bodySubEl   = inviteOverlay.querySelector("#inviteBodySub");
+
 
     const role = (params.joinRole === "p2") ? "p2" : "p1"; // safety
     const color = factionForRole(role);
@@ -3144,15 +3353,18 @@ function initStartMenu() {
 
     // Variant A wording, dynamic:
     // "Player "" has invited you..."
-    titleEl.textContent = `${params.hostName} HAS INVITED YOU TO PLAY STAR WARS: THE CARD GAME`;
+    titleTopEl.textContent  = `${params.hostName} HAS INVITED YOU TO PLAY`;
+titleMainEl.textContent = `STAR WARS: THE CARD GAME`;
+
 
     const mandoLine = params.mandoNeutral
       ? "MANDALORIANS ARE NEUTRAL THIS GAME."
       : "MANDALORIANS ARE NOT INCLUDED THIS GAME.";
 
-    bodyEl.textContent =
-`YOU WILL PLAY AS THE ${colorWord} FACTION(S): ${factionList}.
-${mandoLine}`;
+   bodyMainEl.textContent = `YOU WILL PLAY AS THE ${colorWord} FACTION(S): ${factionList}.`;
+bodySubEl.textContent  = mandoLine;
+
+
 
     inviteOverlay.style.display = "flex";
 
