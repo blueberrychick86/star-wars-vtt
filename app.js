@@ -2703,10 +2703,38 @@ function initMenuAudio(menuEl){
 // ---------- START MENU (ROBUST FOR YOUR HTML) ----------
 function initStartMenu() {
   const menu = document.getElementById("startMenu");
-  if (!menu) return false;
+ // ---------- MENU AUDIO (volume + safe play) ----------
+const MENU_AUDIO = {
+  music: "assets/audio/menu_theme.mp3",
+  click: "assets/audio/ui_click.mp3",
+};
+
+const menuMusic = new Audio(MENU_AUDIO.music);
+menuMusic.loop = true;
+menuMusic.volume = 0.18; // << lower music (tweak 0.10–0.25)
+
+const uiClick = new Audio(MENU_AUDIO.click);
+uiClick.volume = 0.60;   // << louder clicks (tweak 0.45–0.85)
+
+function playClick(){
+  try{
+    uiClick.currentTime = 0;
+    uiClick.play();
+  }catch{}
+}
+ if (!menu) return false;
 
   const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));  
-  const menuAudio = initMenuAudio(menu);
+ // Play click sound for ALL menu buttons (simple + safe)
+for (const b of allBtns) {
+  b.addEventListener("click", () => {
+    try {
+      uiClick.currentTime = 0;
+      uiClick.play();
+    } catch {}
+  });
+}
+ const menuAudio = initMenuAudio(menu);
 
   // Play click sound on all menu buttons
   for (const b of allBtns) {
