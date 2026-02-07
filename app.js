@@ -808,7 +808,9 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
 // ===================== AUDIO (WebAudio mixer) =====================
-// Uses GainNodes so volume always works. Also "unlocks" on first user gesture.
+// GainNodes so volume always works. Unlocks on first gesture.
+// IMPORTANT: we do NOT await loading before allowing the game to continue,
+// so there is no "long delay" before music starts.
 
 const AUDIO_PATHS = {
   menu: "assets/audio/menu_theme.mp3",
@@ -823,11 +825,12 @@ const AudioMix = {
   buffers: { menu: null, click: null },
   musicSrc: null,
   unlocked: false,
+  loading: false,
+  wantMenu: false,
 };
 
-// Tune these (these WILL work reliably)
-let MENU_MUSIC_VOL = 0.12;   // try 0.08–0.15
-let UI_CLICK_VOL   = 0.65;   // try 0.45–0.90
+let MENU_MUSIC_VOL = 0.12;   // menu music volume (0.00–1.00)
+let UI_CLICK_VOL   = 0.65;   // click volume (0.00–1.00)
 
 async function audioLoadBuffer(url) {
   const res = await fetch(url);
@@ -835,8 +838,23 @@ async function audioLoadBuffer(url) {
   return await AudioMix.ctx.decodeAudioData(arr);
 }
 
+function tryStartMenuMusic() {
+  if (!AudioMix.unlocked) return;
+  if (!AudioMix.buffers.menu) return;
+  if (AudioMix.musicSrc) return;
+
+  const src = AudioMix.ctx.createBufferSource();
+  src.buffer = AudioMix.buffers.menu;
+  src.loop = true;
+  src.connect(AudioMix.musicGain);
+  src.start();
+  AudioMix.musicSrc = src;
+}
+
 async function audioInitOnce() {
   if (AudioMix.unlocked) return;
+  if (AudioMix.loading) return;
+  AudioMix.loading = true;
 
   const AC = window.AudioContext || window.webkitAudioContext;
   AudioMix.ctx = new AC();
@@ -853,41 +871,39 @@ async function audioInitOnce() {
   AudioMix.sfxGain.connect(AudioMix.master);
   AudioMix.master.connect(AudioMix.ctx.destination);
 
-  // Resume (important on iOS)
   try { await AudioMix.ctx.resume(); } catch {}
 
-  // Preload both sounds ASAP after unlock
-  try {
-    const [menuBuf, clickBuf] = await Promise.all([
-      audioLoadBuffer(AUDIO_PATHS.menu),
-      audioLoadBuffer(AUDIO_PATHS.click),
-    ]);
+  AudioMix.unlocked = true;
+
+  // Load buffers AFTER unlock; when ready, start music if requested.
+  Promise.all([
+    audioLoadBuffer(AUDIO_PATHS.menu),
+    audioLoadBuffer(AUDIO_PATHS.click),
+  ]).then(([menuBuf, clickBuf]) => {
     AudioMix.buffers.menu = menuBuf;
     AudioMix.buffers.click = clickBuf;
-  } catch (e) {
+    if (AudioMix.wantMenu) tryStartMenuMusic();
+  }).catch((e) => {
     console.warn("Audio preload failed:", e);
-  }
-
-  AudioMix.unlocked = true;
+  });
 }
 
 function setMenuMusicVolume(v) {
   MENU_MUSIC_VOL = Math.max(0, Math.min(1, v));
-
   try {
-    if (AudioMix.musicGain && AudioMix.musicGain.gain) {
-      AudioMix.musicGain.gain.setValueAtTime(
-        MENU_MUSIC_VOL,
-        AudioMix.ctx.currentTime
-      );
+    if (AudioMix.musicGain && AudioMix.ctx) {
+      AudioMix.musicGain.gain.setValueAtTime(MENU_MUSIC_VOL, AudioMix.ctx.currentTime);
     }
   } catch {}
 }
 
-
 function setUiClickVolume(v) {
   UI_CLICK_VOL = Math.max(0, Math.min(1, v));
-  if (AudioMix.sfxGain) AudioMix.sfxGain.gain.value = UI_CLICK_VOL;
+  try {
+    if (AudioMix.sfxGain && AudioMix.ctx) {
+      AudioMix.sfxGain.gain.setValueAtTime(UI_CLICK_VOL, AudioMix.ctx.currentTime);
+    }
+  } catch {}
 }
 
 function playUiClick() {
@@ -899,33 +915,27 @@ function playUiClick() {
 }
 
 function startMenuMusic() {
-  if (!AudioMix.unlocked || !AudioMix.buffers.menu) return;
-  if (AudioMix.musicSrc) return; // already playing
-
-  const src = AudioMix.ctx.createBufferSource();
-  src.buffer = AudioMix.buffers.menu;
-  src.loop = true;
-  src.connect(AudioMix.musicGain);
-  src.start();
-
-  AudioMix.musicSrc = src;
+  if (!AudioMix.unlocked) return;
+  AudioMix.wantMenu = true;
+  tryStartMenuMusic();
 }
 
 function stopMenuMusic() {
+  AudioMix.wantMenu = false;
   if (!AudioMix.musicSrc) return;
   try { AudioMix.musicSrc.stop(); } catch {}
   AudioMix.musicSrc = null;
 }
 
-// Unlock audio on the FIRST real gesture anywhere.
+// Unlock audio on FIRST real gesture anywhere.
 window.addEventListener("pointerdown", async () => {
-  if (AudioMix.unlocked) return;
   await audioInitOnce();
-  // Start music right away after unlock (no long delay)
+  // ask for menu music; if buffer isn't ready yet it will start as soon as it finishes loading
   startMenuMusic();
 }, { once: true });
 
 // =================== END AUDIO (WebAudio mixer) ===================
+
 
 // ---------- table + hud + stage ----------
 const table = document.createElement("div");
@@ -2741,127 +2751,22 @@ if (DEV_SPAWN_TEST_CARDS) {
     stage.appendChild(baseCard);
   }
 }
-// ---------- MENU AUDIO ----------
-const MENU_AUDIO = {
-  music: "assets/audio/menu_theme.mp3",
-  click: "assets/audio/ui_click.mp3",
-};
 
-
-let __menuAudio = null;
-
-function initMenuAudio(menuEl){
-  if (__menuAudio) return __menuAudio;
-
-  const state = { unlocked: false };
-
-  function safeAudio(src){
-    const a = new Audio(src);
-    a.preload = "auto";
-    return a;
-  }
-
-  const music = safeAudio(MENU_AUDIO.music);
-  music.loop = true;
-  music.volume = 0.32;
-
-  const click = safeAudio(MENU_AUDIO.click);
-  click.volume = 0.28;
-
-  function unlock(){
-    if (state.unlocked) return;
-    state.unlocked = true;
-
-    // Mobile "unlock" (prime audio)
-    try {
-      const p = click.play();
-      if (p?.then) p.then(() => {
-        click.pause();
-        click.currentTime = 0;
-      }).catch(()=>{});
-    } catch {}
-  }
-
-  function playMusic(){
-    if (!state.unlocked) return;
-    try { music.play().catch(()=>{}); } catch {}
-  }
-
-  function stopMusic(){
-    try {
-      music.pause();
-      music.currentTime = 0;
-    } catch {}
-  }
-
-  function playClick(){
-    if (!state.unlocked) return;
-    try {
-      click.currentTime = 0;
-      click.play().catch(()=>{});
-    } catch {}
-  }
-
-  // Unlock on first real interaction anywhere in the menu
-  const unlockOnce = (e) => {
-    if (!e.isTrusted) return;
-    unlock();
-    playMusic();
-    menuEl.removeEventListener("pointerdown", unlockOnce, true);
-  };
-  menuEl.addEventListener("pointerdown", unlockOnce, true);
-
-  __menuAudio = { playClick, playMusic, stopMusic };
-  return __menuAudio;
-}
-
-// ---------- START MENU (SAFE GUARD) ----------
-// This file can run with or without the HTML menu present.
-// If #startMenu isn't in the DOM yet, we auto-init the board.
 
 // ---------- START MENU (ROBUST FOR YOUR HTML) ----------
 function initStartMenu() {
   const menu = document.getElementById("startMenu");
- // ---------- MENU AUDIO (volume + safe play) ----------
-const MENU_AUDIO = {
-  music: "assets/audio/menu_theme.mp3",
-  click: "assets/audio/ui_click.mp3",
-};
+  const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));
 
-const menuMusic = new Audio(MENU_AUDIO.music);
-menuMusic.loop = true;
-menuMusic.volume = 0.015; // << lower music (tweak 0.10–0.25)
-
-const uiClick = new Audio(MENU_AUDIO.click);
-uiClick.volume = 0.60;   // << louder clicks (tweak 0.45–0.85)
-
-function playClick(){
-  try{
-    uiClick.currentTime = 0;
-    uiClick.play();
-  }catch{}
-}
- if (!menu) return false;
-
-  const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));  
- // Play click sound for ALL menu buttons (simple + safe)
-// Play click sound for ALL menu buttons
-for (const b of allBtns) {
-  b.addEventListener("click", () => {
-    playClick();
-  });
-}
-
- const menuAudio = initMenuAudio(menu);
-setMenuMusicVolume(0.003);
-
-  // Play click sound on all menu buttons
+  // Play click sound on all menu buttons (WebAudio)
   for (const b of allBtns) {
     b.addEventListener("click", () => {
-      try { menuAudio.playClick(); } catch {}
+      playUiClick();
     });
   }
 
+  // Your HTML uses plain .menu-btn, so we auto-tag them.
+  function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
 
   // Your HTML uses plain .menu-btn, so we auto-tag them.
   function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
