@@ -829,7 +829,7 @@ const AudioMix = {
   wantMenu: false,
 };
 
-let MENU_MUSIC_VOL = 0.12;   // menu music volume (0.00–1.00)
+let MENU_MUSIC_VOL = 0.05;   // menu music volume (0.00–1.00)
 let UI_CLICK_VOL   = 0.65;   // click volume (0.00–1.00)
 
 async function audioLoadBuffer(url) {
