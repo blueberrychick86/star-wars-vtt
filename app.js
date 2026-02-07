@@ -1206,8 +1206,17 @@ function stopMenuMusic() {
 // Unlock audio on FIRST real gesture anywhere.
 window.addEventListener("pointerdown", async () => {
   await audioInitOnce();
-  // ask for menu music; if buffer isn't ready yet it will start as soon as it finishes loading
-  startMenuMusic();
+
+  const menuEl = document.getElementById("startMenu");
+  const inviteEl = document.getElementById("inviteMenu");
+
+  const inviteShowing = inviteEl && inviteEl.style.display !== "none";
+  const menuShowing = menuEl && menuEl.style.display !== "none";
+
+  // Only start menu music if we are actually on the main menu (not invite modal)
+  if (menuShowing && !inviteShowing) {
+    startMenuMusic();
+  }
 }, { once: true });
 
 // =================== END AUDIO (WebAudio mixer) ===================
@@ -3199,6 +3208,10 @@ function initStartMenu() {
 
     acceptBtn.addEventListener("click", () => {
       playUiClick();
+      
+      fadeMenuMusicTo(0, 200);
+      setTimeout(() => stopMenuMusic(), 220);
+
       selectBlue(acceptBtn);
 
       const cfg = readJoinConfig();
