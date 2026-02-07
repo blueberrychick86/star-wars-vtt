@@ -799,6 +799,135 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
   .menu-btn{ margin: 8px 6px; }
   .menu-actions{ justify-content: center; }
 }
+/* ===== HOST NAME INPUT (MENU) ===== */
+.name-row{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.48);
+  border: 2px solid rgba(255,255,255,0.55);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.40);
+}
+
+.name-label{
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+
+.name-input{
+  width: min(260px, 55vw);
+  border: 2px solid rgba(255,255,255,0.45);
+  background: rgba(0,0,0,0.62);
+  color: rgba(255,255,255,0.98);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  outline: none;
+  text-transform: none;
+}
+
+.name-input::placeholder{
+  color: rgba(255,255,255,0.55);
+}
+
+/* ===== INVITE OVERLAY (WELCOME WINDOW) ===== */
+#inviteOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 310000; /* above #startMenu */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  background: #000;
+}
+
+#inviteOverlay::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image: url("assets/images/backgrounds/menu_bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
+}
+
+#inviteOverlay::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.22);
+}
+
+.invite-window{
+  position: relative;
+  z-index: 1;
+  width: min(980px, 96vw);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,0.04) inset,
+    0 20px 70px rgba(0,0,0,0.75);
+
+  border-radius: 12px;
+  padding: 28px 22px;
+  box-sizing: border-box;
+  color: #fff;
+  text-align: center;
+}
+
+.invite-title{
+  margin: 0 0 16px 0;
+  font-family: "MenuTitleFont", Arial, sans-serif;
+  font-size: clamp(26px, 4.8vw, 44px);
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+
+  color: #000;
+  -webkit-text-stroke: 3px #f6d44a;
+  paint-order: stroke fill;
+}
+
+.invite-body{
+  margin: 0 auto 18px auto;
+  max-width: 740px;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  line-height: 1.35;
+  opacity: 0.98;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+  white-space: pre-line; /* allow line breaks */
+}
+
+.invite-actions{
+  display:flex;
+  justify-content:center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 
 /* ===== END START MENU CSS (MOCKUP) ===== */
 
@@ -2870,6 +2999,206 @@ function initStartMenu() {
     menu.querySelector(".menu-btn.cancel");
 
   const mandoToggle = menu.querySelector("#mandoToggle");
+  // ----- HOST NAME INPUT -----
+  const hostNameInput = menu.querySelector("#hostNameInput");
+  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false, hostName:"Player" };
+
+  function readHostName(){
+    const raw = (hostNameInput ? hostNameInput.value : "") || "";
+    const name = raw.trim().slice(0, 24) || "Player";
+    window.__menuSelection.hostName = name;
+    return name;
+  }
+
+  if (hostNameInput){
+    hostNameInput.addEventListener("input", () => { readHostName(); });
+    // set default display
+    if (!hostNameInput.value) hostNameInput.value = (window.__menuSelection.hostName || "Player");
+  }
+
+  // ----- INVITE URL HELPERS -----
+  function modeKeyFromText(t){
+    t = (t || "").toLowerCase().trim();
+    if (t === "original trilogy") return "ot";
+    if (t === "clone wars") return "cw";
+    if (t === "mixed") return "mixed";
+    if (t === "random") return "random";
+    return "ot";
+  }
+
+  function modeTextFromKey(k){
+    k = (k || "").toLowerCase().trim();
+    if (k === "ot") return "original trilogy";
+    if (k === "cw") return "clone wars";
+    if (k === "mixed") return "mixed";
+    if (k === "random") return "random";
+    return "original trilogy";
+  }
+
+  function roleForFactionColor(color){
+    return (String(color).toLowerCase() === "blue") ? "p1" : "p2"; // blue goes first
+  }
+  function factionForRole(role){
+    return (role === "p1") ? "blue" : "red";
+  }
+  function otherRole(role){
+    return (role === "p1") ? "p2" : "p1";
+  }
+
+  function factionsLabelFor(color, modeKey){
+    // returns "REPUBLIC", "REBELS", etc
+    const c = String(color).toLowerCase();
+    const m = String(modeKey).toLowerCase();
+
+    if (m === "ot")    return (c === "blue") ? "EMPIRE" : "REBELS";
+    if (m === "cw")    return (c === "blue") ? "SEPARATISTS" : "REPUBLIC";
+    if (m === "mixed") return (c === "blue") ? "EMPIRE AND SEPARATISTS" : "REBELS AND REPUBLIC";
+    if (m === "random") {
+      // random is still meaningful after host chooses a color; label based on chosen mode result
+      return (c === "blue") ? "BLUE SIDE (EMPIRE/SEPARATISTS)" : "RED SIDE (REBELS/REPUBLIC)";
+    }
+    return (c === "blue") ? "EMPIRE" : "REBELS";
+  }
+
+  function buildInviteLinkFromSelection(sel){
+    // IMPORTANT: if host picked Random, we resolve a color NOW for the invite so roles are consistent.
+    const hostName = (sel.hostName || "Player").trim().slice(0,24) || "Player";
+    const modeKey = modeKeyFromText(sel.mode || "original trilogy");
+    const mando = sel.mandoNeutral ? "1" : "0";
+
+    let hostColor = (sel.faction || "blue").toLowerCase();
+    if (modeKey === "random"){
+      hostColor = (Math.random() < 0.5) ? "blue" : "red";
+    }
+
+    const hostRole = roleForFactionColor(hostColor);
+    const joinRole = otherRole(hostRole);
+
+    const gameId = (crypto?.randomUUID?.() || ("g_" + Math.random().toString(16).slice(2)));
+
+    const u = new URL(window.location.href);
+    u.searchParams.set("game", gameId);
+    u.searchParams.set("joinRole", joinRole);
+    u.searchParams.set("hostName", hostName);
+    u.searchParams.set("mode", modeKey);
+    u.searchParams.set("mando", mando);
+    // keep hostColor for clarity/debug and future use
+    u.searchParams.set("hostColor", hostColor);
+
+    return u.toString();
+  }
+
+  function readInviteParams(){
+    const p = new URLSearchParams(window.location.search);
+    return {
+      game: p.get("game") || "",
+      joinRole: (p.get("joinRole") || "").toLowerCase(), // "p1" or "p2"
+      hostName: p.get("hostName") || "Player",
+      modeKey: (p.get("mode") || "ot").toLowerCase(),
+      mandoNeutral: (p.get("mando") === "1"),
+      hostColor: (p.get("hostColor") || "").toLowerCase(),
+    };
+  }
+
+  function clearInviteParams(){
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("game");
+      u.searchParams.delete("joinRole");
+      u.searchParams.delete("hostName");
+      u.searchParams.delete("mode");
+      u.searchParams.delete("mando");
+      u.searchParams.delete("hostColor");
+      window.history.replaceState({}, "", u.toString());
+    } catch {}
+  }
+
+  // ----- INVITE OVERLAY UI -----
+  let inviteOverlay = document.getElementById("inviteOverlay");
+  if (!inviteOverlay){
+    inviteOverlay = document.createElement("div");
+    inviteOverlay.id = "inviteOverlay";
+    inviteOverlay.innerHTML = `
+      <div class="invite-window">
+        <h2 class="invite-title" id="inviteTitle"></h2>
+        <div class="invite-body" id="inviteBody"></div>
+        <div class="invite-actions">
+          <button class="menu-btn play" id="inviteAcceptBtn" type="button">Accept</button>
+          <button class="menu-btn cancel" id="inviteDeclineBtn" type="button">Decline</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(inviteOverlay);
+  }
+
+  function showInviteOverlay(params){
+    const titleEl = inviteOverlay.querySelector("#inviteTitle");
+    const bodyEl  = inviteOverlay.querySelector("#inviteBody");
+
+    const role = (params.joinRole === "p2") ? "p2" : "p1"; // safety
+    const color = factionForRole(role);
+    const colorWord = (color === "blue") ? "BLUE" : "RED";
+    const factionList = factionsLabelFor(color, params.modeKey);
+
+    // Variant A wording, dynamic:
+    // "Player "" has invited you..."
+    titleEl.textContent = `${params.hostName} HAS INVITED YOU TO PLAY STAR WARS: THE CARD GAME`;
+
+    const mandoLine = params.mandoNeutral
+      ? "MANDALORIANS ARE NEUTRAL THIS GAME."
+      : "MANDALORIANS ARE NOT INCLUDED THIS GAME.";
+
+    bodyEl.textContent =
+`YOU WILL PLAY AS THE ${colorWord} FACTION(S): ${factionList}.
+${mandoLine}`;
+
+    inviteOverlay.style.display = "flex";
+
+    const acceptBtn = inviteOverlay.querySelector("#inviteAcceptBtn");
+    const declineBtn = inviteOverlay.querySelector("#inviteDeclineBtn");
+
+    // prevent stacking duplicate handlers
+    acceptBtn.replaceWith(acceptBtn.cloneNode(true));
+    declineBtn.replaceWith(declineBtn.cloneNode(true));
+
+    const acceptBtn2 = inviteOverlay.querySelector("#inviteAcceptBtn");
+    const declineBtn2 = inviteOverlay.querySelector("#inviteDeclineBtn");
+
+    acceptBtn2.addEventListener("click", () => {
+      playUiClick();
+
+      // Apply selection for joiner
+      window.__menuSelection.mode = modeTextFromKey(params.modeKey);
+      window.__menuSelection.mandoNeutral = !!params.mandoNeutral;
+      window.__menuSelection.faction = factionForRole(role);
+      window.__menuSelection.hostName = window.__menuSelection.hostName || "Player";
+
+      // Set toggle to match
+      if (mandoToggle) mandoToggle.checked = window.__menuSelection.mandoNeutral;
+
+      // Hide overlays and start
+      inviteOverlay.style.display = "none";
+      try { menu.style.display = "none"; } catch {}
+
+      try {
+        const applied = applyMenuSelection(window.__menuSelection || {});
+        initBoard();
+        console.log("Invite accepted:", params, applied);
+      } catch (err) {
+        console.error("Invite accept failed:", err);
+        // fallback: show menu
+        try { menu.style.display = "flex"; } catch {}
+      }
+    });
+
+    declineBtn2.addEventListener("click", () => {
+      playUiClick();
+      inviteOverlay.style.display = "none";
+      clearInviteParams();
+      // show normal menu
+      try { menu.style.display = "flex"; } catch {}
+    });
+  }
 
   // If buttons still missing, don't crash.
   if (!modeBtns.length || !playBtn) {
@@ -2939,6 +3268,14 @@ function initStartMenu() {
   clearSelected(modeBtns);
   ensureModeHints();
   updateModeHints();
+  // ----- AUTO SHOW INVITE OVERLAY IF LINK HAS INVITE PARAMS -----
+  const inv = readInviteParams();
+  if (inv && inv.game && inv.joinRole) {
+    // Hide menu while showing invite
+    try { menu.style.display = "none"; } catch {}
+    showInviteOverlay(inv);
+    return true; // stop normal menu flow
+  }
 
   if (mandoToggle){
     window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
@@ -2972,7 +3309,9 @@ function initStartMenu() {
 
   if (inviteBtn){
     inviteBtn.addEventListener("click", async () => {
-      const url = window.location.href;
+      readHostName(); // capture latest input
+const url = buildInviteLinkFromSelection(window.__menuSelection || {});
+
 
       if (navigator.share){
         try { await navigator.share({ title:"Star Wars VTT", text:"Join my game:", url }); return; } catch {}
