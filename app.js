@@ -866,27 +866,40 @@ inviteStyle.textContent = `
   }
 
   /* Title uses the SAME font as buttons, just bigger */
-  .invite-title{
-    margin: 0 0 8px 0;
-    font-family: "MenuFont", Arial, sans-serif;
-    font-size: clamp(26px, 4.2vw, 44px);
-    font-weight: 900;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    text-shadow: 0 2px 14px rgba(0,0,0,0.65);
-  }
+ .invite-title{
+  margin: 0 0 14px 0;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: clamp(36px, 5.5vw, 62px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  color: #f5d76e; /* Star Wars yellow */
 
-  .invite-sub{
-    margin: 0 0 16px 0;
-    font-family: Arial, sans-serif;
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    opacity: 0.92;
-    text-shadow: 0 2px 12px rgba(0,0,0,0.65);
-    white-space: pre-line;
-  }
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.9),
+    0 0 24px rgba(245,215,110,0.45);
+}
+.invite-title-sub{
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(18px, 2.4vw, 28px);
+  letter-spacing: 1.6px;
+  color: #f5d76e;
+}
+
+.invite-from{
+  margin: 0 0 22px 0;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.9;
+}
+
 
   .invite-details{
     margin: 0 auto 18px auto;
@@ -2980,9 +2993,14 @@ function initStartMenu() {
   inviteMenu.id = "inviteMenu";
   inviteMenu.innerHTML = `
     <div class="invite-window">
-      <h1 class="invite-title">GAME INVITE</h1>
-      <div class="invite-sub" id="inviteSub"></div>
+      <h1 class="invite-title">
+        GAME INVITE<br>
+        <span class="invite-title-sub">STAR WARS: THE CARD GAME</span>
+      </h1>
+
+      <div class="invite-from" id="inviteSub"></div>
       <div class="invite-details" id="inviteDetails"></div>
+
 
       <div class="invite-actions">
         <button class="menu-btn inviteAction" id="inviteAcceptBtn" type="button">Accept</button>
