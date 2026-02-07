@@ -3367,12 +3367,14 @@ setMenuMusicVolume(0.003);
     const hostFactionText = joinCfg.hostFaction ? joinCfg.hostFaction.toUpperCase() : "NOT LOCKED YET";
     const youWillBeText = joinCfg.hostFaction ? oppositeFaction(joinCfg.hostFaction).toUpperCase() : "WAITING ON HOST";
     const mandoText = joinCfg.mandoNeutral ? "YES (as Neutral)" : "NO";
+const isRandom = (joinCfg.mode === "random");
 
     showInviteModal(
       `INVITE FROM: ${joinCfg.host}`,
       `MODE: ${String(joinCfg.mode || "—").toUpperCase()}
-HOST FACTION: ${hostFactionText}
-YOU WILL BE: ${youWillBeText}
+HOST FACTION: ${isRandom ? "THE FORCE IS UNDECIDED" : hostFactionText}
+YOU WILL BE: ${isRandom ? "WHICH SIDE WILL YOU SERVE?" : youWillBeText}
+
 MANDALORIANS: ${mandoText}
 
 Click ACCEPT to join and start as Player 2.`
