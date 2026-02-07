@@ -3049,6 +3049,7 @@ function initStartMenu() {
 
     // Also set your existing menu selection so everything uses the same path
     window.__menuSelection = window.__menuSelection || {};
+    window.__menuSelection.hostName = window.__gameConfig.hostName || "Player";
     window.__menuSelection.mode = window.__gameConfig.mode;
     window.__menuSelection.mandoNeutral = window.__gameConfig.mandoNeutral;
     window.__menuSelection.faction = guestFaction;
