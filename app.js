@@ -848,7 +848,7 @@ inviteStyle.textContent = `
   .invite-window{
     position: relative;
     z-index: 1;
-    width: min(820px, 96vw);
+    width: min(980px, 96vw);
     max-height: calc(100vh - 36px);
     overflow: auto;
     -webkit-overflow-scrolling: touch;
@@ -865,83 +865,132 @@ inviteStyle.textContent = `
     text-align: center;
   }
 
-  /* Title uses the SAME font as buttons, just bigger */
- .invite-title{
-  margin: 0 0 14px 0;
-  font-family: "MenuFont", Arial, sans-serif;
-  font-size: clamp(36px, 5.5vw, 62px);
-  font-weight: 900;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  text-align: center;
-  color: #f5d76e; /* Star Wars yellow */
+  .invite-topline{
+    margin: 6px 0 14px 0;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    opacity: 0.95;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+  }
 
-  text-shadow:
-    0 2px 6px rgba(0,0,0,0.9),
-    0 0 24px rgba(245,215,110,0.45);
-}
-.invite-title-sub{
-  display: block;
-  margin-top: 6px;
-  font-size: clamp(18px, 2.4vw, 28px);
-  letter-spacing: 1.6px;
-  color: #f5d76e;
-}
+  .invite-title{
+    margin: 0 0 10px 0;
+    font-family: "MenuTitleFont", Arial, sans-serif;
+    font-size: clamp(44px, 6.5vw, 88px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 
-.invite-from{
-  margin: 0 0 22px 0;
-  font-family: Arial, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  text-align: center;
-  color: #ffffff;
-  opacity: 0.9;
-}
+    color: #000;
+    -webkit-text-stroke: 3px #f6d44a;
+    paint-order: stroke fill;
 
+    text-shadow:
+      0 2px 8px rgba(0,0,0,0.90),
+      0 0 26px rgba(246,212,74,0.25);
+    line-height: 1.02;
+  }
 
-  .invite-details{
-    margin: 0 auto 18px auto;
-    max-width: 560px;
-    text-align: left;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.35;
-    background: rgba(0,0,0,0.48);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 12px;
-    padding: 12px 14px;
-    box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+  .invite-title .line2{
+    display:block;
+    margin-top: 6px;
+  }
+
+  .invite-hostedby{
+    margin: 6px 0 18px 0;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    opacity: 0.95;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+  }
+
+  .invite-panel{
+    margin: 14px auto 0 auto;
+    width: min(820px, 92vw);
+    background: rgba(0,0,0,0.72);
+    border: 2px solid rgba(255,255,255,0.78);
+    border-radius: 52px;
+    padding: 22px 22px 18px 22px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.70);
+  }
+
+  .invite-letter{
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    line-height: 1.25;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
     white-space: pre-line;
+    margin: 0 auto 16px auto;
+    max-width: 760px;
   }
 
   .invite-actions{
     display:flex;
     justify-content:center;
-    gap: 16px;
+    gap: 34px;
     flex-wrap: wrap;
-    margin-top: 10px;
+    margin: 8px 0 14px 0;
   }
 
-  /* Use your existing .menu-btn look, but give invite actions a BLUE selected glow */
-  .menu-btn.inviteAction.selected{
-    border-color: rgba(120,180,255,0.98) !important;
+  /* Buttons match mock: black, white outline */
+  .inviteBtn{
+    background: rgba(0,0,0,0.68);
+    color:#fff;
+    border: 2px solid rgba(255,255,255,0.80);
+    border-radius: 10px;
+    padding: 10px 22px;
+    min-width: 160px;
+
+    font-family: "MenuFont", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+
+    cursor: pointer;
+    user-select:none;
+    touch-action: manipulation;
+
+    box-shadow: 0 12px 26px rgba(0,0,0,0.60);
+    transition: transform .10s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+
+  /* GREEN hover glow (both buttons) */
+  .inviteBtn:hover{
+    transform: translateY(-1px);
+    border-color: rgba(140,255,170,0.98);
     box-shadow:
-      0 0 0 3px rgba(120,180,255,0.22) inset,
-      0 0 22px rgba(120,180,255,0.75),
-      0 0 54px rgba(120,180,255,0.35),
+      0 0 0 3px rgba(140,255,170,0.22) inset,
+      0 0 26px rgba(140,255,170,0.62),
+      0 0 60px rgba(140,255,170,0.28),
       0 18px 36px rgba(0,0,0,0.70);
-    animation: invitePulseBlue 1.05s ease-in-out infinite;
+  }
+  .inviteBtn:active{
+    transform: translateY(0px) scale(0.99);
   }
 
-  @keyframes invitePulseBlue{
-    0%,100% { filter: brightness(1); }
-    50% { filter: brightness(1.22); }
+  .invite-footer{
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    opacity: 0.95;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+    white-space: pre-line;
   }
 
   @media (max-width: 720px){
-    .invite-window{ padding: 18px 14px; }
+    .invite-panel{ border-radius: 34px; padding: 18px 14px 14px 14px; }
+    .invite-actions{ gap: 18px; }
+    .inviteBtn{ min-width: 140px; }
+    .invite-letter{ font-size: 16px; }
   }
 `;
 document.head.appendChild(inviteStyle);
@@ -2991,32 +3040,84 @@ function initStartMenu() {
   // Create invite modal once (hidden by default)
   const inviteMenu = document.createElement("div");
   inviteMenu.id = "inviteMenu";
-  inviteMenu.innerHTML = `
-    <div class="invite-window">
-      <h1 class="invite-title">
-        GAME INVITE<br>
-        <span class="invite-title-sub">STAR WARS: THE CARD GAME</span>
-      </h1>
+ inviteMenu.innerHTML = `
+  <div class="invite-window">
+    <div class="invite-topline" id="inviteTopLine">YOU HAVE BEEN INVITED TO PLAY</div>
 
-      <div class="invite-from" id="inviteSub"></div>
-      <div class="invite-details" id="inviteDetails"></div>
+    <h1 class="invite-title">
+      STAR WARS:
+      <span class="line2">THE CARD GAME</span>
+    </h1>
 
+    <div class="invite-hostedby" id="inviteHostedBy">HOSTED BY: HOST PLAYER NAME</div>
+
+    <div class="invite-panel">
+      <div class="invite-letter" id="inviteLetter"></div>
 
       <div class="invite-actions">
-        <button class="menu-btn inviteAction" id="inviteAcceptBtn" type="button">Accept</button>
-        <button class="menu-btn inviteAction" id="inviteDeclineBtn" type="button">Decline</button>
+        <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
+        <button class="inviteBtn" id="inviteDeclineBtn" type="button">Decline</button>
       </div>
+
+      <div class="invite-footer" id="inviteFooter"></div>
     </div>
-  `;
+  </div>
+`;
+
   document.body.appendChild(inviteMenu);
 
-  function showInviteModal(textSub, textDetails){
-    const sub = inviteMenu.querySelector("#inviteSub");
-    const det = inviteMenu.querySelector("#inviteDetails");
-    sub.textContent = textSub || "";
-    det.textContent = textDetails || "";
-    inviteMenu.style.display = "flex";
+  function showInviteModal(cfg){
+  // cfg: { host, mode, mandoNeutral, hostFaction }
+  const hostedBy = inviteMenu.querySelector("#inviteHostedBy");
+  const letter   = inviteMenu.querySelector("#inviteLetter");
+  const footer   = inviteMenu.querySelector("#inviteFooter");
+
+  const modeKey = String(cfg.mode || "").toLowerCase();
+  const isRandom = (modeKey === "random");
+
+  // map “mode + faction” -> what each side actually represents
+  function sideNamesFor(mode, faction){
+    mode = String(mode||"").toLowerCase();
+    faction = String(faction||"").toLowerCase();
+
+    if (mode === "original trilogy"){
+      return (faction === "blue") ? "EMPIRE" : "REBELS";
+    }
+    if (mode === "clone wars"){
+      return (faction === "blue") ? "SEPARATISTS" : "REPUBLIC";
+    }
+    if (mode === "mixed"){
+      return (faction === "blue") ? "EMPIRE AND SEPARATISTS" : "REBELS AND REPUBLIC";
+    }
+    return "";
   }
+
+  // Host line
+  hostedBy.textContent = `HOSTED BY: ${String(cfg.host || "Player").toUpperCase()}`;
+
+  // Letter block (matches your 2 mockups)
+  let letterText = "";
+  if (isRandom){
+    letterText = `HOST HAS SELECTED: RANDOM........ WHAT SIDE WILL YOU PLAY?`;
+  } else {
+    const hostF = String(cfg.hostFaction || "").toLowerCase();
+    const hostFtxt = hostF ? hostF.toUpperCase() : "NOT LOCKED YET";
+    const youPlayAs = hostF ? sideNamesFor(modeKey, oppositeFaction(hostF)) : "WAITING ON HOST";
+
+    // Example you showed: “(BLUE) MIXED”
+    letterText = `HOST HAS SELECTED: (${hostFtxt}) ${String(modeKey).toUpperCase()}........\n........YOU WILL PLAY AS ${youPlayAs}`;
+  }
+
+  // Footer line
+  footer.textContent = cfg.mandoNeutral
+    ? "MANDALORIANS WILL BE PLAYED AS NEUTRALS"
+    : "";
+
+  letter.textContent = letterText;
+
+  inviteMenu.style.display = "flex";
+}
+
   function hideInviteModal(){
     inviteMenu.style.display = "none";
   }
@@ -3128,8 +3229,6 @@ function initStartMenu() {
     });
   }
 
-  // Your HTML uses plain .menu-btn, so we auto-tag them.
-  function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
 
   // Your HTML uses plain .menu-btn, so we auto-tag them.
   function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
@@ -3345,10 +3444,10 @@ MANDALORIANS: ${mandoText}`;
   }
 
   playBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    try { AudioMix.ctx.resume(); } catch {}
-setMenuMusicVolume(0.003);
-    try { menuAudio.stopMusic(); } catch {}
+  e.preventDefault();
+  try { AudioMix.ctx.resume(); } catch {}
+  fadeMenuMusicTo(0, 350);
+  setTimeout(() => stopMenuMusic(), 360);
 
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
@@ -3370,16 +3469,8 @@ setMenuMusicVolume(0.003);
     const mandoText = joinCfg.mandoNeutral ? "YES (as Neutral)" : "NO";
 const isRandom = (joinCfg.mode === "random");
 
-    showInviteModal(
-      `INVITE FROM: ${joinCfg.host}`,
-      `MODE: ${String(joinCfg.mode || "—").toUpperCase()}
-HOST FACTION: ${isRandom ? "THE FORCE IS UNDECIDED" : hostFactionText}
-YOU WILL BE: ${isRandom ? "WHICH SIDE WILL YOU SERVE?" : youWillBeText}
+   showInviteModal(joinCfg);
 
-MANDALORIANS: ${mandoText}
-
-Click ACCEPT to join and start as Player 2.`
-    );
 
     // Keep the normal start menu hidden while invite is shown
     try { menu.style.display = "none"; } catch {}
