@@ -3270,9 +3270,16 @@ function initStartMenu() {
       url = qsSet(url, "mode", modeKey);
       url = qsSet(url, "mando", mando ? "1" : "0");
       url = qsSet(url, "hostFaction", faction || ""); // can be blank if random
+const isRandom = (modeKey === "random");
 
-      const hostFactionText = faction ? faction.toUpperCase() : "RANDOM (host will lock on PLAY)";
-      const guestFactionText = faction ? oppositeFaction(faction).toUpperCase() : "ASSIGNED AFTER HOST LOCKS";
+const hostFactionText = isRandom
+  ? "WHICH SIDE WILL YOU SERVE?"
+  : faction.toUpperCase();
+
+const guestFactionText = isRandom
+  ? "WHICH SIDE WILL YOU SERVE?"
+  : oppositeFaction(faction).toUpperCase();
+
       const mandoText = mando ? "YES (as Neutral)" : "NO";
 
       const msg =
