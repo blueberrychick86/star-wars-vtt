@@ -896,17 +896,19 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 }
 
 .invite-title{
-  margin: 0 0 16px 0;
-  font-family: "MenuTitleFont", Arial, sans-serif;
-  font-size: clamp(26px, 4.8vw, 44px);
+  margin: 0 0 18px 0;
+  font-family: "MenuFont", Arial, sans-serif; /* same as buttons */
+  font-size: clamp(22px, 4.6vw, 38px);
   font-weight: 900;
-  letter-spacing: 1.6px;
+  letter-spacing: 1.4px;
   text-transform: uppercase;
 
-  color: #000;
-  -webkit-text-stroke: 3px #f6d44a;
-  paint-order: stroke fill;
+  color: #f6d44a; /* same yellow, no outline */
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.85),
+    0 0 14px rgba(246,212,74,0.35);
 }
+
 
 .invite-body{
   margin: 0 auto 18px auto;
