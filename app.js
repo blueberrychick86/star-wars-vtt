@@ -546,16 +546,21 @@ box-shadow:
 .menu-title{
   margin: 0;
   font-family: "MenuTitleFont", Arial, sans-serif;
-  font-size: clamp(44px, 7vw, 84px);
+  font-size: clamp(44px, 6.5vw, 88px);
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
 
-  /* simple Star-Wars feel: yellow outline */
   color: #000;
   -webkit-text-stroke: 3px #f6d44a;
   paint-order: stroke fill;
+
+  text-shadow:
+    0 2px 8px rgba(0,0,0,0.90),
+    0 0 26px rgba(246,212,74,0.25);
+  line-height: 1.02;
 }
+
 
 
 
