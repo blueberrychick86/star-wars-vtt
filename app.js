@@ -807,6 +807,202 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 `;
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
+// ===================== AUDIO (WebAudio mixer) =====================
+// GainNodes so volume always works. Unlocks on first gesture.
+// IMPORTANT: we do NOT await loading before allowing the game to continue,
+// so there is no "long delay" before music starts.
+
+const AUDIO_PATHS = {
+  menu: "assets/audio/menu_theme.mp3",
+  click: "assets/audio/ui_click.mp3",
+};// ---------- AUDIO PREFETCH (runs immediately on load) ----------
+// We can fetch MP3 data before gesture; decoding still requires AudioContext.
+const AudioPrefetch = {
+  menuArr: null,
+  clickArr: null,
+  started: false,
+};
+
+function prefetchArrayBuffer(url){
+  return fetch(url)
+    .then(r => r.arrayBuffer())
+    .catch(e => { console.warn("Audio prefetch failed:", url, e); return null; });
+}
+
+function beginAudioPrefetch(){
+  if (AudioPrefetch.started) return;
+  AudioPrefetch.started = true;
+
+  AudioPrefetch.menuArr  = prefetchArrayBuffer(AUDIO_PATHS.menu);
+  AudioPrefetch.clickArr = prefetchArrayBuffer(AUDIO_PATHS.click);
+}
+
+// Start prefetch ASAP (no gesture required)
+beginAudioPrefetch();
+
+
+const AudioMix = {
+  ctx: null,
+  master: null,
+  musicGain: null,
+  sfxGain: null,
+  buffers: { menu: null, click: null },
+  musicSrc: null,
+  unlocked: false,
+  loading: false,
+  wantMenu: false,
+};
+
+let MENU_MUSIC_VOL = 0.08;   // menu music volume (0.00–1.00)
+let UI_CLICK_VOL   = 0.65;   // click volume (0.00–1.00)
+
+async function audioLoadBuffer(url) {
+  const res = await fetch(url);
+  const arr = await res.arrayBuffer();
+  return await AudioMix.ctx.decodeAudioData(arr);
+}async function audioLoadBufferPrefetched(key, url) {
+  // If we already fetched the raw MP3 bytes, decode from that.
+  // Otherwise fall back to fetching normally.
+  let arr = null;
+  try {
+    if (key === "menu" && AudioPrefetch.menuArr) arr = await AudioPrefetch.menuArr;
+    if (key === "click" && AudioPrefetch.clickArr) arr = await AudioPrefetch.clickArr;
+  } catch {}
+
+  if (!arr) {
+    // fallback
+    const res = await fetch(url);
+    arr = await res.arrayBuffer();
+  }
+  return await AudioMix.ctx.decodeAudioData(arr);
+}
+
+
+function tryStartMenuMusic() {
+  if (!AudioMix.unlocked) return;
+  if (!AudioMix.buffers.menu) return;
+  if (AudioMix.musicSrc) return;
+
+  const src = AudioMix.ctx.createBufferSource();
+  src.buffer = AudioMix.buffers.menu;
+  src.loop = true;
+  src.connect(AudioMix.musicGain);
+  src.start();
+  AudioMix.musicSrc = src;
+}
+
+async function audioInitOnce() {
+  if (AudioMix.unlocked) return;
+  if (AudioMix.loading) return;
+  AudioMix.loading = true;
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  AudioMix.ctx = new AC();
+
+  AudioMix.master = AudioMix.ctx.createGain();
+  AudioMix.musicGain = AudioMix.ctx.createGain();
+  AudioMix.sfxGain = AudioMix.ctx.createGain();
+
+  AudioMix.master.gain.value = 1.0;
+  AudioMix.musicGain.gain.value = MENU_MUSIC_VOL;
+  AudioMix.sfxGain.gain.value = UI_CLICK_VOL;
+
+  AudioMix.musicGain.connect(AudioMix.master);
+  AudioMix.sfxGain.connect(AudioMix.master);
+  AudioMix.master.connect(AudioMix.ctx.destination);
+
+  try { await AudioMix.ctx.resume(); } catch {}
+
+  AudioMix.unlocked = true;
+
+  // Load buffers AFTER unlock; when ready, start music if requested.
+  Promise.all([
+  audioLoadBufferPrefetched("menu",  AUDIO_PATHS.menu),
+  audioLoadBufferPrefetched("click", AUDIO_PATHS.click),
+]).then(([menuBuf, clickBuf]) => {
+
+    AudioMix.buffers.menu = menuBuf;
+    AudioMix.buffers.click = clickBuf;
+    if (AudioMix.wantMenu) tryStartMenuMusic();
+  }).catch((e) => {
+    console.warn("Audio preload failed:", e);
+  });
+}
+
+function setMenuMusicVolume(v) {
+  MENU_MUSIC_VOL = Math.max(0, Math.min(1, v));
+  try {
+    if (AudioMix.musicGain && AudioMix.ctx) {
+      AudioMix.musicGain.gain.setValueAtTime(MENU_MUSIC_VOL, AudioMix.ctx.currentTime);
+    }
+  } catch {}
+}// Soft fade for menu music (prevents sudden loud start)
+function fadeMenuMusicTo(targetVol, ms = 700) {
+  targetVol = Math.max(0, Math.min(1, targetVol));
+  try {
+    if (!AudioMix.musicGain || !AudioMix.ctx) return;
+    const t = AudioMix.ctx.currentTime;
+    const g = AudioMix.musicGain.gain;
+
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(targetVol, t + ms / 1000);
+  } catch {}
+}
+
+
+function setUiClickVolume(v) {
+  UI_CLICK_VOL = Math.max(0, Math.min(1, v));
+  try {
+    if (AudioMix.sfxGain && AudioMix.ctx) {
+      AudioMix.sfxGain.gain.setValueAtTime(UI_CLICK_VOL, AudioMix.ctx.currentTime);
+    }
+  } catch {}
+}
+
+function playUiClick() {
+  if (!AudioMix.unlocked || !AudioMix.buffers.click) return;
+  const src = AudioMix.ctx.createBufferSource();
+  src.buffer = AudioMix.buffers.click;
+  src.connect(AudioMix.sfxGain);
+  src.start();
+}
+
+function startMenuMusic() {
+  if (!AudioMix.unlocked) return;
+  AudioMix.wantMenu = true;
+
+  // Start silent and fade up to menu volume
+  try {
+    if (AudioMix.musicGain && AudioMix.ctx) {
+      AudioMix.musicGain.gain.setValueAtTime(
+        0,
+        AudioMix.ctx.currentTime
+      );
+    }
+  } catch {}
+
+  tryStartMenuMusic();
+  fadeMenuMusicTo(MENU_MUSIC_VOL, 700);
+}
+
+
+function stopMenuMusic() {
+  AudioMix.wantMenu = false;
+  if (!AudioMix.musicSrc) return;
+  try { AudioMix.musicSrc.stop(); } catch {}
+  AudioMix.musicSrc = null;
+}
+
+// Unlock audio on FIRST real gesture anywhere.
+window.addEventListener("pointerdown", async () => {
+  await audioInitOnce();
+  // ask for menu music; if buffer isn't ready yet it will start as soon as it finishes loading
+  startMenuMusic();
+}, { once: true });
+
+// =================== END AUDIO (WebAudio mixer) ===================
+
 
 // ---------- table + hud + stage ----------
 const table = document.createElement("div");
@@ -2623,16 +2819,21 @@ if (DEV_SPAWN_TEST_CARDS) {
   }
 }
 
-// ---------- START MENU (SAFE GUARD) ----------
-// This file can run with or without the HTML menu present.
-// If #startMenu isn't in the DOM yet, we auto-init the board.
 
 // ---------- START MENU (ROBUST FOR YOUR HTML) ----------
 function initStartMenu() {
   const menu = document.getElementById("startMenu");
-  if (!menu) return false;
-
   const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));
+
+  // Play click sound on all menu buttons (WebAudio)
+  for (const b of allBtns) {
+    b.addEventListener("click", () => {
+      playUiClick();
+    });
+  }
+
+  // Your HTML uses plain .menu-btn, so we auto-tag them.
+  function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
 
   // Your HTML uses plain .menu-btn, so we auto-tag them.
   function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
@@ -2805,6 +3006,10 @@ function initStartMenu() {
 
   playBtn.addEventListener("click", (e) => {
     e.preventDefault();
+    try { AudioMix.ctx.resume(); } catch {}
+setMenuMusicVolume(0.003);
+    try { menuAudio.stopMusic(); } catch {}
+
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
