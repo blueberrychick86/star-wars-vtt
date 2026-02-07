@@ -969,14 +969,14 @@ inviteStyle.textContent = `
   }
 
   .invite-name-input{
-    width: min(360px, 78vw);
+    width: 220px;
     border: 2px solid rgba(255,255,255,0.70);
     background: rgba(0,0,0,0.55);
     color:#fff;
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 6px 10px;
     font-family: "MenuFont", Arial, sans-serif;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.8px;
     text-transform: uppercase;
