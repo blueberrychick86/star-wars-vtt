@@ -2821,7 +2821,7 @@ const MENU_AUDIO = {
 
 const menuMusic = new Audio(MENU_AUDIO.music);
 menuMusic.loop = true;
-menuMusic.volume = 0.005; // << lower music (tweak 0.10–0.25)
+menuMusic.volume = 0.05; // << lower music (tweak 0.10–0.25)
 
 const uiClick = new Audio(MENU_AUDIO.click);
 uiClick.volume = 0.60;   // << louder clicks (tweak 0.45–0.85)
