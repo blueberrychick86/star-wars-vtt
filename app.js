@@ -3387,6 +3387,8 @@ function initStartMenu() {
 
     if (inviteBtn){
     inviteBtn.addEventListener("click", async () => {
+  stopMenuMusic();
+
       const hostName = getHostName();
       const modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
       const mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
