@@ -871,14 +871,16 @@ inviteStyle.textContent = `
   }
 
   .invite-topline{
-    margin: 6px 0 14px 0;
-    font-size: 16px;
-    font-weight: 900;
-    letter-spacing: 1.6px;
-    text-transform: uppercase;
-    opacity: 0.95;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
-  }
+  margin: 6px 0 14px 0;
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  opacity: 0.95;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+}
+
 
   .invite-title{
     margin: 0 0 10px 0;
@@ -923,17 +925,19 @@ inviteStyle.textContent = `
     box-shadow: 0 18px 45px rgba(0,0,0,0.70);
   }
 
-  .invite-letter{
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    line-height: 1.25;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
-    white-space: pre-line;
-    margin: 0 auto 16px auto;
-    max-width: 760px;
-  }
+ .invite-letter{
+  font-family: "MenuFont", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1.25;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+  white-space: pre-line;
+  margin: 0 auto 16px auto;
+  max-width: 760px;
+}
+
 
   .invite-actions{
     display:flex;
