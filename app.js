@@ -2622,6 +2622,79 @@ if (DEV_SPAWN_TEST_CARDS) {
     stage.appendChild(baseCard);
   }
 }
+// ---------- MENU AUDIO ----------
+const MENU_AUDIO = {
+  // UPDATE these paths to match your repo filenames exactly
+  music: "assets/audio/menu_theme.mp3",
+  click: "assets/audio/ui click sound.mp3",
+};
+
+let __menuAudio = null;
+
+function initMenuAudio(menuEl){
+  if (__menuAudio) return __menuAudio;
+
+  const state = { unlocked: false };
+
+  function safeAudio(src){
+    const a = new Audio(src);
+    a.preload = "auto";
+    return a;
+  }
+
+  const music = safeAudio(MENU_AUDIO.music);
+  music.loop = true;
+  music.volume = 0.32;
+
+  const click = safeAudio(MENU_AUDIO.click);
+  click.volume = 0.28;
+
+  function unlock(){
+    if (state.unlocked) return;
+    state.unlocked = true;
+
+    // Mobile "unlock" (prime audio)
+    try {
+      const p = click.play();
+      if (p?.then) p.then(() => {
+        click.pause();
+        click.currentTime = 0;
+      }).catch(()=>{});
+    } catch {}
+  }
+
+  function playMusic(){
+    if (!state.unlocked) return;
+    try { music.play().catch(()=>{}); } catch {}
+  }
+
+  function stopMusic(){
+    try {
+      music.pause();
+      music.currentTime = 0;
+    } catch {}
+  }
+
+  function playClick(){
+    if (!state.unlocked) return;
+    try {
+      click.currentTime = 0;
+      click.play().catch(()=>{});
+    } catch {}
+  }
+
+  // Unlock on first real interaction anywhere in the menu
+  const unlockOnce = (e) => {
+    if (!e.isTrusted) return;
+    unlock();
+    playMusic();
+    menuEl.removeEventListener("pointerdown", unlockOnce, true);
+  };
+  menuEl.addEventListener("pointerdown", unlockOnce, true);
+
+  __menuAudio = { playClick, playMusic, stopMusic };
+  return __menuAudio;
+}
 
 // ---------- START MENU (SAFE GUARD) ----------
 // This file can run with or without the HTML menu present.
@@ -2632,7 +2705,16 @@ function initStartMenu() {
   const menu = document.getElementById("startMenu");
   if (!menu) return false;
 
-  const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));
+  const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));  
+  const menuAudio = initMenuAudio(menu);
+
+  // Play click sound on all menu buttons
+  for (const b of allBtns) {
+    b.addEventListener("click", () => {
+      try { menuAudio.playClick(); } catch {}
+    });
+  }
+
 
   // Your HTML uses plain .menu-btn, so we auto-tag them.
   function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
@@ -2805,6 +2887,8 @@ function initStartMenu() {
 
   playBtn.addEventListener("click", (e) => {
     e.preventDefault();
+        try { menuAudio.stopMusic(); } catch {}
+
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
