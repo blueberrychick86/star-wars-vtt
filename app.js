@@ -927,7 +927,7 @@ inviteStyle.textContent = `
 
  .invite-letter{
   font-family: "MenuFont", Arial, sans-serif;
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.6px;
   text-transform: uppercase;
