@@ -949,6 +949,52 @@ inviteStyle.textContent = `
   max-width: 760px;
 }
 
+  .invite-name-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 10px 0 18px 0;
+  }
+
+  .invite-name-label{
+    font-family: "MenuFont", Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    opacity: 0.95;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.70);
+  }
+
+  .invite-name-input{
+    width: min(360px, 78vw);
+    border: 2px solid rgba(255,255,255,0.70);
+    background: rgba(0,0,0,0.55);
+    color:#fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "MenuFont", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    outline: none;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.55);
+  }
+
+  .invite-name-input::placeholder{
+    color: rgba(255,255,255,0.55);
+  }
+
+  .invite-name-input:focus{
+    border-color: rgba(140,255,170,0.98);
+    box-shadow:
+      0 0 0 3px rgba(140,255,170,0.22) inset,
+      0 0 26px rgba(140,255,170,0.45),
+      0 18px 36px rgba(0,0,0,0.70);
+  }
 
   .invite-actions{
     display:flex;
@@ -3085,6 +3131,10 @@ function initStartMenu() {
 
     <div class="invite-panel">
       <div class="invite-letter" id="inviteLetter"></div>
+<div class="invite-name-row">
+  <div class="invite-name-label">YOUR NAME</div>
+  <input id="guestNameInput" class="invite-name-input" type="text" placeholder="Guest" maxlength="24" />
+</div>
 
       <div class="invite-actions">
         <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
@@ -3169,9 +3219,12 @@ function initStartMenu() {
   function applyGuestConfigAndStart(cfg){
     // Guest becomes opposite of host faction
     const guestFaction = oppositeFaction(cfg.hostFaction);
+    const guestNameEl = document.getElementById("guestNameInput");
+    const guestName = (guestNameEl && guestNameEl.value ? guestNameEl.value.trim() : "") || "Guest";
 
     window.__gameConfig = {
       role: "guest",
+      guestName: guestName,
       hostName: cfg.host,
       mode: cfg.mode || "original trilogy",
       mandoNeutral: !!cfg.mandoNeutral,
@@ -3183,6 +3236,7 @@ function initStartMenu() {
     // Also set your existing menu selection so everything uses the same path
     window.__menuSelection = window.__menuSelection || {};
     window.__menuSelection.hostName = window.__gameConfig.hostName || "Player";
+    window.__menuSelection.guestName = guestName;
     window.__menuSelection.mode = window.__gameConfig.mode;
     window.__menuSelection.mandoNeutral = window.__gameConfig.mandoNeutral;
     window.__menuSelection.faction = guestFaction;
