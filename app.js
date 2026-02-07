@@ -2627,40 +2627,68 @@ if (DEV_SPAWN_TEST_CARDS) {
 // This file can run with or without the HTML menu present.
 // If #startMenu isn't in the DOM yet, we auto-init the board.
 
+// ---------- START MENU (ROBUST FOR YOUR HTML) ----------
 function initStartMenu() {
   const menu = document.getElementById("startMenu");
   if (!menu) return false;
 
-  // Buttons / inputs expected from your HTML
-  const factionBtns = Array.from(menu.querySelectorAll(".menu-btn.faction"));
-  const modeBtns    = Array.from(menu.querySelectorAll(".menu-btn.mode"));
-  const playBtn     = menu.querySelector(".menu-btn.play");
-  const cancelBtn   = menu.querySelector(".menu-btn.cancel");
-  const inviteBtn   = menu.querySelector("#inviteBtn");
-  const mandoToggle = menu.querySelector("#mandoToggle");
+  const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));
 
-  // If the HTML isn't fully wired yet, don't crash the whole app.
-  if (!factionBtns.length || !modeBtns.length || !playBtn) {
-    console.warn("StartMenu found, but missing expected buttons. Board not started yet.");
-    return true; // menu exists, but not ready
+  // Your HTML uses plain .menu-btn, so we auto-tag them.
+  function txt(el){ return (el.textContent || "").trim().toLowerCase(); }
+
+  let inviteBtn = null;
+  const factionBtns = [];
+  const modeBtns = [];
+
+  for (const b of allBtns) {
+    const t = txt(b);
+
+    if (t === "blue") { b.classList.add("faction","blue"); factionBtns.push(b); }
+    else if (t === "red") { b.classList.add("faction","red"); factionBtns.push(b); }
+
+    else if (t === "original trilogy" || t === "clone wars" || t === "mixed" || t === "random") {
+      b.classList.add("mode");
+      modeBtns.push(b);
+    }
+
+    else if (t === "invite a friend") {
+      inviteBtn = b;
+    }
   }
 
-  // Simple selection helpers
+  // Support BOTH patterns:
+  // - your HTML: #playBtn/#cancelBtn
+  // - older: .menu-btn.play/.menu-btn.cancel
+  const playBtn =
+    menu.querySelector("#playBtn") ||
+    menu.querySelector(".menu-btn.play");
+
+  const cancelBtn =
+    menu.querySelector("#cancelBtn") ||
+    menu.querySelector(".menu-btn.cancel");
+
+  const mandoToggle = menu.querySelector("#mandoToggle");
+
+  // If buttons still missing, don't crash.
+  if (!modeBtns.length || !playBtn) {
+    console.warn("StartMenu found but missing mode buttons or Play button. Not starting board.");
+    return true;
+  }
+
   function clearSelected(btns){ btns.forEach(b => b.classList.remove("selected")); }
   function selectOne(btns, btn){ clearSelected(btns); btn.classList.add("selected"); }
   function getSelectedFaction(){
     const b = factionBtns.find(x => x.classList.contains("selected"));
-    return b ? (b.textContent || "").trim().toLowerCase() : "";
+    return b ? txt(b) : "";
   }
 
-  // Global selection state
   window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
 
   // --- Mode hint lines under OG/CW/MIXED/RANDOM ---
   function hintFor(modeKey, factionKey){
     if (modeKey === "random") return "WHERE WILL YOUR\nALLEGIANCE LIE?";
 
-    // no faction picked yet
     if (!factionKey){
       if (modeKey === "original trilogy") return "EMPIRE+REBEL";
       if (modeKey === "clone wars") return "SEPERATIST+REPUBLIC";
@@ -2668,7 +2696,6 @@ function initStartMenu() {
       return "";
     }
 
-    // faction picked
     if (modeKey === "original trilogy") return (factionKey === "blue") ? "EMPIRE" : "REBEL";
     if (modeKey === "clone wars")       return (factionKey === "blue") ? "SEPERATIST" : "REPUBLIC";
     if (modeKey === "mixed")            return (factionKey === "blue") ? "EMPIRE+SEPERATIST" : "REBEL+REPUBLIC";
@@ -2691,14 +2718,13 @@ function initStartMenu() {
   function updateModeHints(){
     const factionKey = getSelectedFaction();
     modeBtns.forEach(btn => {
-      const key = (btn.textContent || "").trim().toLowerCase();
+      const key = txt(btn);
       const hint = btn.nextElementSibling;
       if (!hint || !hint.classList || !hint.classList.contains("menu-hint")) return;
       hint.textContent = hintFor(key, factionKey);
     });
 
-    // Random subtitle animation toggle
-    const randomBtn = modeBtns.find(b => (b.textContent || "").trim().toLowerCase() === "random");
+    const randomBtn = modeBtns.find(b => txt(b) === "random");
     if (randomBtn){
       const randomHint = randomBtn.nextElementSibling;
       if (randomHint && randomHint.classList.contains("menu-hint")){
@@ -2707,13 +2733,12 @@ function initStartMenu() {
     }
   }
 
-  // Start with NO preselects (your request)
+  // Start with NO preselects
   clearSelected(factionBtns);
   clearSelected(modeBtns);
   ensureModeHints();
   updateModeHints();
 
-  // Mando checkbox → state
   if (mandoToggle){
     window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
     mandoToggle.addEventListener("change", () => {
@@ -2721,23 +2746,20 @@ function initStartMenu() {
     });
   }
 
-  // Faction click
   factionBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       selectOne(factionBtns, btn);
-      window.__menuSelection.faction = (btn.textContent || "").trim().toLowerCase();
+      window.__menuSelection.faction = txt(btn); // "blue" or "red"
       updateModeHints();
     });
   });
 
-  // Mode click
   modeBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       selectOne(modeBtns, btn);
-      const key = (btn.textContent || "").trim().toLowerCase();
+      const key = txt(btn);
       window.__menuSelection.mode = key;
 
-      // Random clears faction (computer decides later)
       if (key === "random"){
         clearSelected(factionBtns);
         window.__menuSelection.faction = "";
@@ -2747,7 +2769,6 @@ function initStartMenu() {
     });
   });
 
-  // Invite a Friend (no servers required)
   if (inviteBtn){
     inviteBtn.addEventListener("click", async () => {
       const url = window.location.href;
@@ -2768,15 +2789,11 @@ function initStartMenu() {
   function applyMenuSelection(sel){
     const out = { ...sel };
 
-    // Random chooses faction
     if (out.mode === "random"){
       out.faction = (Math.random() < 0.5) ? "blue" : "red";
     }
-
-    // Default faction if none chosen
     if (!out.faction) out.faction = "blue";
 
-    // Set player color
     try {
       if (typeof setTrayPlayerColor === "function") setTrayPlayerColor(out.faction);
       else window.PLAYER_COLOR = out.faction;
@@ -2786,20 +2803,14 @@ function initStartMenu() {
     return out;
   }
 
-  // PLAY — hide menu, then init board
   playBtn.addEventListener("click", (e) => {
     e.preventDefault();
-
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
-
-    try { initBoard(); }
-    catch (err) { console.error("initBoard() failed:", err); }
-
+    try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
     console.log("Menu applied:", applied);
   });
 
-  // CANCEL — hide menu only
   if (cancelBtn){
     cancelBtn.addEventListener("click", (e) => {
       e.preventDefault();
