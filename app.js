@@ -2623,6 +2623,39 @@ if (DEV_SPAWN_TEST_CARDS) {
   }
 }
 
+// ---------- START MENU (SAFE GUARD) ----------
+// This file can run with or without the HTML menu present.
+// If #startMenu isn't in the DOM yet, we auto-init the board.
+
+function initStartMenu() {
+  const menu = document.getElementById("startMenu");
+  if (!menu) return false;
+
+  // Buttons / inputs expected from your HTML
+  const factionBtns = Array.from(menu.querySelectorAll(".menu-btn.faction"));
+  const modeBtns    = Array.from(menu.querySelectorAll(".menu-btn.mode"));
+  const playBtn     = menu.querySelector(".menu-btn.play");
+  const cancelBtn   = menu.querySelector(".menu-btn.cancel");
+  const inviteBtn   = menu.querySelector("#inviteBtn");
+  const mandoToggle = menu.querySelector("#mandoToggle");
+
+  // If the HTML isn't fully wired yet, don't crash the whole app.
+  if (!factionBtns.length || !modeBtns.length || !playBtn) {
+    console.warn("StartMenu found, but missing expected buttons. Board not started yet.");
+    return true; // menu exists, but not ready
+  }
+
+  // Simple selection helpers
+  function clearSelected(btns){ btns.forEach(b => b.classList.remove("selected")); }
+  function selectOne(btns, btn){ clearSelected(btns); btn.classList.add("selected"); }
+  function getSelectedFaction(){
+    const b = factionBtns.find(x => x.classList.contains("selected"));
+    return b ? (b.textContent || "").trim().toLowerCase() : "";
+  }
+
+  // Global selection state
+  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
+
   // --- Mode hint lines under OG/CW/MIXED/RANDOM ---
   function hintFor(modeKey, factionKey){
     if (modeKey === "random") return "WHERE WILL YOUR\nALLEGIANCE LIE?";
@@ -2743,7 +2776,7 @@ if (DEV_SPAWN_TEST_CARDS) {
     // Default faction if none chosen
     if (!out.faction) out.faction = "blue";
 
-    // Set player color (used by tray logic / future UI)
+    // Set player color
     try {
       if (typeof setTrayPlayerColor === "function") setTrayPlayerColor(out.faction);
       else window.PLAYER_COLOR = out.faction;
@@ -2753,20 +2786,18 @@ if (DEV_SPAWN_TEST_CARDS) {
     return out;
   }
 
-  // PLAY — hide menu, then init board (board code unchanged)
-  if (playBtn){
-    playBtn.addEventListener("click", (e) => {
-      e.preventDefault();
+  // PLAY — hide menu, then init board
+  playBtn.addEventListener("click", (e) => {
+    e.preventDefault();
 
-      const applied = applyMenuSelection(window.__menuSelection || {});
-      menu.style.display = "none";
+    const applied = applyMenuSelection(window.__menuSelection || {});
+    menu.style.display = "none";
 
-      try { initBoard(); }
-      catch (err) { console.error("initBoard() failed:", err); }
+    try { initBoard(); }
+    catch (err) { console.error("initBoard() failed:", err); }
 
-      console.log("Menu applied:", applied);
-    });
-  }
+    console.log("Menu applied:", applied);
+  });
 
   // CANCEL — hide menu only
   if (cancelBtn){
@@ -2775,6 +2806,13 @@ if (DEV_SPAWN_TEST_CARDS) {
       menu.style.display = "none";
     });
   }
-})();
 
+  return true;
+}
 
+// Boot:
+// - If menu exists, initialize it (and wait for user to hit PLAY)
+// - If menu does NOT exist yet, just start the board
+if (!initStartMenu()) {
+  initBoard();
+}
