@@ -3315,28 +3315,13 @@ function initStartMenu() {
     } catch {}
   }
 
-  // ----- INVITE OVERLAY UI -----
-  let inviteOverlay = document.getElementById("inviteOverlay");
-  if (!inviteOverlay){
-    inviteOverlay = document.createElement("div");
-    inviteOverlay.id = "inviteOverlay";
-    inviteOverlay.innerHTML = `
-      inviteOverlay.innerHTML = `
-  <div class="invite-window">
-    <div class="invite-titleTop" id="inviteTitleTop"></div>
-    <div class="invite-titleMain" id="inviteTitleMain"></div>
+// ----- INVITE OVERLAY UI -----
+// Reuse the invite overlay that is already created earlier in app.js (after preview overlay).
+const inviteOverlay = document.getElementById("inviteOverlay");
+if (!inviteOverlay) {
+  console.warn("inviteOverlay element not found. (It should be created earlier in app.js.)");
+}
 
-    <div class="invite-body" id="inviteBodyMain"></div>
-    <div class="invite-bodySub" id="inviteBodySub"></div>
-
-    <div class="invite-actions">
-      <button class="menu-btn play inviteActionBtn" id="inviteAcceptBtn" type="button">Accept</button>
-      <button class="menu-btn cancel inviteActionBtn" id="inviteDeclineBtn" type="button">Decline</button>
-    </div>
-  </div>
-`;
-
-    document.body.appendChild(inviteOverlay);
   }
 
   function showInviteOverlay(params){
@@ -3560,8 +3545,10 @@ const url = buildInviteLinkFromSelection(window.__menuSelection || {});
   playBtn.addEventListener("click", (e) => {
     e.preventDefault();
     try { AudioMix.ctx.resume(); } catch {}
-setMenuMusicVolume(0.003);
-    try { menuAudio.stopMusic(); } catch {}
+// Fade out/stop menu music when starting the board
+try { fadeMenuMusicTo(0, 250); } catch {}
+setTimeout(() => { try { stopMenuMusic(); } catch {} }, 260);
+
 
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
