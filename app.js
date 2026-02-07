@@ -79,6 +79,17 @@ style.textContent = `
     flex-wrap:wrap;
     pointer-events:auto;
   }
+  /* Global spacing for MenuFont */
+.menu-font,
+.inviteBtn,
+.invite-topline,
+.invite-letter,
+.menu-btn,
+button{
+  font-family: "MenuFont", Arial, sans-serif;
+  word-spacing: 0.6em;
+}
+
   .hudBtn {
     background: rgba(255,255,255,0.10);
     color:#fff;
