@@ -873,8 +873,17 @@ async function audioInitOnce() {
 
 function setMenuMusicVolume(v) {
   MENU_MUSIC_VOL = Math.max(0, Math.min(1, v));
-  if (AudioMix.musicGain) AudioMix.musicGain.gain.value = MENU_MUSIC_VOL;
+
+  try {
+    if (AudioMix.musicGain && AudioMix.musicGain.gain) {
+      AudioMix.musicGain.gain.setValueAtTime(
+        MENU_MUSIC_VOL,
+        AudioMix.ctx.currentTime
+      );
+    }
+  } catch {}
 }
+
 
 function setUiClickVolume(v) {
   UI_CLICK_VOL = Math.max(0, Math.min(1, v));
@@ -2844,6 +2853,7 @@ for (const b of allBtns) {
 }
 
  const menuAudio = initMenuAudio(menu);
+setMenuMusicVolume(0.003);
 
   // Play click sound on all menu buttons
   for (const b of allBtns) {
@@ -3024,7 +3034,9 @@ for (const b of allBtns) {
 
   playBtn.addEventListener("click", (e) => {
     e.preventDefault();
-        try { menuAudio.stopMusic(); } catch {}
+    try { AudioMix.ctx.resume(); } catch {}
+setMenuMusicVolume(0.003);
+    try { menuAudio.stopMusic(); } catch {}
 
     const applied = applyMenuSelection(window.__menuSelection || {});
     menu.style.display = "none";
