@@ -3209,8 +3209,10 @@ function initStartMenu() {
       btn.classList.add("selected");
     }
 
-    acceptBtn.addEventListener("click", () => {
-      playUiClick();
+   acceptBtn.addEventListener("click", async () => {
+  await audioInitOnce();
+  playUiClick();
+
       
       fadeMenuMusicTo(0, 200);
       setTimeout(() => stopMenuMusic(), 220);
@@ -3226,8 +3228,10 @@ function initStartMenu() {
       applyGuestConfigAndStart(cfg);
     });
 
-    declineBtn.addEventListener("click", () => {
-      playUiClick();
+   declineBtn.addEventListener("click", async () => {
+  await audioInitOnce();
+  playUiClick();
+
       selectBlue(declineBtn);
 
       // Clear join params and send them back to the normal menu
