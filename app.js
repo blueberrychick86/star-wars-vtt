@@ -815,7 +815,31 @@ document.body.classList.add("menuReady");
 const AUDIO_PATHS = {
   menu: "assets/audio/menu_theme.mp3",
   click: "assets/audio/ui_click.mp3",
+};// ---------- AUDIO PREFETCH (runs immediately on load) ----------
+// We can fetch MP3 data before gesture; decoding still requires AudioContext.
+const AudioPrefetch = {
+  menuArr: null,
+  clickArr: null,
+  started: false,
 };
+
+function prefetchArrayBuffer(url){
+  return fetch(url)
+    .then(r => r.arrayBuffer())
+    .catch(e => { console.warn("Audio prefetch failed:", url, e); return null; });
+}
+
+function beginAudioPrefetch(){
+  if (AudioPrefetch.started) return;
+  AudioPrefetch.started = true;
+
+  AudioPrefetch.menuArr  = prefetchArrayBuffer(AUDIO_PATHS.menu);
+  AudioPrefetch.clickArr = prefetchArrayBuffer(AUDIO_PATHS.click);
+}
+
+// Start prefetch ASAP (no gesture required)
+beginAudioPrefetch();
+
 
 const AudioMix = {
   ctx: null,
@@ -836,7 +860,23 @@ async function audioLoadBuffer(url) {
   const res = await fetch(url);
   const arr = await res.arrayBuffer();
   return await AudioMix.ctx.decodeAudioData(arr);
+}async function audioLoadBufferPrefetched(key, url) {
+  // If we already fetched the raw MP3 bytes, decode from that.
+  // Otherwise fall back to fetching normally.
+  let arr = null;
+  try {
+    if (key === "menu" && AudioPrefetch.menuArr) arr = await AudioPrefetch.menuArr;
+    if (key === "click" && AudioPrefetch.clickArr) arr = await AudioPrefetch.clickArr;
+  } catch {}
+
+  if (!arr) {
+    // fallback
+    const res = await fetch(url);
+    arr = await res.arrayBuffer();
+  }
+  return await AudioMix.ctx.decodeAudioData(arr);
 }
+
 
 function tryStartMenuMusic() {
   if (!AudioMix.unlocked) return;
@@ -877,9 +917,10 @@ async function audioInitOnce() {
 
   // Load buffers AFTER unlock; when ready, start music if requested.
   Promise.all([
-    audioLoadBuffer(AUDIO_PATHS.menu),
-    audioLoadBuffer(AUDIO_PATHS.click),
-  ]).then(([menuBuf, clickBuf]) => {
+  audioLoadBufferPrefetched("menu",  AUDIO_PATHS.menu),
+  audioLoadBufferPrefetched("click", AUDIO_PATHS.click),
+]).then(([menuBuf, clickBuf]) => {
+
     AudioMix.buffers.menu = menuBuf;
     AudioMix.buffers.click = clickBuf;
     if (AudioMix.wantMenu) tryStartMenuMusic();
