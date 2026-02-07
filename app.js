@@ -93,9 +93,6 @@ style.textContent = `
     touch-action:manipulation;
     cursor:pointer;
   }
-  /* Prevent “unstyled menu flash” before app.js finishes loading */
-#startMenu{ visibility: hidden; }
-body.menuReady #startMenu{ visibility: visible; }
 
 
   #stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
@@ -810,31 +807,6 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 `;
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
-
-
-// ================= START MENU (STEP 1: container only) =================
-const startMenuBackdrop = document.createElement("div");
-startMenuBackdrop.id = "startMenuBackdrop";
-startMenuBackdrop.style.display = "none"; // hidden for now
-startMenuBackdrop.style.position = "fixed";
-startMenuBackdrop.style.inset = "0";
-startMenuBackdrop.style.zIndex = "300000";
-startMenuBackdrop.style.background = "rgba(0,0,0,0.75)";
-
-// simple placeholder content (we will replace later)
-const startMenuCard = document.createElement("div");
-startMenuCard.textContent = "START MENU PLACEHOLDER";
-startMenuCard.style.color = "white";
-startMenuCard.style.fontSize = "24px";
-startMenuCard.style.fontWeight = "900";
-startMenuCard.style.display = "flex";
-startMenuCard.style.alignItems = "center";
-startMenuCard.style.justifyContent = "center";
-startMenuCard.style.width = "100%";
-startMenuCard.style.height = "100%";
-
-startMenuBackdrop.appendChild(startMenuCard);
-document.body.appendChild(startMenuBackdrop);
 
 // ---------- table + hud + stage ----------
 const table = document.createElement("div");
@@ -2631,485 +2603,178 @@ const TEST_MANDO2 = {
   };
 })();
 
-// ---------- spawn test cards ----------
-const unitCard = makeCardEl(OBIWAN, "unit");
-unitCard.style.left = `${DESIGN_W * 0.42}px`;
-unitCard.style.top  = `${DESIGN_H * 0.12}px`;
-unitCard.style.zIndex = "15000";
-stage.appendChild(unitCard);
+// ---------- spawn test cards (DEV ONLY) ----------
+const DEV_SPAWN_TEST_CARDS = false;
 
-const BASE_TEST_COUNT = 2;
-for (let i = 0; i < BASE_TEST_COUNT; i++) {
-  const baseCard = makeCardEl(TEST_BASE, "base");
-  baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
-  baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
-  baseCard.style.zIndex = "12000";
-  stage.appendChild(baseCard);
+if (DEV_SPAWN_TEST_CARDS) {
+  const unitCard = makeCardEl(OBIWAN, "unit");
+  unitCard.style.left = `${DESIGN_W * 0.42}px`;
+  unitCard.style.top  = `${DESIGN_H * 0.12}px`;
+  unitCard.style.zIndex = "15000";
+  stage.appendChild(unitCard);
+
+  const BASE_TEST_COUNT = 2;
+  for (let i = 0; i < BASE_TEST_COUNT; i++) {
+    const baseCard = makeCardEl(TEST_BASE, "base");
+    baseCard.style.left = `${DESIGN_W * (0.14 + i * 0.08)}px`;
+    baseCard.style.top  = `${DESIGN_H * (0.22 + i * 0.02)}px`;
+    baseCard.style.zIndex = "12000";
+    stage.appendChild(baseCard);
+  }
 }
-// ===== BEGIN START MENU BEHAVIOR (NO PRESELECT) =====
-(function startMenuBehavior(){
-  const menu = document.getElementById("startMenu");
-  if (!menu) return;
-  // --- ADDITIVE: shared selection state (read by Play) ---
-  window.__menuSelection = window.__menuSelection || {
-    faction: "",          // "blue" | "red" | ""
-    mode: "",             // "original trilogy" | "clone wars" | "mixed" | "random" | ""
-    mandoNeutral: false,  // checkbox
-  };
 
-  // Mark up existing buttons into groups WITHOUT changing HTML
-  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
+  // --- Mode hint lines under OG/CW/MIXED/RANDOM ---
+  function hintFor(modeKey, factionKey){
+    if (modeKey === "random") return "WHERE WILL YOUR\nALLEGIANCE LIE?";
 
-  // Heuristic grouping by button text
-  const factionBtns = buttons.filter(b => /^(blue|red)$/i.test((b.textContent || "").trim()));
-  const modeBtns = buttons.filter(b => /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim()));
-  // --- ADDITIVE: Mandalorian neutral toggle (checkbox) ---
-  const mandoToggle = document.getElementById("mandoToggle");
-  if (mandoToggle) {
-    // initial value
+    // no faction picked yet
+    if (!factionKey){
+      if (modeKey === "original trilogy") return "EMPIRE+REBEL";
+      if (modeKey === "clone wars") return "SEPERATIST+REPUBLIC";
+      if (modeKey === "mixed") return "EMPIRE+REBEL\nSEPERATIST+REPUBLIC";
+      return "";
+    }
+
+    // faction picked
+    if (modeKey === "original trilogy") return (factionKey === "blue") ? "EMPIRE" : "REBEL";
+    if (modeKey === "clone wars")       return (factionKey === "blue") ? "SEPERATIST" : "REPUBLIC";
+    if (modeKey === "mixed")            return (factionKey === "blue") ? "EMPIRE+SEPERATIST" : "REBEL+REPUBLIC";
+    return "";
+  }
+
+  function ensureModeHints(){
+    modeBtns.forEach(btn => {
+      let hint = btn.nextElementSibling;
+      const isHint = hint && hint.classList && hint.classList.contains("menu-hint");
+      if (!isHint){
+        hint = document.createElement("div");
+        hint.className = "menu-hint";
+        hint.style.whiteSpace = "pre-line";
+        btn.insertAdjacentElement("afterend", hint);
+      }
+    });
+  }
+
+  function updateModeHints(){
+    const factionKey = getSelectedFaction();
+    modeBtns.forEach(btn => {
+      const key = (btn.textContent || "").trim().toLowerCase();
+      const hint = btn.nextElementSibling;
+      if (!hint || !hint.classList || !hint.classList.contains("menu-hint")) return;
+      hint.textContent = hintFor(key, factionKey);
+    });
+
+    // Random subtitle animation toggle
+    const randomBtn = modeBtns.find(b => (b.textContent || "").trim().toLowerCase() === "random");
+    if (randomBtn){
+      const randomHint = randomBtn.nextElementSibling;
+      if (randomHint && randomHint.classList.contains("menu-hint")){
+        randomHint.classList.toggle("allegiance-shift", randomBtn.classList.contains("selected"));
+      }
+    }
+  }
+
+  // Start with NO preselects (your request)
+  clearSelected(factionBtns);
+  clearSelected(modeBtns);
+  ensureModeHints();
+  updateModeHints();
+
+  // Mando checkbox → state
+  if (mandoToggle){
     window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
-
-    // keep updated
     mandoToggle.addEventListener("change", () => {
       window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
     });
   }
 
-  // --- mode hint lines under OG/CW/MIXED/RANDOM (DYNAMIC) ---
-function getSelectedFaction(){
-  const sel = factionBtns.find(b => b.classList.contains("selected"));
-  return sel ? (sel.textContent || "").trim().toLowerCase() : ""; // "blue" | "red" | ""
-}
-
-function hintFor(modeKey, factionKey){
-  // modeKey: "original trilogy" | "clone wars" | "mixed" | "random"
-  // factionKey: "" | "blue" | "red"
-  if (modeKey === "random") return "WHERE WILL YOUR\nALLEGIANCE LIE?";
-
-  // If no faction picked yet:
-  if (!factionKey){
-    if (modeKey === "original trilogy") return "EMPIRE+REBEL";
-    if (modeKey === "clone wars") return "SEPERATIST+REPUBLIC";
-    if (modeKey === "mixed") return "EMPIRE+REBEL\nSEPERATIST+REPUBLIC";
-    return "";
-  }
-
-  // If faction picked:
-  if (modeKey === "original trilogy"){
-    return (factionKey === "blue") ? "EMPIRE" : "REBEL";
-  }
-  if (modeKey === "clone wars"){
-    return (factionKey === "blue") ? "SEPERATIST" : "REPUBLIC";
-  }
-  if (modeKey === "mixed"){
-    // Mixed means "both factions of the chosen color"
-    return (factionKey === "blue") ? "EMPIRE+SEPERATIST" : "REBEL+REPUBLIC";
-  }
-  return "";
-}
-
-function ensureModeHints(){
-  modeBtns.forEach(btn => {
-    const key = (btn.textContent || "").trim().toLowerCase();
-
-    let hint = btn.nextElementSibling;
-    const isHint = hint && hint.classList && hint.classList.contains("menu-hint");
-
-    if (!isHint){
-      hint = document.createElement("div");
-      hint.className = "menu-hint";
-      hint.style.whiteSpace = "pre-line"; // respects \n
-      btn.insertAdjacentElement("afterend", hint);
-    }
-
-    hint.dataset.modeKey = key;
-  });
-}
-
-function updateModeHints(){
-  const factionKey = getSelectedFaction();
-  modeBtns.forEach(btn => {
-    const key = (btn.textContent || "").trim().toLowerCase();
-    const hint = btn.nextElementSibling;
-    if (!hint || !hint.classList || !hint.classList.contains("menu-hint")) return;
-    hint.textContent = hintFor(key, factionKey);
-    });
-  // --- RANDOM subtitle animation (blue <-> red) ---
-const randomBtn = modeBtns.find(
-  b => (b.textContent || "").trim().toLowerCase() === "random"
-);
-
-if (randomBtn) {
-  const randomHint = randomBtn.nextElementSibling;
-  if (randomHint && randomHint.classList.contains("menu-hint")) {
-    const randomSelected = randomBtn.classList.contains("selected");
-    randomHint.classList.toggle("allegiance-shift", randomSelected);
-  }
-}
-
-}
-
-// build hints once, then update whenever selection changes
-ensureModeHints();
-updateModeHints();
-
-
-  // Add style classes used by CSS above (optional but helps)
-  factionBtns.forEach(b => {
-    b.classList.add("faction");
-    const t = (b.textContent || "").trim().toLowerCase();
-    if (t === "blue") b.classList.add("blue");
-    if (t === "red")  b.classList.add("red");
-  });
-  modeBtns.forEach(b => b.classList.add("mode"));
-
-  function clearSelected(group){
-    group.forEach(btn => btn.classList.remove("selected"));
-  }
-  function selectOne(group, btn){
-    clearSelected(group);
-    btn.classList.add("selected");
-  }
-
-  // No defaults selected (as requested)
-  clearSelected(factionBtns);
-  clearSelected(modeBtns);
-
- factionBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
-    selectOne(factionBtns, btn);
-    window.__menuSelection.faction = (btn.textContent || "").trim().toLowerCase();
-    updateModeHints();
-  });
-});
-
-
-  modeBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
-    selectOne(modeBtns, btn);
-
-    const key = (btn.textContent || "").trim().toLowerCase();
-    window.__menuSelection.mode = key;
-
-    // If RANDOM is selected, clear faction selection (computer decides)
-    if (key === "random") {
-      clearSelected(factionBtns);
-    }
-
-    updateModeHints();
-  });
-});
-
-
-  // Optional: make "Invite a Friend" a no-op placeholder (does not touch board)
-  const inviteBtn = buttons.find(b => /invite a friend/i.test((b.textContent || "").trim()));
-  if (inviteBtn) {
-    inviteBtn.addEventListener("click", () => {
-      // placeholder: later we can wire this to a share link / room code
-      alert("Invite feature coming soon.");
-    });
-  }
-})();
-// ===== END START MENU BEHAVIOR (NO PRESELECT) =====
-// ===== MENU BUTTON STATE BINDING (STEP 2) =====
-(function bindMenuButtons(){
-  const menu = document.getElementById("startMenu");
-  if (!menu) return;
-
-  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
-
-  const factionBtns = buttons.filter(b =>
-    /^(blue|red)$/i.test((b.textContent || "").trim())
-  );
-
-  // Safety: don’t bind twice
-  if (menu.dataset.factionBound === "1") return;
-  menu.dataset.factionBound = "1";
-
+  // Faction click
   factionBtns.forEach(btn => {
     btn.addEventListener("click", () => {
-      // visual selection
-      factionBtns.forEach(b => b.classList.remove("selected"));
-      btn.classList.add("selected");
-
-      // state update
-      window.__menuSelection.faction =
-        (btn.textContent || "").trim().toLowerCase();
-
-      console.log("FACTION SET:", window.__menuSelection);
+      selectOne(factionBtns, btn);
+      window.__menuSelection.faction = (btn.textContent || "").trim().toLowerCase();
+      updateModeHints();
     });
   });
-})();
-// ===== MENU MODE STATE BINDING (STEP 3) =====
-(function bindMenuModes(){
-  const menu = document.getElementById("startMenu");
-  if (!menu) return;
 
-  // Safety: don’t bind twice
-  if (menu.dataset.modeBound === "1") return;
-  menu.dataset.modeBound = "1";
-
-  const buttons = Array.from(menu.querySelectorAll(".menu-btn"));
-
-  const modeBtns = buttons.filter(b =>
-    /^(original trilogy|clone wars|mixed|random)$/i.test((b.textContent || "").trim())
-  );
-
-  function clearSelected(group){
-    group.forEach(b => b.classList.remove("selected"));
-  }
-
+  // Mode click
   modeBtns.forEach(btn => {
     btn.addEventListener("click", () => {
-      clearSelected(modeBtns);
-      btn.classList.add("selected");
-
+      selectOne(modeBtns, btn);
       const key = (btn.textContent || "").trim().toLowerCase();
       window.__menuSelection.mode = key;
 
-      // If RANDOM is selected, clear faction selection (computer decides)
-      if (key === "random") {
-        // clear faction UI + state
-        const factionBtns = buttons.filter(b =>
-          /^(blue|red)$/i.test((b.textContent || "").trim())
-        );
+      // Random clears faction (computer decides later)
+      if (key === "random"){
         clearSelected(factionBtns);
         window.__menuSelection.faction = "";
       }
 
-      console.log("MODE SET:", window.__menuSelection);
+      updateModeHints();
     });
   });
-})();
-// ===== MENU MANDO TOGGLE BINDING (STEP 4) =====
-(function bindMandoToggle(){
-  const menu = document.getElementById("startMenu");
-  if (!menu) return;
 
-  const toggle = document.getElementById("mandoToggle");
-  if (!toggle) {
-    console.warn("mandoToggle not found in DOM.");
-    return;
-  }
+  // Invite a Friend (no servers required)
+  if (inviteBtn){
+    inviteBtn.addEventListener("click", async () => {
+      const url = window.location.href;
 
-  // initialize state from checkbox
-  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
-  window.__menuSelection.mandoNeutral = !!toggle.checked;
+      if (navigator.share){
+        try { await navigator.share({ title:"Star Wars VTT", text:"Join my game:", url }); return; } catch {}
+      }
 
-  // update on change
-  toggle.addEventListener("change", () => {
-    window.__menuSelection.mandoNeutral = !!toggle.checked;
-    console.log("MANDO TOGGLE:", window.__menuSelection);
-  });
-})();
-
-// ===== BEGIN MENU WIRING V2 (ADDITIVE, CAPTURE TO OVERRIDE OLD) =====
-(function menuWiringV2(){
-  if (window.__menuWiringV2Bound) return;
-  window.__menuWiringV2Bound = true;
-
-  function getBtnByIdOrText(id, text){
-    const byId = document.getElementById(id);
-    if (byId) return byId;
-    const menu = document.getElementById("startMenu");
-    if (!menu) return null;
-    const btns = Array.from(menu.querySelectorAll("button, .menu-btn"));
-    const t = (text || "").trim().toLowerCase();
-    return btns.find(b => ((b.textContent || "").trim().toLowerCase() === t)) || null;
-  }
-
-  const menu = document.getElementById("startMenu");
-  const playBtn   = getBtnByIdOrText("playBtn", "play");
-  const cancelBtn = getBtnByIdOrText("cancelBtn", "cancel");
-  const inviteBtn = getBtnByIdOrText("inviteBtn", "invite a friend");
-  const mandoToggle = document.getElementById("mandoToggle");
-
-  // Keep selection object alive even if this runs before your startMenuBehavior
-  window.__menuSelection = window.__menuSelection || { faction:"", mode:"", mandoNeutral:false };
-
-  // Keep mando checkbox synced into selection
-  if (mandoToggle && !mandoToggle.__boundV2){
-    mandoToggle.__boundV2 = true;
-    mandoToggle.addEventListener("change", () => {
-      window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
-      // debug:
-      console.log("Menu: mandoNeutral =", window.__menuSelection.mandoNeutral);
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied!\n\n" + url);
+      } catch {
+        prompt("Copy this link:", url);
+      }
     });
   }
 
-  // Apply selection to game (stub now — we’ll expand later)
   function applyMenuSelection(sel){
     const out = { ...sel };
 
-    // Random mode decides faction automatically
+    // Random chooses faction
     if (out.mode === "random"){
       out.faction = (Math.random() < 0.5) ? "blue" : "red";
     }
 
-    // Default faction if user didn’t pick one
+    // Default faction if none chosen
     if (!out.faction) out.faction = "blue";
 
-    // Set board-facing player color (used by your tray + any future UI)
+    // Set player color (used by tray logic / future UI)
     try {
       if (typeof setTrayPlayerColor === "function") setTrayPlayerColor(out.faction);
-      else window.PLAYER_COLOR = out.faction; // fallback
+      else window.PLAYER_COLOR = out.faction;
     } catch {}
 
-    // Future hooks:
-    // - load correct deck set (OT / CW / Mixed)
-    // - include/exclude mando cards as neutral in market/decks
-    console.log("Menu applied:", out);
+    window.__appliedSelection = out;
     return out;
   }
 
-  // PLAY — capture phase so it runs BEFORE older listeners and blocks them
-  if (playBtn && !playBtn.__boundV2){
-    playBtn.__boundV2 = true;
-
+  // PLAY — hide menu, then init board (board code unchanged)
+  if (playBtn){
     playBtn.addEventListener("click", (e) => {
-      // block any older play handlers you still have
       e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
 
-      const sel = window.__menuSelection || { faction:"blue", mode:"", mandoNeutral:false };
-      const applied = applyMenuSelection(sel);
+      const applied = applyMenuSelection(window.__menuSelection || {});
+      menu.style.display = "none";
 
-      // Hide menu
-      const m = document.getElementById("startMenu");
-      if (m) m.style.display = "none";
+      try { initBoard(); }
+      catch (err) { console.error("initBoard() failed:", err); }
 
-      // Init board
-      try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
-
-      // Ensure table visible
-      const tableEl = document.getElementById("table");
-      if (tableEl){
-        tableEl.style.display = "block";
-        tableEl.style.position = "fixed";
-        tableEl.style.inset = "0";
-        tableEl.style.zIndex = "2000";
-      }
-
-      // Optional: store applied selection globally for later deck setup
-      window.__appliedSelection = applied;
-
-    }, true); // <-- capture
+      console.log("Menu applied:", applied);
+    });
   }
 
-  // CANCEL — just hides menu for now (capture + blocks old)
-  if (cancelBtn && !cancelBtn.__boundV2){
-    cancelBtn.__boundV2 = true;
-
+  // CANCEL — hide menu only
+  if (cancelBtn){
     cancelBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      const m = document.getElementById("startMenu");
-      if (m) m.style.display = "none";
-    }, true); // capture
-  }
-
-  // INVITE A FRIEND — simple share/copy link (no servers needed)
-  if (inviteBtn && !inviteBtn.__boundV2){
-    inviteBtn.__boundV2 = true;
-
-    inviteBtn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const url = window.location.href;
-
-      // Prefer native share on mobile
-      if (navigator.share){
-        try {
-          await navigator.share({ title: "Star Wars VTT", text: "Join my game:", url });
-          return;
-        } catch {}
-      }
-
-      // Fallback: copy to clipboard
-      try {
-        await navigator.clipboard.writeText(url);
-        alert("Link copied! Send it to your friend:\n\n" + url);
-      } catch {
-        prompt("Copy this link and send it to your friend:", url);
-      }
+      menu.style.display = "none";
     });
   }
 })();
-/// ===== END MENU WIRING V2 =====
 
-// --- Start Menu Logic ---
-const playBtn = document.getElementById("playBtn");
-if (playBtn) playBtn.addEventListener("click", () => {
-
-   // Hide menu
-  const menu = document.getElementById("startMenu");
-  if (menu) menu.style.display = "none";
-
-  // Build / init board (your existing function)
-  initBoard();
-
-  // Ensure board is visible and layered above anything else
-  const appEl = document.getElementById("app");
-  const tableEl = document.getElementById("table");
-  const stageEl = document.getElementById("stage");
-
-  if (appEl) appEl.style.display = "block";
-
-  if (tableEl) {
-    tableEl.style.display = "block";
-    tableEl.style.position = "fixed";
-    tableEl.style.inset = "0";
-    tableEl.style.zIndex = "2000";
-  }
-
-  if (stageEl) stageEl.style.zIndex = "2001";
-
-});
-
-const cancelBtn = document.getElementById("cancelBtn");
-if (cancelBtn) cancelBtn.addEventListener("click", () => {
-
-  document.getElementById("startMenu").style.display = "none";
-});
-// ===== ADDITIVE SAFETY: ensure menu wiring runs even if app.js loads before HTML =====
-(function ensureMenuBehaviorRuns(){
-  // If it's already initialized, do nothing
-  if (window.__menuSelection) return;
-
-  let tries = 0;
-  const MAX_TRIES = 200; // ~4 seconds at 20ms
-
-  const timer = setInterval(() => {
-    tries++;
-
-    const menu = document.getElementById("startMenu");
-    if (!menu) {
-      if (tries >= MAX_TRIES) clearInterval(timer);
-      return;
-    }
-
-    // Create the shared selection state (what Play reads)
-    window.__menuSelection = window.__menuSelection || {
-      faction: "",
-      mode: "",
-      mandoNeutral: false,
-    };
-
-    // Hook the checkbox (this is what you were looking for)
-    const mandoToggle = document.getElementById("mandoToggle");
-    if (mandoToggle) {
-      window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
-      mandoToggle.addEventListener("change", () => {
-        window.__menuSelection.mandoNeutral = !!mandoToggle.checked;
-      });
-    }
-
-    clearInterval(timer);
-    console.log("Menu wiring initialized:", window.__menuSelection);
-  }, 20);
-})();
 
