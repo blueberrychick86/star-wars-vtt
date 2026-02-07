@@ -88,6 +88,8 @@ style.textContent = `
 button{
   font-family: "MenuFont", Arial, sans-serif;
   word-spacing: 0.6em;
+  
+
 }
 
   .hudBtn {
@@ -926,28 +928,28 @@ inviteStyle.textContent = `
     text-shadow: 0 2px 10px rgba(0,0,0,0.70);
   }
 
-  .invite-panel{
-    margin: 14px auto 0 auto;
-    width: min(820px, 92vw);
-    background: rgba(0,0,0,0.72);
-    border: 2px solid rgba(255,255,255,0.78);
-    border-radius: 52px;
-    padding: 22px 22px 18px 22px;
-    box-shadow: 0 18px 45px rgba(0,0,0,0.70);
-  }
+ overflow-wrap: anywhere;
+word-break: break-word;
+max-width: 100%;
 
- .invite-letter{
+.invite-letter{
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto 10px auto;
+
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  word-break: break-word;
+
   font-family: "MenuFont", Arial, sans-serif;
   font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  line-height: 1.25;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.70);
-  white-space: pre-line;
-  margin: 0 auto 16px auto;
-  max-width: 760px;
+  line-height: 1.4;
+  text-align: center;
+
+  overflow-x: hidden;
 }
+
 
   .invite-name-row{
     display:flex;
@@ -3130,21 +3132,23 @@ function initStartMenu() {
     <div class="invite-hostedby" id="inviteHostedBy">HOSTED BY: HOST PLAYER NAME</div>
 
     <div class="invite-panel">
-      <div class="invite-letter" id="inviteLetter"></div>
-<div class="invite-name-row">
-  <div class="invite-name-label">YOUR NAME</div>
-  <input id="guestNameInput" class="invite-name-input" type="text" placeholder="Guest" maxlength="24" />
+
+  <div class="invite-name-row">
+    <div class="invite-name-label">YOUR NAME</div>
+    <input id="guestNameInput" class="invite-name-input" type="text" placeholder="Guest" maxlength="24" />
+  </div>
+
+  <div class="invite-letter" id="inviteLetter"></div>
+
+  <div class="invite-actions">
+    <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
+    <button class="inviteBtn" id="inviteDeclineBtn" type="button">Decline</button>
+  </div>
+
+  <div class="invite-footer" id="inviteFooter"></div>
+
 </div>
 
-      <div class="invite-actions">
-        <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
-        <button class="inviteBtn" id="inviteDeclineBtn" type="button">Decline</button>
-      </div>
-
-      <div class="invite-footer" id="inviteFooter"></div>
-    </div>
-  </div>
-`;
 
   document.body.appendChild(inviteMenu);
 
