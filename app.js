@@ -867,8 +867,8 @@ inviteStyle.textContent = `
     position: relative;
     z-index: 1;
     width: min(720px, 94vw);
-    max-height: calc(100vh - 36px);
-    overflow: hidden;
+    max-height: calc(100vh - 12px);
+    overflow: visible;
     -webkit-overflow-scrolling: touch;
 
     border: 1px solid rgba(255,255,255,0.25);
@@ -941,17 +941,19 @@ inviteStyle.textContent = `
   max-width: 100%;
   margin: 0 auto 10px auto;
 
-  white-space: pre-line;
+  white-space: normal;        /* wraps instead of staying single-line */
   overflow-wrap: anywhere;
   word-break: break-word;
+
+  overflow: visible;          /* no scrollbars */
+  max-height: none;           /* no internal height clipping */
 
   font-family: "MenuFont", Arial, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   text-align: center;
-
-  overflow-x: hidden;
 }
+
 
 
   .invite-name-row{
@@ -979,7 +981,7 @@ inviteStyle.textContent = `
     background: rgba(0,0,0,0.55);
     color:#fff;
     border-radius: 10px;
-    padding: 6px 10px;
+    padding: 0px 8px;
     font-family: "MenuFont", Arial, sans-serif;
     font-size: 11px;
     font-weight: 900;
