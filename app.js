@@ -866,9 +866,9 @@ inviteStyle.textContent = `
   .invite-window{
     position: relative;
     z-index: 1;
-    width: min(980px, 96vw);
+    width: min(720px, 94vw);
     max-height: calc(100vh - 36px);
-    overflow: auto;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
 
     border: 1px solid rgba(255,255,255,0.25);
@@ -927,10 +927,13 @@ inviteStyle.textContent = `
     opacity: 0.95;
     text-shadow: 0 2px 10px rgba(0,0,0,0.70);
   }
+    .invite-panel{
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 560px;           /* this is what shrinks the bordered “area” */
+    margin: 0 auto;
+  }
 
- overflow-wrap: anywhere;
-word-break: break-word;
-max-width: 100%;
 
 .invite-letter{
   box-sizing: border-box;
@@ -939,7 +942,7 @@ max-width: 100%;
   margin: 0 auto 10px auto;
 
   white-space: pre-line;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-break: break-word;
 
   font-family: "MenuFont", Arial, sans-serif;
@@ -971,7 +974,7 @@ max-width: 100%;
   }
 
   .invite-name-input{
-    width: 220px;
+    width: 150px;
     border: 2px solid rgba(255,255,255,0.70);
     background: rgba(0,0,0,0.55);
     color:#fff;
@@ -3119,8 +3122,9 @@ function initStartMenu() {
 
   // Create invite modal once (hidden by default)
   const inviteMenu = document.createElement("div");
-  inviteMenu.id = "inviteMenu";
- inviteMenu.innerHTML = `
+inviteMenu.id = "inviteMenu";
+
+inviteMenu.innerHTML = `
   <div class="invite-window">
     <div class="invite-topline" id="inviteTopLine">YOU HAVE BEEN INVITED TO PLAY</div>
 
@@ -3132,25 +3136,25 @@ function initStartMenu() {
     <div class="invite-hostedby" id="inviteHostedBy">HOSTED BY: HOST PLAYER NAME</div>
 
     <div class="invite-panel">
+      <div class="invite-name-row">
+        <div class="invite-name-label">YOUR NAME</div>
+        <input id="guestNameInput" class="invite-name-input" type="text" placeholder="Guest" maxlength="24" />
+      </div>
 
-  <div class="invite-name-row">
-    <div class="invite-name-label">YOUR NAME</div>
-    <input id="guestNameInput" class="invite-name-input" type="text" placeholder="Guest" maxlength="24" />
+      <div class="invite-letter" id="inviteLetter"></div>
+
+      <div class="invite-actions">
+        <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
+        <button class="inviteBtn" id="inviteDeclineBtn" type="button">Decline</button>
+      </div>
+
+      <div class="invite-footer" id="inviteFooter"></div>
+    </div>
   </div>
+`;
 
-  <div class="invite-letter" id="inviteLetter"></div>
+document.body.appendChild(inviteMenu);
 
-  <div class="invite-actions">
-    <button class="inviteBtn" id="inviteAcceptBtn" type="button">Accept</button>
-    <button class="inviteBtn" id="inviteDeclineBtn" type="button">Decline</button>
-  </div>
-
-  <div class="invite-footer" id="inviteFooter"></div>
-
-</div>
-
-
-  document.body.appendChild(inviteMenu);
 
   function showInviteModal(cfg){
   // cfg: { host, mode, mandoNeutral, hostFaction }
