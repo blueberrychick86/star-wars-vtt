@@ -1062,8 +1062,8 @@ const AudioMix = {
   wantMenu: false,
 };
 
-let MENU_MUSIC_VOL = 0.03;   // menu music volume (0.00–1.00)
-let UI_CLICK_VOL   = 0.85;   // click volume (0.00–1.00)
+let MENU_MUSIC_VOL = 0.02;   // menu music volume (0.00–1.00)
+let UI_CLICK_VOL   = 1.00;   // click volume (0.00–1.00)
 
 async function audioLoadBuffer(url) {
   const res = await fetch(url);
