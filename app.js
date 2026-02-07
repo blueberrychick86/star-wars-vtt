@@ -2624,10 +2624,10 @@ if (DEV_SPAWN_TEST_CARDS) {
 }
 // ---------- MENU AUDIO ----------
 const MENU_AUDIO = {
-  // UPDATE these paths to match your repo filenames exactly
   music: "assets/audio/menu_theme.mp3",
-  click: "assets/audio/ui click sound.mp3",
+  click: "assets/audio/ui_click.mp3",
 };
+
 
 let __menuAudio = null;
 
