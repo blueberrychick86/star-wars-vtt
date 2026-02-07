@@ -3221,7 +3221,7 @@ function initStartMenu() {
       if (!cfg || !cfg.hostFaction){
         // Not enough info – just close the modal and show the normal menu
         hideInviteModal();
-        return;
+        return; 
       }
       applyGuestConfigAndStart(cfg);
     });
