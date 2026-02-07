@@ -807,6 +807,116 @@ body.menuReady #startMenu{ opacity: 1; transition: opacity .12s ease; }
 `;
 document.head.appendChild(style);
 document.body.classList.add("menuReady");
+// ===================== AUDIO (WebAudio mixer) =====================
+// Uses GainNodes so volume always works. Also "unlocks" on first user gesture.
+
+const AUDIO_PATHS = {
+  menu: "assets/audio/menu_theme.mp3",
+  click: "assets/audio/ui_click.mp3",
+};
+
+const AudioMix = {
+  ctx: null,
+  master: null,
+  musicGain: null,
+  sfxGain: null,
+  buffers: { menu: null, click: null },
+  musicSrc: null,
+  unlocked: false,
+};
+
+// Tune these (these WILL work reliably)
+let MENU_MUSIC_VOL = 0.12;   // try 0.08–0.15
+let UI_CLICK_VOL   = 0.65;   // try 0.45–0.90
+
+async function audioLoadBuffer(url) {
+  const res = await fetch(url);
+  const arr = await res.arrayBuffer();
+  return await AudioMix.ctx.decodeAudioData(arr);
+}
+
+async function audioInitOnce() {
+  if (AudioMix.unlocked) return;
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  AudioMix.ctx = new AC();
+
+  AudioMix.master = AudioMix.ctx.createGain();
+  AudioMix.musicGain = AudioMix.ctx.createGain();
+  AudioMix.sfxGain = AudioMix.ctx.createGain();
+
+  AudioMix.master.gain.value = 1.0;
+  AudioMix.musicGain.gain.value = MENU_MUSIC_VOL;
+  AudioMix.sfxGain.gain.value = UI_CLICK_VOL;
+
+  AudioMix.musicGain.connect(AudioMix.master);
+  AudioMix.sfxGain.connect(AudioMix.master);
+  AudioMix.master.connect(AudioMix.ctx.destination);
+
+  // Resume (important on iOS)
+  try { await AudioMix.ctx.resume(); } catch {}
+
+  // Preload both sounds ASAP after unlock
+  try {
+    const [menuBuf, clickBuf] = await Promise.all([
+      audioLoadBuffer(AUDIO_PATHS.menu),
+      audioLoadBuffer(AUDIO_PATHS.click),
+    ]);
+    AudioMix.buffers.menu = menuBuf;
+    AudioMix.buffers.click = clickBuf;
+  } catch (e) {
+    console.warn("Audio preload failed:", e);
+  }
+
+  AudioMix.unlocked = true;
+}
+
+function setMenuMusicVolume(v) {
+  MENU_MUSIC_VOL = Math.max(0, Math.min(1, v));
+  if (AudioMix.musicGain) AudioMix.musicGain.gain.value = MENU_MUSIC_VOL;
+}
+
+function setUiClickVolume(v) {
+  UI_CLICK_VOL = Math.max(0, Math.min(1, v));
+  if (AudioMix.sfxGain) AudioMix.sfxGain.gain.value = UI_CLICK_VOL;
+}
+
+function playUiClick() {
+  if (!AudioMix.unlocked || !AudioMix.buffers.click) return;
+  const src = AudioMix.ctx.createBufferSource();
+  src.buffer = AudioMix.buffers.click;
+  src.connect(AudioMix.sfxGain);
+  src.start();
+}
+
+function startMenuMusic() {
+  if (!AudioMix.unlocked || !AudioMix.buffers.menu) return;
+  if (AudioMix.musicSrc) return; // already playing
+
+  const src = AudioMix.ctx.createBufferSource();
+  src.buffer = AudioMix.buffers.menu;
+  src.loop = true;
+  src.connect(AudioMix.musicGain);
+  src.start();
+
+  AudioMix.musicSrc = src;
+}
+
+function stopMenuMusic() {
+  if (!AudioMix.musicSrc) return;
+  try { AudioMix.musicSrc.stop(); } catch {}
+  AudioMix.musicSrc = null;
+}
+
+// Unlock audio on the FIRST real gesture anywhere.
+window.addEventListener("pointerdown", async () => {
+  if (AudioMix.unlocked) return;
+  await audioInitOnce();
+  // Start music right away after unlock (no long delay)
+  startMenuMusic();
+}, { once: true });
+
+// =================== END AUDIO (WebAudio mixer) ===================
 
 // ---------- table + hud + stage ----------
 const table = document.createElement("div");
@@ -2726,14 +2836,13 @@ function playClick(){
 
   const allBtns = Array.from(menu.querySelectorAll(".menu-btn"));  
  // Play click sound for ALL menu buttons (simple + safe)
+// Play click sound for ALL menu buttons
 for (const b of allBtns) {
   b.addEventListener("click", () => {
-    try {
-      uiClick.currentTime = 0;
-      uiClick.play();
-    } catch {}
+    playClick();
   });
 }
+
  const menuAudio = initMenuAudio(menu);
 
   // Play click sound on all menu buttons
