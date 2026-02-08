@@ -2967,6 +2967,46 @@ factionTestBtn.addEventListener("click", function(e){
   }
 });
 
+// ---------- INVITE LINK HELPERS (GLOBAL) ----------
+function VTT_qsSet(url, key, val){
+  const u = new URL(url);
+  if (val === undefined || val === null || val === "") u.searchParams.delete(key);
+  else u.searchParams.set(key, String(val));
+  return u.toString();
+}
+
+function VTT_getHostNameSafe(){
+  const el = document.getElementById("hostNameInput");
+  const v = el && el.value ? el.value.trim() : "";
+  return v || (window.__VTT_CONFIG?.hostName) || "Player";
+}
+
+function VTT_buildInviteLinkFromCfg(cfg){
+  // cfg: { hostName, hostFaction, mode, mandoNeutral }
+  let url = location.href;
+  url = VTT_qsSet(url, "join", "1");
+  url = VTT_qsSet(url, "host", cfg.hostName || "Player");
+  url = VTT_qsSet(url, "hostFaction", cfg.hostFaction || "");
+  url = VTT_qsSet(url, "mode", cfg.mode || "");
+  url = VTT_qsSet(url, "mando", cfg.mandoNeutral ? "1" : "0");
+  return url;
+}
+
+function VTT_openInvitePromptFromCurrentState(){
+  const cfg = window.__VTT_CONFIG || {};
+  const hostName = VTT_getHostNameSafe();
+
+  const link = VTT_buildInviteLinkFromCfg({
+    hostName,
+    hostFaction: cfg.hostFaction || "",
+    mode: cfg.mode || "",
+    mandoNeutral: !!cfg.mandoNeutral
+  });
+
+  // Keep your current “simple + robust” method
+  try { navigator.clipboard.writeText(link); } catch {}
+  prompt("Copy this invite link and send it to your friend:", link);
+}
 /* =========================
    START MENU (ROBUST)
    - Change: menu clicks auto-unlock audio so click sound is reliable
@@ -3297,53 +3337,96 @@ function initStartMenu() {
   });
 
   if (inviteBtn){
-    inviteBtn.addEventListener("click", function(){
-      stopMenuMusic();
+  inviteBtn.addEventListener("click", function(){
+    stopMenuMusic();
 
-      var hostName = getHostName();
-      var modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
-      var mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
-      var faction = (window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "";
+    var hostName = getHostName();
+    var modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
+    var mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
+    var faction = (window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "";
 
-      if (!modeKey){
-        alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
-        return;
+    if (!modeKey){
+      alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
+      return;
+    }
+    if (!faction && modeKey !== "random"){
+      alert("Pick Blue or Red first (or choose Random mode).");
+      return;
+    }
+
+    var url = location.href.split("#")[0];
+    url = qsSet(url, "join", "1");
+    url = qsSet(url, "host", hostName);
+    url = qsSet(url, "mode", modeKey);
+    url = qsSet(url, "mando", mando ? "1" : "0");
+    url = qsSet(url, "hostFaction", faction || "");
+
+    // =========================================================
+    // ADDED: store config for later "Invite from gameboard" use
+    // (future 3-player support will reuse this)
+    // =========================================================
+    window.__VTT_CONFIG = {
+      hostName: hostName,
+      mode: modeKey,
+      mandoNeutral: mando,
+      hostFaction: faction || ""
+    };
+
+    var isRandom = (modeKey === "random");
+    var hostFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : faction.toUpperCase();
+    var guestFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : oppositeFaction(faction).toUpperCase();
+    var mandoText = mando ? "YES (as Neutral)" : "NO";
+
+    var msg =
+      "INVITE FROM: " + hostName + "\n" +
+      "MODE: " + String(modeKey).toUpperCase() + "\n" +
+      "HOST FACTION: " + hostFactionText + "\n" +
+      "YOU WILL BE: " + guestFactionText + "\n" +
+      "MANDALORIANS: " + mandoText;
+
+    // =========================================================
+    // ADDED: helper to auto-start after invite
+    // (tries id-based first, then falls back to "Play" text)
+    // =========================================================
+    function autoStartAfterInvite(){
+      // if you already have a known Play button id, this catches it
+      var playBtn = document.getElementById("playBtn") || document.getElementById("startGameBtn");
+      if (playBtn) { try { playBtn.click(); } catch(e){} return; }
+
+      // fallback: click any button that literally says "Play"
+      var btns = document.querySelectorAll("button");
+      for (var i=0; i<btns.length; i++){
+        var t = (btns[i].textContent || "").trim().toLowerCase();
+        if (t === "play"){
+          try { btns[i].click(); } catch(e){}
+          return;
+        }
       }
-      if (!faction && modeKey !== "random"){
-        alert("Pick Blue or Red first (or choose Random mode).");
-        return;
-      }
+    }
 
-      var url = location.href.split("#")[0];
-      url = qsSet(url, "join", "1");
-      url = qsSet(url, "host", hostName);
-      url = qsSet(url, "mode", modeKey);
-      url = qsSet(url, "mando", mando ? "1" : "0");
-      url = qsSet(url, "hostFaction", faction || "");
+    if (navigator.share){
+      navigator.share({ title:"Star Wars VTT Invite", text: msg, url: url }).then(function(){
+        // ADDED: auto-start only after share completes
+        autoStartAfterInvite();
+      }).catch(function(){
+        // if they cancel share, do nothing (keeps behavior consistent)
+      });
+    } else {
+      navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
+        alert("Invite copied!\n\n" + msg + "\n\n" + url);
 
-      var isRandom = (modeKey === "random");
-      var hostFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : faction.toUpperCase();
-      var guestFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : oppositeFaction(faction).toUpperCase();
-      var mandoText = mando ? "YES (as Neutral)" : "NO";
+        // ADDED: auto-start after successful copy+alert
+        autoStartAfterInvite();
+      }).catch(function(){
+        prompt("Copy this invite:", msg + "\n\n" + url);
 
-      var msg =
-        "INVITE FROM: " + hostName + "\n" +
-        "MODE: " + String(modeKey).toUpperCase() + "\n" +
-        "HOST FACTION: " + hostFactionText + "\n" +
-        "YOU WILL BE: " + guestFactionText + "\n" +
-        "MANDALORIANS: " + mandoText;
+        // ADDED: even on fallback prompt, auto-start (user can still copy)
+        autoStartAfterInvite();
+      });
+    }
+  });
+}
 
-      if (navigator.share){
-        navigator.share({ title:"Star Wars VTT Invite", text: msg, url: url }).catch(function(){});
-      } else {
-        navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
-          alert("Invite copied!\n\n" + msg + "\n\n" + url);
-        }).catch(function(){
-          prompt("Copy this invite:", msg + "\n\n" + url);
-        });
-      }
-    });
-  }
 
   function applyMenuSelection(sel){
     var out = {};
