@@ -1696,19 +1696,21 @@ function showPreview(cardData) {
 
   pillsEl.innerHTML = "";
   const pills = [
-    `Cost: ${cardData.cost ?? "—"}`,
-    `Attack: ${cardData.attack ?? "—"}`,
-    `Resources: ${cardData.resources ?? "—"}`,
-    `Force: ${cardData.force ?? "—"}`,
-  ];
+  `Cost: ${(cardData.cost != null) ? cardData.cost : "—"}`,
+  `Attack: ${(cardData.attack != null) ? cardData.attack : "—"}`,
+  `Resources: ${(cardData.resources != null) ? cardData.resources : "—"}`,
+  `Force: ${(cardData.force != null) ? cardData.force : "—"}`,
+];
+
   for (const p of pills) {
     const d = document.createElement("div");
     d.className = "pill";
     d.textContent = p;
     pillsEl.appendChild(d);
   }
-  effEl.textContent = cardData.effect ?? "—";
-  rewEl.textContent = cardData.reward ?? "—";
+  effEl.textContent = (cardData.effect != null) ? cardData.effect : "—";
+rewEl.textContent = (cardData.reward != null) ? cardData.reward : "—";
+
 
   previewBackdrop.style.display = "flex";
   previewOpen = true;
@@ -2983,10 +2985,11 @@ if (window.visualViewport) window.visualViewport.addEventListener("resize", () =
 // ===== FACTION BORDER HELPERS =====
 function getFactionKey(cardData){
   const raw = String(
-    cardData.faction ??
-    cardData.side ??
-    cardData.allegiance ??
-    cardData.border ??
+    (cardData.faction != null) ? cardData.faction :
+(cardData.side != null) ? cardData.side :
+(cardData.allegiance != null) ? cardData.allegiance :
+(cardData.border != null) ? cardData.border :
+
     ""
   ).toLowerCase().trim();
 
