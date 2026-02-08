@@ -1,4 +1,83 @@
 console.log("VTT BASELINE 2026-02-08 — faction borders locked + 3px borders");
+// ===== PATCH A (Boot visibility + early crash overlay) =====
+(function () {
+  function showMenuAnyway() {
+    try {
+      // Your index.html hides the menu unless body has menuReady.
+      // If JS crashes early, this guarantees the menu is still visible.
+      if (document.body) document.body.classList.add("menuReady");
+      var m = document.getElementById("startMenu");
+      if (m) m.style.display = "block";
+    } catch (e) {}
+  }
+
+  // Make sure DOM is ready and menu is not stuck hidden
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", showMenuAnyway);
+  } else {
+    showMenuAnyway();
+  }
+
+  // Ultra-early crash overlay (no modern syntax; should run everywhere)
+  function ensureOverlay() {
+    if (document.getElementById("earlyCrashOverlay")) return;
+
+    var style = document.createElement("style");
+    style.textContent =
+      "#earlyCrashOverlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.92);color:#fff;display:none;padding:16px;font-family:Arial,sans-serif}" +
+      "#earlyCrashOverlay .box{max-width:900px;margin:0 auto;border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:12px;background:rgba(20,20,24,.98)}" +
+      "#earlyCrashOverlay h2{margin:0 0 10px;font-size:16px;text-transform:uppercase;letter-spacing:.6px}" +
+      "#earlyCrashOverlay pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px;line-height:1.35;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;background:rgba(255,255,255,.06)}";
+    document.head.appendChild(style);
+
+    var wrap = document.createElement("div");
+    wrap.id = "earlyCrashOverlay";
+    wrap.innerHTML =
+      '<div class="box">' +
+      "<h2>VTT crashed — copy this</h2>" +
+      '<pre id="earlyCrashText"></pre>' +
+      "</div>";
+    document.body.appendChild(wrap);
+  }
+
+  function showOverlay(title, msg) {
+    try {
+      ensureOverlay();
+      showMenuAnyway();
+      var el = document.getElementById("earlyCrashOverlay");
+      var pre = document.getElementById("earlyCrashText");
+      if (!el || !pre) return;
+
+      var ua = (navigator && navigator.userAgent) ? navigator.userAgent : "";
+      var when = (new Date()).toISOString();
+      pre.textContent =
+        "When: " + when + "\n" +
+        "URL: " + location.href + "\n" +
+        "UA: " + ua + "\n\n" +
+        "Title: " + String(title || "Error") + "\n\n" +
+        String(msg || "(no details)");
+      el.style.display = "block";
+    } catch (e) {}
+  }
+
+  window.addEventListener("error", function (e) {
+    var title = (e && e.message) ? e.message : "window.error";
+    var where = (e && e.filename) ? (e.filename + ":" + (e.lineno || 0) + ":" + (e.colno || 0)) : "";
+    var stack = (e && e.error && e.error.stack) ? e.error.stack : "";
+    showOverlay(title, where + "\n\n" + (stack || ""));
+  });
+
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e ? e.reason : null;
+    var title = (r && r.message) ? r.message : "unhandledrejection";
+    var stack = (r && r.stack) ? r.stack : "";
+    showOverlay(title, stack || String(r || ""));
+  });
+
+  // Expose helper for boot try/catch
+  window.__earlyCrash = showOverlay;
+})();
+// ===== END PATCH A =====
 // ===== PATCH 1A (2026-02-08) — Crash Overlay + Join-boot menu hide (additive) =====
 (function bootFailsafeLayer(){
   const qs = (() => { try { return new URLSearchParams(location.search); } catch { return new URLSearchParams(); } })();
@@ -3742,19 +3821,24 @@ const isRandom = (joinCfg.mode === "random");
   return true;
 }
 
-// Boot (failsafe):
-// - If menu exists, initialize it (and wait for user to hit PLAY)
-// - If menu does NOT exist yet, just start the board
+// Boot (failsafe)
 try {
-  const ok = initStartMenu();
+  // Ensure menu isn’t stuck hidden even if initStartMenu throws
+  try { document.body.classList.add("menuReady"); } catch(e) {}
+
+  var ok = initStartMenu();
   if (!ok) initBoard();
 } catch (err) {
-  console.error("BOOT crashed:", err);
   try {
-    (window.__showCrashOverlay || function(){})(
-      "BOOT crashed",
-      (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err),
-      "Crash happened during initStartMenu()/initBoard() boot."
-    );
-  } catch {}
+    console.error("BOOT crashed:", err);
+  } catch(e) {}
+
+  try {
+    if (window.__earlyCrash) {
+      window.__earlyCrash(
+        "BOOT crashed",
+        (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err)
+      );
+    }
+  } catch(e) {}
 }
