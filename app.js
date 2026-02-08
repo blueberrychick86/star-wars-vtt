@@ -1,4 +1,161 @@
 console.log("VTT BASELINE 2026-02-08 — faction borders locked + 3px borders");
+// ===== PATCH 1A (2026-02-08) — Crash Overlay + Join-boot menu hide (additive) =====
+(function bootFailsafeLayer(){
+  const qs = (() => { try { return new URLSearchParams(location.search); } catch { return new URLSearchParams(); } })();
+  const isJoinLink = (qs.get("join") === "1");
+
+  function ensureCrashOverlay(){
+    if (document.getElementById("crashOverlay")) return;
+
+    const css = document.createElement("style");
+    css.textContent = `
+      #crashOverlay{
+        position:fixed; inset:0;
+        z-index: 999999;
+        display:none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(0,0,0,0.92);
+        color: #fff;
+        font-family: Arial, sans-serif;
+      }
+      #crashOverlay .panel{
+        width: min(920px, 96vw);
+        max-height: 92vh;
+        overflow:auto;
+        border: 1px solid rgba(255,255,255,0.22);
+        border-radius: 14px;
+        background: rgba(10,10,12,0.98);
+        box-shadow: 0 20px 70px rgba(0,0,0,0.75);
+        padding: 14px 14px 10px 14px;
+      }
+      #crashOverlay h2{
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+      }
+      #crashOverlay .meta{
+        opacity: 0.85;
+        font-size: 12px;
+        margin-bottom: 10px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #crashOverlay pre{
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 12px;
+        background: rgba(255,255,255,0.06);
+        padding: 10px;
+      }
+      #crashOverlay .row{
+        display:flex; gap: 10px; flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      #crashOverlay button{
+        border: 1px solid rgba(255,255,255,0.20);
+        background: rgba(255,255,255,0.08);
+        color:#fff;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-weight: 900;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+    `;
+    document.head.appendChild(css);
+
+    const wrap = document.createElement("div");
+    wrap.id = "crashOverlay";
+    wrap.innerHTML = `
+      <div class="panel" role="dialog" aria-modal="true">
+        <h2>VTT crashed — copy this and send it</h2>
+        <div class="meta" id="crashMeta"></div>
+        <pre id="crashText"></pre>
+        <div class="row">
+          <button type="button" id="crashCopyBtn">Copy</button>
+          <button type="button" id="crashReloadBtn">Reload</button>
+          <button type="button" id="crashDismissBtn">Dismiss</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(wrap);
+
+    wrap.querySelector("#crashReloadBtn").addEventListener("click", () => location.reload());
+    wrap.querySelector("#crashDismissBtn").addEventListener("click", () => { wrap.style.display = "none"; });
+
+    wrap.querySelector("#crashCopyBtn").addEventListener("click", async () => {
+      try {
+        const meta = document.getElementById("crashMeta")?.textContent || "";
+        const txt  = document.getElementById("crashText")?.textContent || "";
+        await navigator.clipboard.writeText(meta + "\n\n" + txt);
+      } catch {
+        // clipboard can fail on iOS; do nothing
+      }
+    });
+  }
+
+  function showCrashOverlay(title, details, extra){
+    try {
+      ensureCrashOverlay();
+      const el = document.getElementById("crashOverlay");
+      const metaEl = document.getElementById("crashMeta");
+      const txtEl  = document.getElementById("crashText");
+      if (!el || !metaEl || !txtEl) return;
+
+      const ua = navigator.userAgent || "";
+      const url = location.href;
+      const when = new Date().toISOString();
+
+      metaEl.textContent =
+        `When: ${when}\n` +
+        `URL: ${url}\n` +
+        `Join link: ${isJoinLink ? "YES" : "NO"}\n` +
+        `UA: ${ua}\n` +
+        (extra ? `\nExtra:\n${String(extra)}` : "");
+
+      txtEl.textContent =
+        `Title: ${String(title || "Error")}\n\n` +
+        (details ? String(details) : "(no details)");
+
+      el.style.display = "flex";
+    } catch {}
+  }
+
+  // Expose a tiny helper for later steps (optional)
+  window.__showCrashOverlay = showCrashOverlay;
+
+  // Global error hooks (Safari black screen -> readable overlay)
+  window.addEventListener("error", (e) => {
+    const msg = e?.message || "window.error";
+    const src = e?.filename ? `${e.filename}:${e.lineno || 0}:${e.colno || 0}` : "";
+    const stack = e?.error?.stack || "";
+    showCrashOverlay(msg, `${src}\n\n${stack || ""}`);
+  });
+
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e?.reason;
+    const msg = (r && (r.message || r.toString())) || "unhandledrejection";
+    const stack = (r && r.stack) || "";
+    showCrashOverlay(msg, stack || String(r || ""));
+  });
+
+  // JOIN LINK: hide the start menu immediately (prevents brief flashes + loops)
+  if (isJoinLink) {
+    try {
+      const m = document.getElementById("startMenu");
+      if (m) m.style.display = "none";
+    } catch {}
+  }
+})();
+// ===== END PATCH 1A =====
 
 
 // ---------- base page ----------
@@ -3585,9 +3742,19 @@ const isRandom = (joinCfg.mode === "random");
   return true;
 }
 
-// Boot:
+// Boot (failsafe):
 // - If menu exists, initialize it (and wait for user to hit PLAY)
 // - If menu does NOT exist yet, just start the board
-if (!initStartMenu()) {
-  initBoard();
+try {
+  const ok = initStartMenu();
+  if (!ok) initBoard();
+} catch (err) {
+  console.error("BOOT crashed:", err);
+  try {
+    (window.__showCrashOverlay || function(){})(
+      "BOOT crashed",
+      (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err),
+      "Crash happened during initStartMenu()/initBoard() boot."
+    );
+  } catch {}
 }
