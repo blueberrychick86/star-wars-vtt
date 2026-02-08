@@ -1069,6 +1069,29 @@ inviteStyle.textContent = `
 `;
 document.head.appendChild(inviteStyle);
 // ===== END INVITE MODAL CSS =====
+// ===== SESSION HUD CSS (ADDITIVE) =====
+const sessionHudStyle = document.createElement("style");
+sessionHudStyle.textContent = `
+  #sessionHudBox{
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 10px;
+    padding: 6px 8px;
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    font-size: 10px;
+    line-height: 1.15;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    user-select:none;
+    max-width: 260px;
+    white-space: pre-line;
+  }
+  #sessionHudBox .dim{ opacity: 0.78; }
+`;
+document.head.appendChild(sessionHudStyle);
+// ===== END SESSION HUD CSS =====
+
 
 // ===================== AUDIO (WebAudio mixer) =====================
 // GainNodes so volume always works. Unlocks on first gesture.
@@ -1424,6 +1447,78 @@ trayShell.addEventListener("wheel",       (e) => e.stopPropagation(), { passive:
 // ---------- state ----------
 let piles = {};
 let previewOpen = false;
+// ---------- SESSION (P1/P2 now, P3-ready later) ----------
+window.__session = window.__session || {
+  roomId: null,            // future use
+  role: "local",           // "host" | "guest" | "local"
+  youAre: null,            // "p1" | "p2" | "p3"
+  hostName: "Player",
+  yourName: "Player",
+  mode: "",
+  mandoNeutral: false,
+  seats: { p1: null, p2: null, p3: null }, // future-safe
+};
+
+let sessionHudEl = null;
+
+function ensureSessionHud() {
+  if (sessionHudEl && sessionHudEl.isConnected) return;
+
+  sessionHudEl = document.createElement("div");
+  sessionHudEl.id = "sessionHudBox";
+
+  // Put it in the existing HUD row without breaking buttons
+  try { hud.appendChild(sessionHudEl); } catch {}
+
+  renderSessionHud();
+}
+
+function setSession(patch) {
+  window.__session = { ...window.__session, ...(patch || {}) };
+  renderSessionHud();
+}
+
+function readSessionFromGameConfig() {
+  const cfg = window.__gameConfig || null;
+  if (!cfg) return null;
+
+  // Map your existing config to a normalized session shape.
+  return {
+    role: cfg.role || "local",
+    youAre: cfg.youAre || null,
+    hostName: cfg.hostName || "Player",
+    yourName: (cfg.role === "guest" ? (cfg.guestName || "Guest") : (cfg.hostName || "Player")),
+    mode: cfg.mode || "",
+    mandoNeutral: !!cfg.mandoNeutral,
+
+    // seats for future: host always p1, guest always p2 in the current 2p system
+    seats: {
+      p1: cfg.hostName ? { name: cfg.hostName, faction: cfg.p1Faction || null } : null,
+      p2: cfg.guestName ? { name: cfg.guestName, faction: cfg.p2Faction || null } : null,
+      p3: null,
+    },
+  };
+}
+
+function renderSessionHud() {
+  if (!sessionHudEl || !sessionHudEl.isConnected) return;
+
+  const s = window.__session || {};
+  const you = s.youAre ? s.youAre.toUpperCase() : "—";
+  const role = (s.role || "local").toUpperCase();
+  const mode = (s.mode || "—").toUpperCase();
+  const mando = s.mandoNeutral ? "ON" : "OFF";
+
+  const p1 = s.seats?.p1?.name ? `P1: ${String(s.seats.p1.name).toUpperCase()}` : "P1: —";
+  const p2 = s.seats?.p2?.name ? `P2: ${String(s.seats.p2.name).toUpperCase()}` : "P2: —";
+  const p3 = s.seats?.p3?.name ? `P3: ${String(s.seats.p3.name).toUpperCase()}` : "P3: —";
+
+  sessionHudEl.innerHTML =
+    `YOU: ${you}  <span class="dim">(${role})</span>\n` +
+    `MODE: ${mode}  <span class="dim">MANDO: ${mando}</span>\n` +
+    `${p1}\n${p2}\n<span class="dim">${p3}</span>`;
+}
+// ---------- END SESSION ----------
 
 let forceSlotCenters = [];
 let forceMarker = null;
@@ -3259,6 +3354,12 @@ document.body.appendChild(inviteMenu);
     try { document.getElementById("startMenu").style.display = "none"; } catch {}
     hideInviteModal();
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
+    // ---- SESSION HUD: show who the guest is (P2) ----
+    try { ensureSessionHud(); } catch {}
+    try {
+      const sess = readSessionFromGameConfig();
+      if (sess) setSession(sess);
+    } catch {}
 
     console.log("Joined as guest (P2):", window.__gameConfig);
   }
@@ -3557,7 +3658,24 @@ MANDALORIANS: ${mandoText}`;
   setTimeout(() => stopMenuMusic(), 360);
 
     const applied = applyMenuSelection(window.__menuSelection || {});
-    menu.style.display = "none";
+       // ---- SESSION HUD: host is P1 (2p now, P3-ready later) ----
+    const hostName = getHostName();
+    window.__gameConfig = {
+      role: "host",
+      hostName: hostName,
+      mode: applied.mode || (window.__menuSelection?.mode || "original trilogy"),
+      mandoNeutral: !!(window.__menuSelection && window.__menuSelection.mandoNeutral),
+      p1Faction: applied.faction,
+      p2Faction: oppositeFaction(applied.faction),
+      youAre: "p1",
+    };
+
+    try { ensureSessionHud(); } catch {}
+    try {
+      const sess = readSessionFromGameConfig();
+      if (sess) setSession(sess);
+    } catch {}
+ menu.style.display = "none";
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
     console.log("Menu applied:", applied);
   });
