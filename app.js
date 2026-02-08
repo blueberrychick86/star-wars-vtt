@@ -1,4 +1,5 @@
-console.log("VTT BASELINE 2026-02-08 — faction borders locked + 3px borders");
+console.log("VTT BASELINE 2026-02-08 — invite flow complete + audio fixed + guest names added");
+
 
 
 // ---------- base page ----------
