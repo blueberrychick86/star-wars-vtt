@@ -1,4 +1,4 @@
-console.log("VTT BASELINE 2026-02-05 — faction borders locked + 3px borders");
+console.log("VTT BASELINE 2026-02-08 — faction borders locked + 3px borders");
 
 
 // ---------- base page ----------
