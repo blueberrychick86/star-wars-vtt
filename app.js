@@ -3440,8 +3440,9 @@ function initStartMenu() {
     // Clipboard API not available / blocked → always fall back safely
     prompt("Copy this invite:", msg + "\n\n" + url);
     autoStartAfterInvite();
-  }
-}
+    }); // close inviteBtn.addEventListener
+  }     // close if (inviteBtn)
+
 
 
   function applyMenuSelection(sel){
