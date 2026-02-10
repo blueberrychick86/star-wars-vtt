@@ -2968,45 +2968,58 @@ factionTestBtn.addEventListener("click", function(e){
 });
 
 // ---------- INVITE LINK HELPERS (GLOBAL) ----------
+// ES5-safe (no const/let, no optional chaining) to prevent iPhone black-screen parse crashes.
+
 function VTT_qsSet(url, key, val){
-  const u = new URL(url);
-  if (val === undefined || val === null || val === "") u.searchParams.delete(key);
-  else u.searchParams.set(key, String(val));
+  var u;
+  try { u = new URL(url); }
+  catch (e) { return url; }
+
+  try {
+    if (val === undefined || val === null || val === "") u.searchParams.delete(key);
+    else u.searchParams.set(key, String(val));
+  } catch (e2) {}
   return u.toString();
 }
 
 function VTT_getHostNameSafe(){
-  const el = document.getElementById("hostNameInput");
-  const v = el && el.value ? el.value.trim() : "";
-  return v || (window.__VTT_CONFIG?.hostName) || "Player";
+  var el = document.getElementById("hostNameInput");
+  var v = (el && el.value) ? String(el.value).trim() : "";
+
+  var cfg = window.__VTT_CONFIG || {};
+  var fallback = (cfg && cfg.hostName) ? String(cfg.hostName) : "Player";
+
+  return v || fallback || "Player";
 }
 
 function VTT_buildInviteLinkFromCfg(cfg){
-  // cfg: { hostName, hostFaction, mode, mandoNeutral }
-  let url = location.href;
+  cfg = cfg || {};
+  var url = location.href;
+
   url = VTT_qsSet(url, "join", "1");
   url = VTT_qsSet(url, "host", cfg.hostName || "Player");
   url = VTT_qsSet(url, "hostFaction", cfg.hostFaction || "");
   url = VTT_qsSet(url, "mode", cfg.mode || "");
   url = VTT_qsSet(url, "mando", cfg.mandoNeutral ? "1" : "0");
+
   return url;
 }
 
 function VTT_openInvitePromptFromCurrentState(){
-  const cfg = window.__VTT_CONFIG || {};
-  const hostName = VTT_getHostNameSafe();
+  var cfg = window.__VTT_CONFIG || {};
+  var hostName = VTT_getHostNameSafe();
 
-  const link = VTT_buildInviteLinkFromCfg({
-    hostName,
+  var link = VTT_buildInviteLinkFromCfg({
+    hostName: hostName,
     hostFaction: cfg.hostFaction || "",
     mode: cfg.mode || "",
     mandoNeutral: !!cfg.mandoNeutral
   });
 
-  // Keep your current “simple + robust” method
-  try { navigator.clipboard.writeText(link); } catch {}
+  try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link); } catch (e) {}
   prompt("Copy this invite link and send it to your friend:", link);
 }
+
 /* =========================
    START MENU (ROBUST)
    - Change: menu clicks auto-unlock audio so click sound is reliable
