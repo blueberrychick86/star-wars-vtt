@@ -3425,19 +3425,22 @@ function initStartMenu() {
         // if they cancel share, do nothing (keeps behavior consistent)
       });
     } else {
-      navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
-        alert("Invite copied!\n\n" + msg + "\n\n" + url);
+  var canClipboard = false;
+  try { canClipboard = !!(navigator && navigator.clipboard && navigator.clipboard.writeText); } catch (e) {}
 
-        // ADDED: auto-start after successful copy+alert
-        autoStartAfterInvite();
-      }).catch(function(){
-        prompt("Copy this invite:", msg + "\n\n" + url);
-
-        // ADDED: even on fallback prompt, auto-start (user can still copy)
-        autoStartAfterInvite();
-      });
-    }
-  });
+  if (canClipboard) {
+    navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
+      alert("Invite copied!\n\n" + msg + "\n\n" + url);
+      autoStartAfterInvite();
+    }).catch(function(){
+      prompt("Copy this invite:", msg + "\n\n" + url);
+      autoStartAfterInvite();
+    });
+  } else {
+    // Clipboard API not available / blocked → always fall back safely
+    prompt("Copy this invite:", msg + "\n\n" + url);
+    autoStartAfterInvite();
+  }
 }
 
 
