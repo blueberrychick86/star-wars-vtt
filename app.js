@@ -1187,41 +1187,33 @@ previewBackdrop.innerHTML = `
 `;
 table.appendChild(previewBackdrop);
 
-// HARD modal trap
+// HARD modal trap (FIXED)
+// - Prevents board interactions when backdrop is clicked
+// - DOES NOT stopPropagation (so other preview-close listeners still work)
 (function trapPreviewInteractions(){
-  function shouldTrap(e){
-    // Trap ONLY if the user is interacting with the dark backdrop itself,
-    // not the preview card content.
+  function isBackdrop(e){
     return e && e.target === previewBackdrop;
   }
 
-  function stop(e){
-    if (!shouldTrap(e)) return;
+  function preventOnly(e){
+    if (!isBackdrop(e)) return;
+    // Prevent scroll/drag from leaking to board,
+    // but DO NOT stopPropagation (important!)
     e.preventDefault();
-    e.stopPropagation();
   }
 
-  function stopNoPrevent(e){
-    if (!shouldTrap(e)) return;
-    e.stopPropagation();
-  }
+  previewBackdrop.addEventListener("pointerdown", preventOnly, { capture:true });
+  previewBackdrop.addEventListener("pointermove", preventOnly, { capture:true });
+  previewBackdrop.addEventListener("wheel",      preventOnly, { capture:true, passive:false });
 
-  previewBackdrop.addEventListener("pointerdown", stop, { capture:true });
-  previewBackdrop.addEventListener("pointermove", stop, { capture:true });
-  previewBackdrop.addEventListener("pointerup", stopNoPrevent, { capture:true });
-  previewBackdrop.addEventListener("pointercancel", stopNoPrevent, { capture:true });
-  previewBackdrop.addEventListener("wheel", stop, { capture:true, passive:false });
-
-  previewBackdrop.addEventListener("touchstart", stopNoPrevent, { capture:true, passive:true });
-  previewBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
-  previewBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
+  previewBackdrop.addEventListener("touchmove",  preventOnly, { capture:true, passive:false });
 
   previewBackdrop.addEventListener("contextmenu", function(e){
-    if (!shouldTrap(e)) return;
+    if (!isBackdrop(e)) return;
     e.preventDefault();
-    e.stopPropagation();
   }, { capture:true });
 })();
+
 
 
 /* =========================
@@ -1468,19 +1460,22 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
   trayShell.classList.remove("dragging");
-    // iOS SAFETY: re-fit after tray close + keyboard collapse
-  try { fitToScreen(); } catch (e) {}
-  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
-  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
+   trayShell.classList.remove("dragging");
 
-    trayShell.style.pointerEvents = "none";
-  trayShell.style.display = "none";
+// Hide tray FIRST so fit uses full width
+trayShell.style.pointerEvents = "none";
+trayShell.style.display = "none";
 
-  // SNAP BACK: after tray closes, re-fit board using full viewport width
-  setTimeout(function(){
-    try { fitToScreen(); } catch (e) {}
-  }, 0);
-}
+// iOS viewport/keyboard cleanup (prevents “panned left” / stuck offset)
+try { window.scrollTo(0, 0); } catch (e) {}
+try { document.documentElement.scrollTop = 0; } catch (e) {}
+try { document.body.scrollTop = 0; } catch (e) {}
+
+// Now snap board back with full viewport width
+try { fitToScreen(); } catch (e) {}
+setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
+setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
+
 
 
 trayCloseBtn.addEventListener("click", function(){ if (!previewOpen) closeTray(); });
