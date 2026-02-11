@@ -1351,6 +1351,51 @@ function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPrev
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", function(e){ e.preventDefault(); hidePreview(); });
 previewBackdrop.addEventListener("pointerdown", function(e){ if (e.target === previewBackdrop) hidePreview(); });
 window.addEventListener("keydown", function(e){ if (e.key === "Escape" && previewOpen) hidePreview(); });
+/* =========================
+   PATCH — iOS SAFE PREVIEW CLOSE
+   - After typing in <input>, iOS Safari sometimes fails to fire "click"
+   - Use pointerdown/touchstart and a robust outside-tap close
+   ========================= */
+(function iosSafePreviewClose(){
+  var closeBtn = previewBackdrop.querySelector("#closePreviewBtn");
+  var previewCard = previewBackdrop.querySelector("#previewCard");
+
+  // Ensure preview card can always receive pointer events
+  try { if (previewCard) previewCard.style.pointerEvents = "auto"; } catch (e) {}
+  try { previewBackdrop.style.pointerEvents = "auto"; } catch (e) {}
+
+  function closeNow(e){
+    if (e) { try { e.preventDefault(); } catch (x) {} try { e.stopPropagation(); } catch (y) {} }
+    hidePreview();
+  }
+
+  // Use pointerdown instead of click for iOS reliability
+  if (closeBtn) {
+    closeBtn.addEventListener("pointerdown", closeNow, { capture:true });
+    closeBtn.addEventListener("touchstart", closeNow, { capture:true, passive:false });
+  }
+
+  // If user taps anywhere OUTSIDE the preview card, close it (more robust than target===backdrop)
+  previewBackdrop.addEventListener("pointerdown", function(e){
+    if (!previewOpen) return;
+    if (!previewCard) { closeNow(e); return; }
+
+    // If tap is not inside the card → close
+    if (!previewCard.contains(e.target)) closeNow(e);
+  }, { capture:true });
+
+  previewBackdrop.addEventListener("touchstart", function(e){
+    if (!previewOpen) return;
+    if (!previewCard) { closeNow(e); return; }
+    if (!previewCard.contains(e.target)) closeNow(e);
+  }, { capture:true, passive:false });
+
+  // Make sure taps inside the card don't bubble to backdrop handlers
+  if (previewCard) {
+    previewCard.addEventListener("pointerdown", function(e){ e.stopPropagation(); }, { capture:true });
+    previewCard.addEventListener("touchstart", function(e){ e.stopPropagation(); }, { capture:true, passive:true });
+  }
+})();
 
 /* =========================
    TRAY STATE + BEHAVIOR
