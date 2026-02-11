@@ -1189,8 +1189,22 @@ table.appendChild(previewBackdrop);
 
 // HARD modal trap
 (function trapPreviewInteractions(){
-  function stop(e){ e.preventDefault(); e.stopPropagation(); }
-  function stopNoPrevent(e){ e.stopPropagation(); }
+  function shouldTrap(e){
+    // Trap ONLY if the user is interacting with the dark backdrop itself,
+    // not the preview card content.
+    return e && e.target === previewBackdrop;
+  }
+
+  function stop(e){
+    if (!shouldTrap(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function stopNoPrevent(e){
+    if (!shouldTrap(e)) return;
+    e.stopPropagation();
+  }
 
   previewBackdrop.addEventListener("pointerdown", stop, { capture:true });
   previewBackdrop.addEventListener("pointermove", stop, { capture:true });
@@ -1202,8 +1216,13 @@ table.appendChild(previewBackdrop);
   previewBackdrop.addEventListener("touchmove", stop, { capture:true, passive:false });
   previewBackdrop.addEventListener("touchend", stopNoPrevent, { capture:true, passive:true });
 
-  previewBackdrop.addEventListener("contextmenu", function(e){ e.preventDefault(); e.stopPropagation(); }, { capture:true });
+  previewBackdrop.addEventListener("contextmenu", function(e){
+    if (!shouldTrap(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, { capture:true });
 })();
+
 
 /* =========================
    TRAY
