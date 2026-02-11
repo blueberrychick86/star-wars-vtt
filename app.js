@@ -1362,6 +1362,9 @@ function openTray() {
 
 function closeTray() {
   if (!trayState.open) return;
+  // iOS SAFETY: closing tray after using the search input can leave the visualViewport/camera in a bad state.
+  // Force keyboard to dismiss and re-fit after viewport settles.
+  try { traySearchInput.blur(); } catch (e) {}
 
   if (trayState.mode === "draw") {
     for (var i = trayState.drawItems.length - 1; i >= 0; i--) {
@@ -1401,6 +1404,11 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
   trayShell.classList.remove("dragging");
+    // iOS SAFETY: re-fit after tray close + keyboard collapse
+  try { fitToScreen(); } catch (e) {}
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
+
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
 }
