@@ -1478,7 +1478,14 @@ setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
 
 
 
-trayCloseBtn.addEventListener("click", function(){ if (!previewOpen) closeTray(); });
+setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
+
+} // ✅ END closeTray()
+
+trayCloseBtn.addEventListener("click", function(){
+  if (!previewOpen) closeTray();
+});
+
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
