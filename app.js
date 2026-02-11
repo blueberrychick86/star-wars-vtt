@@ -1409,9 +1409,15 @@ function closeTray() {
   setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
   setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
 
-  trayShell.style.pointerEvents = "none";
+    trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
+
+  // SNAP BACK: after tray closes, re-fit board using full viewport width
+  setTimeout(function(){
+    try { fitToScreen(); } catch (e) {}
+  }, 0);
 }
+
 
 trayCloseBtn.addEventListener("click", function(){ if (!previewOpen) closeTray(); });
 
