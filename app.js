@@ -3286,6 +3286,16 @@ function initStartMenu() {
   var playBtn = menu.querySelector("#playBtn") || menu.querySelector(".menu-btn.play");
   var cancelBtn = menu.querySelector("#cancelBtn") || menu.querySelector(".menu-btn.cancel");
   var mandoToggle = menu.querySelector("#mandoToggle");
+// --- Phase 1: Host should auto-run invite flow (if wired) ---
+function runInviteIfAvailable() {
+  try {
+    if (inviteBtn && typeof inviteBtn.click === "function") {
+      inviteBtn.click(); // re-use any existing invite handler
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
 
   if (!modeBtns.length || !playBtn) {
     console.warn("StartMenu found but missing mode buttons or Play button. Not starting board.");
@@ -3442,7 +3452,9 @@ function initStartMenu() {
   }
 
   playBtn.addEventListener("click", function(e){
-    e.preventDefault();
+  e.preventDefault();
+  runInviteIfAvailable();
+
     audioInitOnce().then(function(){
       try { AudioMix.ctx.resume(); } catch (err) {}
       fadeMenuMusicTo(0, 350);
