@@ -7,6 +7,10 @@
    ======================================================================== */
 
 console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
+// ==============================
+// PHASE 1 — Multiplayer backend URL (Durable Objects Worker)
+// ==============================
+window.__ROOMS_WORKER_ORIGIN = "https://sw-vtt-rooms-worker.blueberrychick86.workers.dev";
 
 /* =========================
    PATCH A — BOOT FAILSAFE
