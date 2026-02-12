@@ -1891,16 +1891,35 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       stage.appendChild(el);
 
-      if (kind === "base") {
-        snapBaseAutoFill(el);
-        if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
-      } else {
-        snapCardToNearestZone(el);
-      }
+if (kind === "base") {
+  snapBaseAutoFill(el);
+  if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
+} else {
+  snapCardToNearestZone(el);
+}
 
-      onCommitToBoard();
-    }
-  }
+/* =========================
+   NET: broadcast spawn so other client can create the card
+   ========================= */
+vttSend({
+  t: "card_spawn",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  kind: kind,
+  cardData: el.__cardData || card,   // <- important
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+  face: el.dataset.face || "up",
+  capSide: el.dataset.capSide || null,
+  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+  at: __vttNowMs()
+});
+
+onCommitToBoard();
+
 
   tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
@@ -3057,22 +3076,6 @@ function attachDragHandlers(el, cardData, kind) {
       showPreview(cardData);
     }, 380);
   }
-
-  el.style.left = (Number(m.x) || 0) + "px";
-  el.style.top  = (Number(m.y) || 0) + "px";
-
-  if (m.z != null) el.style.zIndex = String(m.z);
-
-  if (m.face) el.dataset.face = String(m.face);
-
-  if (el.dataset.kind === "unit" && m.rot != null) {
-    el.dataset.rot = String(m.rot);
-    try { applyRotationSize(el); } catch(e){}
-  }
-
-  if (m.capSide) el.dataset.capSide = m.capSide; else delete el.dataset.capSide;
-  if (m.capIndex != null) el.dataset.capIndex = String(m.capIndex); else delete el.dataset.capIndex;
-}
 
   var lastTap = 0;
 
