@@ -16,6 +16,62 @@ console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px bo
 
 window.__vttSocket = null;
 window.__vttRoomId = null;
+// ==============================
+// NET: incoming move queue + applier (safe before board exists)
+// ==============================
+window.__vttPendingMoves = window.__vttPendingMoves || [];
+
+window.applyCardMove = function(m){
+  try {
+    if (!m) return;
+
+    // If board/stage not built yet, queue it
+    if (!window.stage || !window.stage.querySelector) {
+      window.__vttPendingMoves.push(m);
+      return;
+    }
+
+    var id = String(m.cardId || "");
+    if (!id) return;
+
+    var el = window.stage.querySelector(".card[data-card-id='" + id.replace(/'/g,"\\'") + "']");
+    if (!el){
+      console.warn("card_move for unknown cardId (needs spawn sync):", id, m);
+      return;
+    }
+
+    el.style.left = (Number(m.x) || 0) + "px";
+    el.style.top  = (Number(m.y) || 0) + "px";
+
+    if (m.z != null) el.style.zIndex = String(m.z);
+
+    if (m.face) el.dataset.face = String(m.face);
+
+    if ((el.dataset.kind || "") === "unit" && m.rot != null) {
+      el.dataset.rot = String(m.rot);
+      if (typeof applyRotationSize === "function") applyRotationSize(el);
+    }
+
+    if (m.capSide) el.dataset.capSide = m.capSide; else delete el.dataset.capSide;
+    if (m.capIndex != null) el.dataset.capIndex = String(m.capIndex); else delete el.dataset.capIndex;
+  } catch (e) {
+    console.warn("applyCardMove failed:", e);
+  }
+};
+
+window.__vttFlushPendingMoves = function(){
+  try {
+    if (!window.__vttPendingMoves || !window.__vttPendingMoves.length) return;
+    if (!window.stage || !window.stage.querySelector) return;
+
+    var pending = window.__vttPendingMoves.slice();
+    window.__vttPendingMoves.length = 0;
+    for (var i = 0; i < pending.length; i++){
+      window.applyCardMove(pending[i]);
+    }
+  } catch (e) {}
+};
+
 window.__vttNetReady = false;
 
 window.__vttClientId = (function(){
@@ -201,9 +257,14 @@ console.log("📩 RECV:", obj.t, obj);
 if (obj.clientId && window.__vttClientId && obj.clientId === window.__vttClientId) return;
 
 if (obj.t === "card_move") {
-  applyCardMove(obj);
+  if (typeof window.applyCardMove === "function") {
+    window.applyCardMove(obj);
+  } else {
+    console.warn("card_move recv but applyCardMove missing (not added yet).", obj);
+  }
   return;
 }
+
 
     __vttLogRecv(obj);
 
@@ -1389,6 +1450,8 @@ var factionTestBtn = mkHudBtn("FACTION TEST");
 var stage = document.createElement("div");
 stage.id = "stage";
 table.appendChild(stage);
+window.stage = stage;
+
 
 /* =========================
    PREVIEW OVERLAY
@@ -2876,6 +2939,8 @@ function build() {
   ensureDrawCountBadges();
   bindPileZoneClicks();
   fitToScreen();
+  if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
+ 
 }
 
 function initBoard() { build(); }
