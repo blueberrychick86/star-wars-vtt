@@ -3057,16 +3057,6 @@ function attachDragHandlers(el, cardData, kind) {
       showPreview(cardData);
     }, 380);
   }
-function applyCardMove(m){
-  var id = String(m.cardId || "");
-  if (!id) return;
-
-  // Find the exact DOM element by card id
-  var el = stage.querySelector(".card[data-card-id='" + id.replace(/'/g,"\\'") + "']");
-  if (!el){
-    console.warn("card_move for unknown cardId (needs spawn):", id);
-    return;
-  }
 
   el.style.left = (Number(m.x) || 0) + "px";
   el.style.top  = (Number(m.y) || 0) + "px";
@@ -3361,25 +3351,24 @@ factionTestBtn.addEventListener("click", function(e){
     el.style.zIndex = "15000";
     stage.appendChild(el);
            // NET: spawn this card for the other client
-      vttSend({
-        t: "card_spawn",
-        clientId: window.__vttClientId,
-        room: window.__vttRoomId,
-        cardId: el.dataset.cardId,
-        kind: kind,
-        cardData: el.__cardData || card,
-        x: parseFloat(el.style.left || "0"),
-        y: parseFloat(el.style.top  || "0"),
-        z: parseInt(el.style.zIndex || "15000", 10),
-        rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
-        face: el.dataset.face || "up",
-        capSide: el.dataset.capSide || null,
-        capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
-        at: __vttNowMs()
-      });
-
-  }
+// NET: spawn this card for the other client (FIXED)
+vttSend({
+  t: "card_spawn",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  kind: "unit",
+  cardData: el.__cardData || cards[i],
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || "15000", 10),
+  rot: Number(el.dataset.rot || "0"),
+  face: el.dataset.face || "up",
+  capSide: null,
+  capIndex: null,
+  at: __vttNowMs()
 });
+
 
 /* =========================
    START MENU (ROBUST)
@@ -3887,4 +3876,19 @@ try {
       window.__earlyCrash("BOOT crashed", (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err));
     }
   } catch (e2) {}
+}
+// --- BOOT helper (additive) ---
+function bootTry(label, fn) {
+  try {
+    return fn();
+  } catch (err) {
+    try { console.error(label + " crashed:", err); } catch (e) {}
+    try {
+      if (window.__earlyCrash) {
+        const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+        window.__earlyCrash(label + " crashed", msg);
+      }
+    } catch (e2) {}
+    return undefined;
+  }
 }
