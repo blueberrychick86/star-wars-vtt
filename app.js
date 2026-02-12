@@ -7,6 +7,51 @@
    ======================================================================== */
 
 console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
+/* =========================
+   MULTIPLAYER SOCKET LAYER
+   ========================= */
+
+window.__vttSocket = null;
+window.__vttRoomId = null;
+
+function connectToRoom(roomId) {
+  if (!roomId) return;
+
+  const WS_URL = "wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=" + roomId;
+
+  console.log("Connecting to room:", roomId);
+  console.log("WebSocket URL:", WS_URL);
+
+  const socket = new WebSocket(WS_URL);
+
+  socket.addEventListener("open", () => {
+    console.log("✅ Connected to room:", roomId);
+  });
+
+  socket.addEventListener("message", (event) => {
+    console.log("📩 Message received:", event.data);
+  });
+
+  socket.addEventListener("close", () => {
+    console.log("❌ Disconnected from room");
+  });
+
+  socket.addEventListener("error", (err) => {
+    console.error("⚠️ Socket error:", err);
+  });
+
+  window.__vttSocket = socket;
+  window.__vttRoomId = roomId;
+}
+
+/* Auto-join if URL contains ?join= */
+(function checkJoinParam(){
+  const params = new URLSearchParams(window.location.search);
+  const joinId = params.get("join");
+  if (joinId) {
+    connectToRoom(joinId);
+  }
+})();
 // ==============================
 // PHASE 1 — Multiplayer backend URL (Durable Objects Worker)
 // ==============================
