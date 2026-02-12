@@ -3372,7 +3372,9 @@ vttSend({
   capIndex: null,
   at: __vttNowMs()
 });
+} // end for cards loop
 
+}); // end factionTestBtn click handler
 
 /* =========================
    START MENU (ROBUST)
