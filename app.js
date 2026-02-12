@@ -8,35 +8,221 @@
 
 console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
 /* =========================
-   MULTIPLAYER SOCKET LAYER
+   MULTIPLAYER SOCKET LAYER (VTTNet)
+   - Uses ?room=<id> for WebSocket room
+   - Keeps ?join=1 for invite UI only
+   - Adds SEND/RECV debug logs
    ========================= */
 
 window.__vttSocket = null;
 window.__vttRoomId = null;
+window.__vttNetReady = false;
+
+window.__vttClientId = (function(){
+  // stable per-tab (good enough for now)
+  try {
+    var k = "vttClientId";
+    var v = sessionStorage.getItem(k);
+    if (!v) { v = "c_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16); sessionStorage.setItem(k, v); }
+    return v;
+  } catch (e) {
+    return "c_" + Math.random().toString(16).slice(2);
+  }
+})();
+
+function __vttNowMs(){ try { return Date.now(); } catch(e){ return 0; } }
+
+function __vttSafeParseJSON(s){
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+function __vttLogSend(obj){
+  try {
+    console.log("📤 SEND:", obj && obj.t ? obj.t : "(no-type)", obj);
+  } catch (e) {}
+}
+
+function __vttLogRecv(obj){
+  try {
+    console.log("📩 RECV:", obj && obj.t ? obj.t : "(no-type)", obj);
+  } catch (e) {}
+}
+
+function vttSend(msg){
+  var ws = window.__vttSocket;
+  if (!ws || ws.readyState !== 1) return false;
+  try {
+    __vttLogSend(msg);
+    ws.send(JSON.stringify(msg));
+    return true;
+  } catch (e) {
+    console.warn("vttSend failed:", e);
+    return false;
+  }
+}
+
+// Message dispatcher (you’ll add handlers in Patch 3)
+window.__vttOnNetMessage = function(msg){
+  if (!msg || !msg.t) return;
+
+  if (msg.t === "card_spawn") {
+    // If card already exists, ignore
+    var existing = stage.querySelector(".card[data-card-id='" + msg.cardId + "']");
+    if (existing) return;
+
+    // Create card from payload
+    var cd = msg.cardData || null;
+    if (!cd) return;
+
+    var el = makeCardEl(cd, msg.kind || "unit");
+
+    // IMPORTANT: preserve network id
+    el.dataset.cardId = msg.cardId;
+
+    // Apply transform/state
+    if (msg.face) el.dataset.face = msg.face;
+    if (msg.rot != null && el.dataset.kind === "unit") { el.dataset.rot = String(msg.rot); applyRotationSize(el); }
+
+    if (msg.x != null) el.style.left = msg.x + "px";
+    if (msg.y != null) el.style.top  = msg.y + "px";
+    if (msg.z != null) el.style.zIndex = String(msg.z);
+
+    // captured base metadata (optional)
+    if (msg.capSide) el.dataset.capSide = msg.capSide;
+    if (msg.capIndex != null) el.dataset.capIndex = String(msg.capIndex);
+
+    stage.appendChild(el);
+    refreshSnapRects();
+    return;
+  }
+
+  if (msg.t === "card_move") {
+    var card = stage.querySelector(".card[data-card-id='" + msg.cardId + "']");
+    if (!card) return;
+
+    if (msg.x != null) card.style.left = msg.x + "px";
+    if (msg.y != null) card.style.top  = msg.y + "px";
+    if (msg.z != null) card.style.zIndex = String(msg.z);
+
+    if (msg.face) card.dataset.face = msg.face;
+
+    if (msg.rot != null && card.dataset.kind === "unit") {
+      card.dataset.rot = String(msg.rot);
+      applyRotationSize(card);
+    }
+
+    // captured base metadata (optional)
+    if (msg.capSide) card.dataset.capSide = msg.capSide;
+    else { try { delete card.dataset.capSide; } catch(e){} }
+
+    if (msg.capIndex != null) card.dataset.capIndex = String(msg.capIndex);
+    else { try { delete card.dataset.capIndex; } catch(e){} }
+
+    return;
+  }
+
+  if (msg.t === "token_spawn") {
+    var existingTok = stage.querySelector(".tokenCube[data-token-id='" + msg.tokenId + "']");
+    if (existingTok) return;
+
+    var t = document.createElement("div");
+    t.className = "tokenCube " + tokenClassFor(msg.type);
+    t.dataset.owner = msg.owner;
+    t.dataset.type = msg.type;
+    t.dataset.tokenId = msg.tokenId;
+
+    t.style.left = (msg.x - TOKEN_SIZE/2) + "px";
+    t.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
+    t.style.zIndex = "16000";
+
+    stage.appendChild(t);
+    tokenEls.add(t);
+    attachTokenDragHandlers(t);
+    return;
+  }
+
+  if (msg.t === "token_move") {
+    var tok = stage.querySelector(".tokenCube[data-token-id='" + msg.tokenId + "']");
+    if (!tok) return;
+
+    if (msg.x != null) tok.style.left = (msg.x - TOKEN_SIZE/2) + "px";
+    if (msg.y != null) tok.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
+    if (msg.z != null) tok.style.zIndex = String(msg.z);
+    return;
+  }
+
+  if (msg.t === "force_set") {
+    if (!forceMarker) return;
+    var idx = (msg.index != null) ? Number(msg.index) : FORCE_NEUTRAL_INDEX;
+    var c = forceSlotCenters[idx] || forceSlotCenters[FORCE_NEUTRAL_INDEX];
+    if (!c) return;
+    forceMarker.style.left = (c.x - FORCE_MARKER_SIZE/2) + "px";
+    forceMarker.style.top  = (c.y - FORCE_MARKER_SIZE/2) + "px";
+    return;
+  }
+};
+
 
 function connectToRoom(roomId) {
   if (!roomId) return;
 
-  const WS_URL = "wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=" + roomId;
+  // avoid reconnect spam
+  if (window.__vttRoomId === roomId && window.__vttSocket && window.__vttSocket.readyState === 1) return;
+
+  var WS_URL = "wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=" + encodeURIComponent(roomId);
 
   console.log("Connecting to room:", roomId);
   console.log("WebSocket URL:", WS_URL);
 
-  const socket = new WebSocket(WS_URL);
+  try { if (window.__vttSocket) window.__vttSocket.close(); } catch (e) {}
 
-  socket.addEventListener("open", () => {
+  var socket = new WebSocket(WS_URL);
+
+  socket.addEventListener("open", function () {
+    window.__vttNetReady = true;
     console.log("✅ Connected to room:", roomId);
+
+    // hello / presence (safe even if worker ignores it)
+    vttSend({ t:"hello", room: roomId, clientId: window.__vttClientId, at: __vttNowMs() });
   });
 
-  socket.addEventListener("message", (event) => {
-    console.log("📩 Message received:", event.data);
+  socket.addEventListener("message", function (event) {
+    var raw = event && event.data;
+    var obj = __vttSafeParseJSON(raw);
+
+    // If worker echoes raw strings, still log them
+    if (!obj) {
+      console.log("📩 RECV (raw):", raw);
+      return;
+    }
+console.log("📩 RECV:", obj.t, obj);
+
+// ignore our own echo if worker broadcasts back
+if (obj.clientId && window.__vttClientId && obj.clientId === window.__vttClientId) return;
+
+if (obj.t === "card_move") {
+  applyCardMove(obj);
+  return;
+}
+
+    __vttLogRecv(obj);
+
+    // optional: ignore our own echoes (if worker broadcasts to sender)
+    if (obj.clientId && obj.clientId === window.__vttClientId) return;
+
+    try {
+      if (typeof window.__vttOnNetMessage === "function") window.__vttOnNetMessage(obj);
+    } catch (e) {
+      console.warn("Net message handler crashed:", e);
+    }
   });
 
-  socket.addEventListener("close", () => {
+  socket.addEventListener("close", function () {
+    window.__vttNetReady = false;
     console.log("❌ Disconnected from room");
   });
 
-  socket.addEventListener("error", (err) => {
+  socket.addEventListener("error", function (err) {
     console.error("⚠️ Socket error:", err);
   });
 
@@ -44,14 +230,15 @@ function connectToRoom(roomId) {
   window.__vttRoomId = roomId;
 }
 
-/* Auto-join if URL contains ?join= */
-(function checkJoinParam(){
-  const params = new URLSearchParams(window.location.search);
-  const joinId = params.get("join");
-  if (joinId) {
-    connectToRoom(joinId);
-  }
+/* Auto-connect if URL contains ?room= */
+(function checkRoomParam(){
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var roomId = params.get("room");
+    if (roomId) connectToRoom(roomId);
+  } catch (e) {}
 })();
+
 // ==============================
 // PHASE 1 — Multiplayer backend URL (Durable Objects Worker)
 // ==============================
@@ -2737,7 +2924,9 @@ function makeCardEl(cardData, kind) {
   applyFactionBorderClass(el, cardData);
   el.dataset.kind = kind;
   el.dataset.cardId = String(cardData.id) + "_" + Math.random().toString(16).slice(2);
-  el.dataset.face = "up";
+   // Keep original card data for network spawn
+  el.__cardData = cardData;
+ el.dataset.face = "up";
 
   var face = document.createElement("div");
   face.className = "cardFace";
@@ -2803,6 +2992,32 @@ function attachDragHandlers(el, cardData, kind) {
       showPreview(cardData);
     }, 380);
   }
+function applyCardMove(m){
+  var id = String(m.cardId || "");
+  if (!id) return;
+
+  // Find the exact DOM element by card id
+  var el = stage.querySelector(".card[data-card-id='" + id.replace(/'/g,"\\'") + "']");
+  if (!el){
+    console.warn("card_move for unknown cardId (needs spawn):", id);
+    return;
+  }
+
+  el.style.left = (Number(m.x) || 0) + "px";
+  el.style.top  = (Number(m.y) || 0) + "px";
+
+  if (m.z != null) el.style.zIndex = String(m.z);
+
+  if (m.face) el.dataset.face = String(m.face);
+
+  if (el.dataset.kind === "unit" && m.rot != null) {
+    el.dataset.rot = String(m.rot);
+    try { applyRotationSize(el); } catch(e){}
+  }
+
+  if (m.capSide) el.dataset.capSide = m.capSide; else delete el.dataset.capSide;
+  if (m.capIndex != null) el.dataset.capIndex = String(m.capIndex); else delete el.dataset.capIndex;
+}
 
   var lastTap = 0;
 
@@ -2910,11 +3125,29 @@ function attachDragHandlers(el, cardData, kind) {
         snapBaseToNearestBaseStack(el);
         el.style.zIndex = "12000";
       }
-    } else {
-      snapCardToNearestZone(el);
-      el.style.zIndex = "15000";
-    }
-  });
+   } else {
+  snapCardToNearestZone(el);
+  el.style.zIndex = "15000";
+}
+
+// NET: broadcast final position/state after move
+vttSend({
+  t: "card_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+  face: el.dataset.face || "up",
+  capSide: el.dataset.capSide || null,
+  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+  at: __vttNowMs()
+});
+
+});
+
 
   el.addEventListener("pointercancel", function(){
     dragging = false;
@@ -3062,6 +3295,24 @@ factionTestBtn.addEventListener("click", function(e){
     el.style.top  = startY + "px";
     el.style.zIndex = "15000";
     stage.appendChild(el);
+           // NET: spawn this card for the other client
+      vttSend({
+        t: "card_spawn",
+        clientId: window.__vttClientId,
+        room: window.__vttRoomId,
+        cardId: el.dataset.cardId,
+        kind: kind,
+        cardData: el.__cardData || card,
+        x: parseFloat(el.style.left || "0"),
+        y: parseFloat(el.style.top  || "0"),
+        z: parseInt(el.style.zIndex || "15000", 10),
+        rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+        face: el.dataset.face || "up",
+        capSide: el.dataset.capSide || null,
+        capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+        at: __vttNowMs()
+      });
+
   }
 });
 
@@ -3174,9 +3425,11 @@ function initStartMenu() {
     var mode = (qsGet("mode") || "").toLowerCase();
     var mandoNeutral = (qsGet("mando") === "1");
     var host = (qsGet("host") || "Player").trim();
-    var hostFaction = (qsGet("hostFaction") || "").toLowerCase();
+   var hostFaction = (qsGet("hostFaction") || "").toLowerCase();
+var room = (qsGet("room") || "").trim();
 
-    return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFaction: hostFaction || null };
+return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFaction: hostFaction || null, room: room || null };
+
   }
 
   function applyGuestConfigAndStart(cfg){
@@ -3209,6 +3462,8 @@ function initStartMenu() {
 
     try { var sm = document.getElementById("startMenu"); if (sm) sm.style.display = "none"; } catch (e) {}
     hideInviteModal();
+    // Connect guest to the host room BEFORE board actions begin
+    try { if (cfg.room) connectToRoom(cfg.room); } catch (e) { console.warn("Guest connectToRoom failed:", e); }
 
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
     console.log("Joined as guest (P2):", window.__gameConfig);
@@ -3233,7 +3488,15 @@ function initStartMenu() {
 
         markSelected(acceptBtn);
 
-        var cfg = readJoinConfig();
+               // Require guest name
+        var guestNameEl = document.getElementById("guestNameInput");
+        var gname = (guestNameEl && guestNameEl.value) ? guestNameEl.value.trim() : "";
+        if (!gname) {
+          alert("Enter your name to Accept.");
+          try { if (guestNameEl) guestNameEl.focus(); } catch (e) {}
+          return;
+        }
+ var cfg = readJoinConfig();
         if (!cfg || !cfg.hostFaction){
           hideInviteModal();
           return;
@@ -3431,11 +3694,25 @@ function initStartMenu() {
     }
 
     var url = location.href.split("#")[0];
+       // --- ROOM ID (NEW) ---
+    // Generate once per host session & connect host to that room.
+    var roomId = null;
+    try {
+      roomId = (window.__vttRoomId) ? window.__vttRoomId : null;
+      if (!roomId) roomId = "r_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+    } catch (e) {
+      roomId = "r_" + Math.random().toString(16).slice(2);
+    }
+
+    // Connect host now so SEND logs start immediately
+    try { connectToRoom(roomId); } catch (e) { console.warn("Host connectToRoom failed:", e); }
     url = qsSet(url, "join", "1");
+    url = qsSet(url, "room", roomId);
     url = qsSet(url, "host", hostName);
     url = qsSet(url, "mode", modeKey);
     url = qsSet(url, "mando", mando ? "1" : "0");
     url = qsSet(url, "hostFaction", hostFactionForLink || "");
+     
 
     var isRandom = (modeKey === "random");
     var hostFactionText = isRandom ? ("(RANDOM) " + hostFactionForLink.toUpperCase()) : hostFactionForLink.toUpperCase();
