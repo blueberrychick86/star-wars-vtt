@@ -1919,9 +1919,10 @@ vttSend({
 });
 
 onCommitToBoard();
+           } // end: if (!releasedOverTray)
+  }   // end: finishDrag()
 
-
-  tile.addEventListener("contextmenu", function(e){
+ tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
     showPreview(card);
   });
