@@ -1192,8 +1192,6 @@ previewBackdrop.innerHTML = `
 table.appendChild(previewBackdrop);
 
 // HARD modal trap (FIXED)
-// - Prevents board interactions when backdrop is clicked
-// - DOES NOT stopPropagation (so other preview-close listeners still work)
 (function trapPreviewInteractions(){
   function isBackdrop(e){
     return e && e.target === previewBackdrop;
@@ -1201,15 +1199,12 @@ table.appendChild(previewBackdrop);
 
   function preventOnly(e){
     if (!isBackdrop(e)) return;
-    // Prevent scroll/drag from leaking to board,
-    // but DO NOT stopPropagation (important!)
     e.preventDefault();
   }
 
   previewBackdrop.addEventListener("pointerdown", preventOnly, { capture:true });
   previewBackdrop.addEventListener("pointermove", preventOnly, { capture:true });
   previewBackdrop.addEventListener("wheel",      preventOnly, { capture:true, passive:false });
-
   previewBackdrop.addEventListener("touchmove",  preventOnly, { capture:true, passive:false });
 
   previewBackdrop.addEventListener("contextmenu", function(e){
@@ -1217,8 +1212,6 @@ table.appendChild(previewBackdrop);
     e.preventDefault();
   }, { capture:true });
 })();
-
-
 
 /* =========================
    TRAY
@@ -1347,16 +1340,14 @@ function togglePreview(cardData) { if (previewOpen) hidePreview(); else showPrev
 previewBackdrop.querySelector("#closePreviewBtn").addEventListener("click", function(e){ e.preventDefault(); hidePreview(); });
 previewBackdrop.addEventListener("pointerdown", function(e){ if (e.target === previewBackdrop) hidePreview(); });
 window.addEventListener("keydown", function(e){ if (e.key === "Escape" && previewOpen) hidePreview(); });
+
 /* =========================
    PATCH — iOS SAFE PREVIEW CLOSE
-   - After typing in <input>, iOS Safari sometimes fails to fire "click"
-   - Use pointerdown/touchstart and a robust outside-tap close
    ========================= */
 (function iosSafePreviewClose(){
   var closeBtn = previewBackdrop.querySelector("#closePreviewBtn");
   var previewCard = previewBackdrop.querySelector("#previewCard");
 
-  // Ensure preview card can always receive pointer events
   try { if (previewCard) previewCard.style.pointerEvents = "auto"; } catch (e) {}
   try { previewBackdrop.style.pointerEvents = "auto"; } catch (e) {}
 
@@ -1365,18 +1356,14 @@ window.addEventListener("keydown", function(e){ if (e.key === "Escape" && previe
     hidePreview();
   }
 
-  // Use pointerdown instead of click for iOS reliability
   if (closeBtn) {
     closeBtn.addEventListener("pointerdown", closeNow, { capture:true });
     closeBtn.addEventListener("touchstart", closeNow, { capture:true, passive:false });
   }
 
-  // If user taps anywhere OUTSIDE the preview card, close it (more robust than target===backdrop)
   previewBackdrop.addEventListener("pointerdown", function(e){
     if (!previewOpen) return;
     if (!previewCard) { closeNow(e); return; }
-
-    // If tap is not inside the card → close
     if (!previewCard.contains(e.target)) closeNow(e);
   }, { capture:true });
 
@@ -1386,7 +1373,6 @@ window.addEventListener("keydown", function(e){ if (e.key === "Escape" && previe
     if (!previewCard.contains(e.target)) closeNow(e);
   }, { capture:true, passive:false });
 
-  // Make sure taps inside the card don't bubble to backdrop handlers
   if (previewCard) {
     previewCard.addEventListener("pointerdown", function(e){ e.stopPropagation(); }, { capture:true });
     previewCard.addEventListener("touchstart", function(e){ e.stopPropagation(); }, { capture:true, passive:true });
@@ -1410,7 +1396,6 @@ var trayState = {
 
 function setTrayPlayerColor(color) {
   PLAYER_COLOR = color;
-  // glow disabled by design; kept for future
   try { delete trayShell.dataset.player; } catch (e) {}
 }
 
@@ -1422,8 +1407,6 @@ function openTray() {
 
 function closeTray() {
   if (!trayState.open) return;
-  // iOS SAFETY: closing tray after using the search input can leave the visualViewport/camera in a bad state.
-  // Force keyboard to dismiss and re-fit after viewport settles.
   try { traySearchInput.blur(); } catch (e) {}
 
   if (trayState.mode === "draw") {
@@ -1464,32 +1447,24 @@ function closeTray() {
   traySearchRow.classList.remove("show");
   trayCarousel.innerHTML = "";
   trayShell.classList.remove("dragging");
-   trayShell.classList.remove("dragging");
+  trayShell.classList.remove("dragging");
 
-// Hide tray FIRST so fit uses full width
-trayShell.style.pointerEvents = "none";
-trayShell.style.display = "none";
+  trayShell.style.pointerEvents = "none";
+  trayShell.style.display = "none";
 
-// iOS viewport/keyboard cleanup (prevents “panned left” / stuck offset)
-try { window.scrollTo(0, 0); } catch (e) {}
-try { document.documentElement.scrollTop = 0; } catch (e) {}
-try { document.body.scrollTop = 0; } catch (e) {}
+  try { window.scrollTo(0, 0); } catch (e) {}
+  try { document.documentElement.scrollTop = 0; } catch (e) {}
+  try { document.body.scrollTop = 0; } catch (e) {}
 
-// Now snap board back with full viewport width
-try { fitToScreen(); } catch (e) {}
-setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
-setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
-
-
-
-setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
-
+  try { fitToScreen(); } catch (e) {}
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 80);
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 220);
 } // ✅ END closeTray()
 
 trayCloseBtn.addEventListener("click", function(){
   if (!previewOpen) closeTray();
 });
-
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
@@ -1553,9 +1528,6 @@ function makeTrayTile(card) {
   return tile;
 }
 
-/* Mobile tray drag:
-   - Scroll normally
-   - Hold to drag out */
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   var holdTimer = null;
   var holdArmed = false;
@@ -1833,7 +1805,6 @@ function bindPileZoneClicks() {
       if (!el) return;
       el.classList.add("clickable");
 
-      // remove old listeners safely
       var clone = el.cloneNode(true);
       el.replaceWith(clone);
 
@@ -1902,7 +1873,6 @@ function computeZones() {
   var xForceCenter = xForce + (forceTrackW / 2);
   var xExileLeft = xForceCenter - (CARD_W + (EXILE_GAP / 2));
 
-  // Token banks under piles
   var pilesW = (CARD_W * 2) + GAP;
   var pilesCenterX = xPiles + (pilesW / 2);
 
@@ -1950,7 +1920,6 @@ function computeZones() {
     zones["g2" + (c + 1)] = rect(xRowStart + c * (CARD_W + rowSlotGap), yRow2, CARD_W, CARD_H);
   }
 
-  // Normalize (FIT-safe)
   var PAD = 18;
   var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -3053,7 +3022,9 @@ factionTestBtn.addEventListener("click", function(e){
 
 /* =========================
    START MENU (ROBUST)
-   - Change: menu clicks auto-unlock audio so click sound is reliable
+   - Change: "Host Game" enforces required selections
+   - Change: "Host Game" auto-invites (Invite button can stay hidden)
+   - Fix: Random mode now assigns hostFaction into the invite link so guest join works
    ========================= */
 function initStartMenu() {
   function qsGet(key){
@@ -3127,21 +3098,23 @@ function initStartMenu() {
     var footer   = inviteMenu.querySelector("#inviteFooter");
 
     var modeKey = String(cfg.mode || "").toLowerCase();
-    var isRandom = (modeKey === "random");
+    var hostF = String(cfg.hostFaction || "").toLowerCase();
+    var mando = !!cfg.mandoNeutral;
 
     hostedBy.textContent = "HOSTED BY: " + String(cfg.host || "Player").toUpperCase();
 
     var letterText = "";
-    if (isRandom){
-      letterText = "HOST HAS SELECTED: RANDOM........ WHAT SIDE WILL YOU PLAY?";
+    if (modeKey === "random") {
+      // Random still assigns a real host faction so join can work
+      var youPlayAsR = hostF ? sideNamesFor(modeKey, oppositeFaction(hostF)) : "WAITING ON HOST";
+      letterText = "HOST HAS SELECTED: RANDOM........\n........YOU WILL PLAY AS " + (hostF ? oppositeFaction(hostF).toUpperCase() : youPlayAsR);
     } else {
-      var hostF = String(cfg.hostFaction || "").toLowerCase();
       var hostFtxt = hostF ? hostF.toUpperCase() : "NOT LOCKED YET";
       var youPlayAs = hostF ? sideNamesFor(modeKey, oppositeFaction(hostF)) : "WAITING ON HOST";
       letterText = "HOST HAS SELECTED: (" + hostFtxt + ") " + String(modeKey).toUpperCase() + "........\n........YOU WILL PLAY AS " + youPlayAs;
     }
 
-    footer.textContent = cfg.mandoNeutral ? "MANDALORIANS WILL BE PLAYED AS NEUTRALS" : "";
+    footer.textContent = mando ? "MANDALORIANS WILL BE PLAYED AS NEUTRALS" : "";
     letter.textContent = letterText;
 
     inviteMenu.style.display = "flex";
@@ -3162,6 +3135,9 @@ function initStartMenu() {
   }
 
   function applyGuestConfigAndStart(cfg){
+    // We REQUIRE hostFaction to be present in the link
+    if (!cfg.hostFaction) return;
+
     var guestFaction = oppositeFaction(cfg.hostFaction);
     var guestNameEl = document.getElementById("guestNameInput");
     var guestName = (guestNameEl && guestNameEl.value ? guestNameEl.value.trim() : "") || "Guest";
@@ -3286,16 +3262,6 @@ function initStartMenu() {
   var playBtn = menu.querySelector("#playBtn") || menu.querySelector(".menu-btn.play");
   var cancelBtn = menu.querySelector("#cancelBtn") || menu.querySelector(".menu-btn.cancel");
   var mandoToggle = menu.querySelector("#mandoToggle");
-// --- Phase 1: Host should auto-run invite flow (if wired) ---
-function runInviteIfAvailable() {
-  try {
-    if (inviteBtn && typeof inviteBtn.click === "function") {
-      inviteBtn.click(); // re-use any existing invite handler
-      return true;
-    }
-  } catch (e) {}
-  return false;
-}
 
   if (!modeBtns.length || !playBtn) {
     console.warn("StartMenu found but missing mode buttons or Play button. Not starting board.");
@@ -3390,60 +3356,80 @@ function runInviteIfAvailable() {
     });
   });
 
+  // Shared invite action (used by Invite button and Host Game)
+  function doInviteShare(){
+    stopMenuMusic();
+
+    var hostName = getHostName();
+    var modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
+    var mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
+    var faction = (window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "";
+
+    if (!modeKey){
+      alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
+      return false;
+    }
+    if (!faction && modeKey !== "random"){
+      alert("Pick Blue or Red first (or choose Random mode).");
+      return false;
+    }
+
+    // IMPORTANT: Random mode needs a real hostFaction in the URL so the guest can join.
+    var hostFactionForLink = faction;
+    if (modeKey === "random") {
+      hostFactionForLink = (Math.random() < 0.5) ? "blue" : "red";
+      window.__menuSelection.faction = hostFactionForLink;
+      try {
+        // show a selection glow so host sees what got picked (optional)
+        // (If no faction button exists in UI for random, this does nothing)
+      } catch (e) {}
+    }
+
+    var url = location.href.split("#")[0];
+    url = qsSet(url, "join", "1");
+    url = qsSet(url, "host", hostName);
+    url = qsSet(url, "mode", modeKey);
+    url = qsSet(url, "mando", mando ? "1" : "0");
+    url = qsSet(url, "hostFaction", hostFactionForLink || "");
+
+    var isRandom = (modeKey === "random");
+    var hostFactionText = isRandom ? ("(RANDOM) " + hostFactionForLink.toUpperCase()) : hostFactionForLink.toUpperCase();
+    var guestFactionText = oppositeFaction(hostFactionForLink).toUpperCase();
+    var mandoText = mando ? "YES (as Neutral)" : "NO";
+
+    var msg =
+      "INVITE FROM: " + hostName + "\n" +
+      "MODE: " + String(modeKey).toUpperCase() + "\n" +
+      "HOST FACTION: " + hostFactionText + "\n" +
+      "YOU WILL BE: " + guestFactionText + "\n" +
+      "MANDALORIANS: " + mandoText;
+
+    if (navigator.share){
+      navigator.share({ title:"Star Wars VTT Invite", text: msg, url: url }).catch(function(){});
+    } else {
+      navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
+        alert("Invite copied!\n\n" + msg + "\n\n" + url);
+      }).catch(function(){
+        prompt("Copy this invite:", msg + "\n\n" + url);
+      });
+    }
+
+    return true;
+  }
+
+  // If Invite button exists in the HTML, keep it wired but hide it (you wanted Host Game to handle invite)
   if (inviteBtn){
     inviteBtn.addEventListener("click", function(){
-      stopMenuMusic();
-
-      var hostName = getHostName();
-      var modeKey = (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "";
-      var mando = !!(window.__menuSelection && window.__menuSelection.mandoNeutral);
-      var faction = (window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "";
-
-      if (!modeKey){
-        alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
-        return;
-      }
-      if (!faction && modeKey !== "random"){
-        alert("Pick Blue or Red first (or choose Random mode).");
-        return;
-      }
-
-      var url = location.href.split("#")[0];
-      url = qsSet(url, "join", "1");
-      url = qsSet(url, "host", hostName);
-      url = qsSet(url, "mode", modeKey);
-      url = qsSet(url, "mando", mando ? "1" : "0");
-      url = qsSet(url, "hostFaction", faction || "");
-
-      var isRandom = (modeKey === "random");
-      var hostFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : faction.toUpperCase();
-      var guestFactionText = isRandom ? "WHICH SIDE WILL YOU SERVE?" : oppositeFaction(faction).toUpperCase();
-      var mandoText = mando ? "YES (as Neutral)" : "NO";
-
-      var msg =
-        "INVITE FROM: " + hostName + "\n" +
-        "MODE: " + String(modeKey).toUpperCase() + "\n" +
-        "HOST FACTION: " + hostFactionText + "\n" +
-        "YOU WILL BE: " + guestFactionText + "\n" +
-        "MANDALORIANS: " + mandoText;
-
-      if (navigator.share){
-        navigator.share({ title:"Star Wars VTT Invite", text: msg, url: url }).catch(function(){});
-      } else {
-        navigator.clipboard.writeText(msg + "\n\n" + url).then(function(){
-          alert("Invite copied!\n\n" + msg + "\n\n" + url);
-        }).catch(function(){
-          prompt("Copy this invite:", msg + "\n\n" + url);
-        });
-      }
+      doInviteShare();
     });
+    try { inviteBtn.style.display = "none"; } catch (e) {}
   }
 
   function applyMenuSelection(sel){
     var out = {};
     for (var k in sel) out[k] = sel[k];
 
-    if (out.mode === "random") out.faction = (Math.random() < 0.5) ? "blue" : "red";
+    if (out.mode === "random" && !out.faction) out.faction = (Math.random() < 0.5) ? "blue" : "red";
     if (!out.faction) out.faction = "blue";
 
     try { setTrayPlayerColor(out.faction); } catch (e) {}
@@ -3451,9 +3437,25 @@ function runInviteIfAvailable() {
     return out;
   }
 
+  // HOST GAME button
   playBtn.addEventListener("click", function(e){
-  e.preventDefault();
-  runInviteIfAvailable();
+    e.preventDefault();
+
+    // Prevent moving forward unless required selections are made
+    var modeKey = (window.__menuSelection && window.__menuSelection.mode) ? String(window.__menuSelection.mode).toLowerCase() : "";
+    var factionKey = (window.__menuSelection && window.__menuSelection.faction) ? String(window.__menuSelection.faction).toLowerCase() : "";
+
+    if (!modeKey){
+      alert("Pick a Mode first (Original Trilogy / Clone Wars / Mixed / Random).");
+      return;
+    }
+    if (modeKey !== "random" && !factionKey){
+      alert("Pick Blue or Red first (or choose Random mode).");
+      return;
+    }
+
+    // Auto-run invite flow
+    doInviteShare();
 
     audioInitOnce().then(function(){
       try { AudioMix.ctx.resume(); } catch (err) {}
