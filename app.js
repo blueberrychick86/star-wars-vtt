@@ -137,7 +137,8 @@ window.__vttOnNetMessage = function(msg){
 
     // Apply transform/state
     if (msg.face) el.dataset.face = msg.face;
-    if (msg.rot != null && el.dataset.kind === "unit") { el.dataset.rot = String(msg.rot); applyRotationSize(el); }
+    if (msg.rot != null && el.dataset.kind === "unit")
+    { el.dataset.rot = String(msg.rot); applyRotationSize(el); }
 
     if (msg.x != null) el.style.left = msg.x + "px";
     if (msg.y != null) el.style.top  = msg.y + "px";
@@ -3091,11 +3092,28 @@ function attachDragHandlers(el, cardData, kind) {
     var dt = now - lastTap;
     lastTap = now;
 
-    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
-      suppressNextPointerUp = true;
-      toggleRotate(el);
-      return;
-    }
+   if (kind === "unit" && dt < DOUBLE_TAP_MS) {
+  suppressNextPointerUp = true;
+  toggleRotate(el);
+
+  // NET: sync rotation immediately (no extra drag needed)
+  vttSend({
+    t: "card_move",
+    clientId: window.__vttClientId,
+    room: window.__vttRoomId,
+    cardId: el.dataset.cardId,
+    x: parseFloat(el.style.left || "0"),
+    y: parseFloat(el.style.top  || "0"),
+    z: parseInt(el.style.zIndex || "15000", 10),
+    rot: Number(el.dataset.rot || "0"),
+    face: el.dataset.face || "up",
+    capSide: el.dataset.capSide || null,
+    capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+    at: __vttNowMs()
+  });
+
+  return;
+}
 
     el.setPointerCapture(e.pointerId);
     dragging = true;
