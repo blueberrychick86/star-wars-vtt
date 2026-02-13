@@ -206,6 +206,29 @@ window.__vttOnNetMessage = function(msg){
     if (msg.y != null) tok.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
     if (msg.z != null) tok.style.zIndex = String(msg.z);
     return;
+      if (msg.t === "token_return") {
+    var owner = msg.owner;
+    var counts = msg.counts || {};
+    var ids = msg.tokenIds || [];
+
+    // remove the tokens by id (visual sync)
+    for (var i = 0; i < ids.length; i++) {
+      var tok = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
+      if (tok) {
+        if (tok.isConnected) tok.remove();
+        try { tokenEls.delete(tok); } catch (e) {}
+      }
+    }
+
+    // sync pool counts too (so spawning stays consistent)
+    if (tokenPools[owner]) {
+      if (counts.damage)   tokenPools[owner].damage   += Number(counts.damage)   || 0;
+      if (counts.attack)   tokenPools[owner].attack   += Number(counts.attack)   || 0;
+      if (counts.resource) tokenPools[owner].resource += Number(counts.resource) || 0;
+    }
+    return;
+  }
+ 
   }
 
   if (msg.t === "force_set") {
@@ -2911,20 +2934,41 @@ function buildTokenBank(owner, r) {
 
 function returnTokensForOwner(owner, typesToReturn) {
   var toRemove = [];
+  var returnedCounts = { damage: 0, attack: 0, resource: 0 };
+  var returnedIds = [];
+
   tokenEls.forEach(function(t){
-    if (!t.isConnected) { toRemove.push(t); return; }
+    if (!t.isConnected) return;
     if (t.dataset.owner !== owner) return;
+
     var type = t.dataset.type;
-    if (typesToReturn.indexOf(type) === -1) return;
-    toRemove.push(t);
+    if (typesToReturn && typesToReturn.indexOf(type) === -1) return;
+
     tokenPools[owner][type] += 1;
+
+    // track what we're returning
+    returnedCounts[type] = (returnedCounts[type] || 0) + 1;
+    if (t.dataset.tokenId) returnedIds.push(t.dataset.tokenId);
+
+    toRemove.push(t);
   });
 
-  for (var i = 0; i < toRemove.length; i++) {
-    var t = toRemove[i];
+  // remove tokens locally
+  toRemove.forEach(function(t){
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
-  }
+  });
+
+  // 👇 THIS IS WHERE THE NET SEND GOES
+  vttSend({
+    t: "token_return",
+    clientId: window.__vttClientId,
+    room: window.__vttRoomId,
+    owner: owner,
+    counts: returnedCounts,
+    tokenIds: returnedIds,
+    at: __vttNowMs()
+  });
 }
 
 function endTurn(owner) {
