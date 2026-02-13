@@ -2738,6 +2738,9 @@ function createTokenCube(owner, type, x, y) {
   t.className = "tokenCube " + tokenClassFor(type);
   t.dataset.owner = owner;
   t.dataset.type = type;
+   // Ensure every token has a stable network id
+t.dataset.tokenId = "t_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+
   t.style.left = (x - TOKEN_SIZE/2) + "px";
   t.style.top  = (y - TOKEN_SIZE/2) + "px";
   t.style.zIndex = "16000";
@@ -2784,7 +2787,22 @@ function attachTokenDragHandlers(el) {
   el.addEventListener("pointerup", function(e){
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
-    el.style.zIndex = "16000";
+   // NET: broadcast token move on release
+var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
+var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+
+vttSend({
+  t: "token_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  tokenId: el.dataset.tokenId,
+  x: x,
+  y: y,
+  z: 16000,
+  at: __vttNowMs()
+});
+
+     el.style.zIndex = "16000";
   });
 
   el.addEventListener("pointercancel", function(){ dragging = false; });
@@ -2800,6 +2818,20 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   var py0 = (clientY - stageRect0.top)  / camera.scale;
 
   var tok = createTokenCube(owner, type, px0, py0);
+   // NET: broadcast token spawn
+vttSend({
+  t: "token_spawn",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  tokenId: tok.dataset.tokenId,
+  owner: owner,
+  type: type,
+  x: px0,
+  y: py0,
+  z: 16000,
+  at: __vttNowMs()
+});
+
   tok.style.zIndex = "60000";
 
   try { tok.setPointerCapture(pointerId); } catch (e) {}
