@@ -3182,6 +3182,22 @@ function attachDragHandlers(el, cardData, kind) {
       clearFlipTimer();
       flipTimer = setTimeout(function(){
         toggleFlip(el);
+         // NET: sync flip immediately (no extra drag needed)
+vttSend({
+  t: "card_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+  face: el.dataset.face || "up",
+  capSide: el.dataset.capSide || null,
+  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+  at: __vttNowMs()
+});
+
         if (kind === "base") {
           if (el.dataset.capSide) {
             var idx = Number(el.dataset.capIndex || "0");
