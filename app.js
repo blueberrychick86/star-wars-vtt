@@ -2756,6 +2756,27 @@ function applyRotationSize(cardEl) {
   var face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
+// ===== PATCH: keep attached tokens above card after rotate/flip =====
+function raiseAttachedTokens(cardEl) {
+  try {
+    // If tokens are children inside the card
+    var kids = cardEl.querySelectorAll(".token, .tok, [data-token], [data-kind='token']");
+    if (kids && kids.length) {
+      kids.forEach(function(t){ t.style.zIndex = "5"; });
+    }
+
+    // If tokens are separate elements referencing the card
+    var id = cardEl.dataset.id || cardEl.id || "";
+    if (id) {
+      var attached = document.querySelectorAll("[data-attached-to='" + id + "']");
+      attached.forEach(function(t){
+        if (t.parentNode) t.parentNode.appendChild(t); // bring above in DOM
+        t.style.zIndex = "9999";
+      });
+    }
+  } catch (e) {}
+}
+// ===== END PATCH =====
 
 function toggleRotate(cardEl) {
   var cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
@@ -2763,11 +2784,15 @@ function toggleRotate(cardEl) {
   cardEl.dataset.rot = String(next);
   applyRotationSize(cardEl);
   refreshSnapRects();
+  raiseAttachedTokens(cardEl);
+
 }
 
 function toggleFlip(cardEl) {
   var cur = cardEl.dataset.face || "up";
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
+  raiseAttachedTokens(cardEl);
+
 }
 
 /* =========================
