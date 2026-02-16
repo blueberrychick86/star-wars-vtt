@@ -2823,6 +2823,16 @@ function toggleFlip(cardEl) {
 
 }
 
+function getCardRestingZ(el, kind) {
+  if (kind === "base") {
+    if (el.dataset.capSide && el.dataset.capIndex != null) {
+      return CAP_Z_BASE + Number(el.dataset.capIndex || "0");
+    }
+    return 12000;
+  }
+  return 15000;
+}
+
 /* =========================
    TOKENS
    ========================= */
@@ -3260,7 +3270,7 @@ function attachDragHandlers(el, cardData, kind) {
     cardId: el.dataset.cardId,
     x: parseFloat(el.style.left || "0"),
     y: parseFloat(el.style.top  || "0"),
-    z: parseInt(el.style.zIndex || "15000", 10),
+    z: getCardRestingZ(el, kind),
     rot: Number(el.dataset.rot || "0"),
     face: el.dataset.face || "up",
     capSide: el.dataset.capSide || null,
@@ -3346,7 +3356,7 @@ vttSend({
   cardId: el.dataset.cardId,
   x: parseFloat(el.style.left || "0"),
   y: parseFloat(el.style.top  || "0"),
-  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  z: getCardRestingZ(el, kind),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
   capSide: el.dataset.capSide || null,
@@ -3387,7 +3397,7 @@ vttSend({
   cardId: el.dataset.cardId,
   x: parseFloat(el.style.left || "0"),
   y: parseFloat(el.style.top  || "0"),
-  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  z: getCardRestingZ(el, kind),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
   capSide: el.dataset.capSide || null,
