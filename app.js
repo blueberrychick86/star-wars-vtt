@@ -20,6 +20,24 @@ window.__vttRoomId = null;
 // NET: incoming move queue + applier (safe before board exists)
 // ==============================
 window.__vttPendingMoves = window.__vttPendingMoves || [];
+// ==============================
+// NET: pending messages that require stage (safe before board exists)
+// ==============================
+window.__vttPendingNetMsgs = window.__vttPendingNetMsgs || [];
+
+window.__vttFlushPendingNetMsgs = function(){
+  try {
+    if (!window.__vttPendingNetMsgs || !window.__vttPendingNetMsgs.length) return;
+    if (!window.stage || !window.stage.querySelector) return;
+
+    var pending = window.__vttPendingNetMsgs.slice();
+    window.__vttPendingNetMsgs.length = 0;
+
+    for (var i = 0; i < pending.length; i++){
+      try { window.__vttOnNetMessage(pending[i]); } catch (e) {}
+    }
+  } catch (e) {}
+};
 
 window.applyCardMove = function(m){
   try {
@@ -120,6 +138,11 @@ function vttSend(msg){
 // Message dispatcher (you’ll add handlers in Patch 3)
 window.__vttOnNetMessage = function(msg){
   if (!msg || !msg.t) return;
+// If stage isn't built yet, queue messages that rely on stage
+if (!window.stage || !window.stage.querySelector) {
+  window.__vttPendingNetMsgs.push(msg);
+  return;
+}
 
   if (msg.t === "card_spawn") {
     // If card already exists, ignore
@@ -208,39 +231,30 @@ window.__vttOnNetMessage = function(msg){
     return;
   }
 
-  if (msg.t === "token_return") {
-    var owner = msg.owner;
-    var counts = msg.counts || {};
-    var ids = msg.tokenIds || [];
+ if (msg.t === "token_return") {
+  var owner = msg.owner;
+  var counts = msg.counts || {};
+  var ids = msg.tokenIds || [];
 
-    // remove the tokens by id (visual sync)
-    for (var i = 0; i < ids.length; i++) {
-      var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
-      if (tok2) {
-        if (tok2.isConnected) tok2.remove();
-        try { tokenEls.delete(tok2); } catch (e) {}
-      }
+  // Remove returned tokens by id (visual sync)
+  for (var i = 0; i < ids.length; i++) {
+    var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
+    if (tok2) {
+      if (tok2.isConnected) tok2.remove();
+      try { tokenEls.delete(tok2); } catch (e) {}
     }
-
-    // sync pool counts too (so spawning stays consistent)
-    if (tokenPools[owner]) {
-      if (counts.damage)   tokenPools[owner].damage   += (Number(counts.damage)   || 0);
-      if (counts.attack)   tokenPools[owner].attack   += (Number(counts.attack)   || 0);
-      if (counts.resource) tokenPools[owner].resource += (Number(counts.resource) || 0);
-    }
-    return;
   }
 
-    // sync pool counts too (so spawning stays consistent)
-    if (tokenPools[owner]) {
-      if (counts.damage)   tokenPools[owner].damage   += Number(counts.damage)   || 0;
-      if (counts.attack)   tokenPools[owner].attack   += Number(counts.attack)   || 0;
-      if (counts.resource) tokenPools[owner].resource += Number(counts.resource) || 0;
-    }
-    return;
+  // Sync pool counts too (so future spawning remains consistent)
+  if (tokenPools[owner]) {
+    if (counts.damage)   tokenPools[owner].damage   += (Number(counts.damage)   || 0);
+    if (counts.attack)   tokenPools[owner].attack   += (Number(counts.attack)   || 0);
+    if (counts.resource) tokenPools[owner].resource += (Number(counts.resource) || 0);
   }
- 
-  }
+
+  return;
+}
+
 
   if (msg.t === "force_set") {
     if (!forceMarker) return;
@@ -3048,7 +3062,8 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
- 
+ if (typeof window.__vttFlushPendingNetMsgs === "function") window.__vttFlushPendingNetMsgs();
+
 }
 
 function initBoard() { build(); }
