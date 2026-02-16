@@ -236,12 +236,40 @@ if (!window.stage || !window.stage.querySelector) {
   var counts = msg.counts || {};
   var ids = msg.tokenIds || [];
 
-  // Remove returned tokens by id (visual sync)
-  for (var i = 0; i < ids.length; i++) {
-    var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
-    if (tok2) {
-      if (tok2.isConnected) tok2.remove();
-      try { tokenEls.delete(tok2); } catch (e) {}
+   // Remove returned tokens (visual sync)
+  if (ids && ids.length) {
+    // Preferred: remove by id
+    for (var i = 0; i < ids.length; i++) {
+      var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
+      if (tok2) {
+        if (tok2.isConnected) tok2.remove();
+        try { tokenEls.delete(tok2); } catch (e) {}
+      }
+    }
+  } else {
+    // Fallback: remove by owner + type using counts (covers older tokens missing tokenId)
+    var types = msg.types || ["attack","resource"];
+    var need = {
+      damage: Number((counts && counts.damage) || 0),
+      attack: Number((counts && counts.attack) || 0),
+      resource: Number((counts && counts.resource) || 0)
+    };
+
+    for (var ti = 0; ti < types.length; ti++) {
+      var ty = types[ti];
+
+      // If counts didn't include this type, skip
+      if (!need[ty] || need[ty] <= 0) continue;
+
+      // Remove up to "need[ty]" tokens of this type for this owner
+      while (need[ty] > 0) {
+        var found = stage.querySelector(".tokenCube[data-owner='" + owner + "'][data-type='" + ty + "']");
+        if (!found) break;
+
+        if (found.isConnected) found.remove();
+        try { tokenEls.delete(found); } catch (e2) {}
+        need[ty]--;
+      }
     }
   }
 
@@ -3015,6 +3043,7 @@ function returnTokensForOwner(owner, typesToReturn) {
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
     owner: owner,
+    types: typesToReturn || null,
     counts: returnedCounts,
     tokenIds: returnedIds,
     at: __vttNowMs()
