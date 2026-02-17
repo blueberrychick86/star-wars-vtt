@@ -190,7 +190,7 @@ window.__vttOnNetMessage = function(msg){
 
     t.style.left = (msg.x - TOKEN_SIZE/2) + "px";
     t.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
-    t.style.zIndex = "16000";
+    t.style.zIndex = "20000";
 
     stage.appendChild(t);
     tokenEls.add(t);
@@ -2794,7 +2794,7 @@ function attachTokenDragHandlers(el) {
     offX = px - left;
     offY = py - top;
 
-    el.style.zIndex = "60000";
+    el.style.zIndex = "70000";
   });
 
   el.addEventListener("pointermove", function(e){
@@ -2821,14 +2821,14 @@ vttSend({
   tokenId: el.dataset.tokenId,
   x: x,
   y: y,
-  z: 16000,
+  z: 20000,
   at: __vttNowMs()
 });
 
-     el.style.zIndex = "16000";
+     el.style.zIndex = "20000";
   });
 
-  el.addEventListener("pointercancel", function(){ dragging = false; });
+  el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "20000"; });
 }
 
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
@@ -3180,13 +3180,15 @@ function attachDragHandlers(el, cardData, kind) {
     cardId: el.dataset.cardId,
     x: parseFloat(el.style.left || "0"),
     y: parseFloat(el.style.top  || "0"),
-    z: parseInt(el.style.zIndex || "15000", 10),
+    z: (kind === "base") ? 12000 : 15000,
     rot: Number(el.dataset.rot || "0"),
     face: el.dataset.face || "up",
     capSide: el.dataset.capSide || null,
     capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
     at: __vttNowMs()
   });
+
+  el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
   return;
 }
@@ -3323,6 +3325,7 @@ vttSend({
     clearPressTimer();
     clearFlipTimer();
     suppressNextPointerUp = false;
+    el.style.zIndex = (kind === "base") ? "12000" : "15000";
   });
 }
 
