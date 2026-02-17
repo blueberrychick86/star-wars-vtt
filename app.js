@@ -1,12 +1,15 @@
-/* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
-   - Keeps ALL existing features
-   - Removes duplicate “early crash overlay vs crash overlay” conflicts
-   - Makes boot + overlay + menu audio more robust (no optional chaining)
-   - Keeps tray, tokens, snapping, preview, rotate/flip, invite/join flow
-   ======================================================================== */
+/* ============================================================================
+   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Token layering + sync stable)
 
-console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
+   - Keeps ALL existing features
+   - Token layering fixed (tokens stay above cards)
+   - Token z-index sync consistent for both players
+   - Keeps tray, snapping, preview, rotate/flip, invite/join flow
+
+   ============================================================================ */
+
+
+console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -134,6 +137,8 @@ window.__vttOnNetMessage = function(msg){
 
     // IMPORTANT: preserve network id
     el.dataset.cardId = msg.cardId;
+    // preserve owner seat when provided over network (backwards-compatible)
+    try { el.dataset.owner = msg.owner || msg.seat || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
 
     // Apply transform/state
     if (msg.face) el.dataset.face = msg.face;
@@ -1590,6 +1595,17 @@ trayBody.id = "trayBody";
 
 var trayCarousel = document.createElement("div");
 trayCarousel.id = "trayCarousel";
+// Per-seat carousel containers (kept inside the main carousel for styling compatibility)
+var trayCarouselP1 = document.createElement("div");
+trayCarouselP1.id = "trayCarouselP1";
+trayCarouselP1.className = "trayCarouselSeat trayCarouselP1";
+
+var trayCarouselP2 = document.createElement("div");
+trayCarouselP2.id = "trayCarouselP2";
+trayCarouselP2.className = "trayCarouselSeat trayCarouselP2";
+
+trayCarousel.appendChild(trayCarouselP1);
+trayCarousel.appendChild(trayCarouselP2);
 trayBody.appendChild(trayCarousel);
 
 tray.appendChild(trayHeaderBar);
@@ -1930,6 +1946,8 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       el.style.top  = (p.y - h / 2) + "px";
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
+      // preserve owner info from the tray tile (if present)
+      try { el.dataset.owner = tile.__owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
       stage.appendChild(el);
 
 if (kind === "base") {
@@ -1947,6 +1965,7 @@ vttSend({
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
+  owner: (el.dataset.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1")),
   kind: kind,
   cardData: el.__cardData || card,   // <- important
   x: parseFloat(el.style.left || "0"),
@@ -2035,13 +2054,17 @@ onCommitToBoard();
 }
 
 function renderTray() {
-  trayCarousel.innerHTML = "";
+  // Clear per-seat carousels
+  try { trayCarouselP1.innerHTML = ""; } catch (e) {}
+  try { trayCarouselP2.innerHTML = ""; } catch (e) {}
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
     for (var i = 0; i < trayState.drawItems.length; i++) {
       (function(item){
         var tile = makeTrayTile(item.card);
+        // remember which seat this tile belongs to
+        tile.__owner = item.owner || (item.pileKey && (String(item.pileKey).indexOf("p2_") === 0 ? "p2" : "p1")) || "p1";
 
         tile.addEventListener("click", function(){
           if (tile.__justDragged) { tile.__justDragged = false; return; }
@@ -2054,7 +2077,7 @@ function renderTray() {
           renderTray();
         });
 
-        trayCarousel.appendChild(tile);
+        if (tile.__owner === "p2") trayCarouselP2.appendChild(tile); else trayCarouselP1.appendChild(tile);
       })(trayState.drawItems[i]);
     }
   } else {
@@ -2093,7 +2116,8 @@ function renderTray() {
           renderTray();
         });
 
-        trayCarousel.appendChild(tile2);
+        var targetOwner = trayState.searchOwner || "p1";
+        if (targetOwner === "p2") trayCarouselP2.appendChild(tile2); else trayCarouselP1.appendChild(tile2);
       })(visible[t]);
     }
   }
@@ -3114,6 +3138,8 @@ function makeCardEl(cardData, kind) {
    // Keep original card data for network spawn
   el.__cardData = cardData;
  el.dataset.face = "up";
+  // assign a stable owner seat for this card element (default heuristic)
+  try { el.dataset.owner = cardData.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
 
   var face = document.createElement("div");
   face.className = "cardFace";
@@ -4035,4 +4061,32 @@ function bootTry(label, fn) {
     } catch (e2) {}
     return undefined;
   }
+}
+
+// Helper: centralize moving a card (DOM element or card data) into a seat's tray
+function moveCardToTray(cardElOrData, seat) {
+  var seatKey = (seat === "p2") ? "p2" : "p1";
+
+  // If passed a board card element, convert to tray draw item (store card data)
+  try {
+    if (cardElOrData && cardElOrData.classList && cardElOrData.classList.contains && cardElOrData.classList.contains("card")) {
+      var data = cardElOrData.__cardData || null;
+      if (data) {
+        trayState.drawItems.push({ owner: seatKey, pileKey: seatKey + "_draw", card: data });
+        try { if (cardElOrData.isConnected) cardElOrData.remove(); } catch (e) {}
+        renderTray();
+        return true;
+      }
+    }
+  } catch (e) {}
+
+  // If passed an existing tray tile element, just reparent it to the right seat container
+  try {
+    if (cardElOrData && cardElOrData.nodeType === 1) {
+      try { cardElOrData.dataset.owner = seatKey; } catch (e) {}
+      if (seatKey === "p2") trayCarouselP2.appendChild(cardElOrData); else trayCarouselP1.appendChild(cardElOrData);
+      return true;
+    }
+  } catch (e) {}
+  return false;
 }
