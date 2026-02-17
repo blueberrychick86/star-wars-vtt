@@ -1270,13 +1270,6 @@ inviteStyle.textContent = `
 `;
 document.head.appendChild(inviteStyle);
 
-/* =========================
-   POV FLIP CSS (ADDITIVE)
-   ========================= */
-var povStyle = document.createElement("style");
-povStyle.textContent = `.flipped-pov { transform: rotate(180deg); }`;
-document.head.appendChild(povStyle);
-
 
 /* =========================
    AUDIO (WebAudio mixer)
@@ -2359,14 +2352,7 @@ var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
-  var stageRect = stage.getBoundingClientRect();
-  var x = (vx - stageRect.left) / camera.scale;
-  var y = (vy - stageRect.top) / camera.scale;
-  if (isFlippedPOV) {
-    x = (stageRect.width / camera.scale) - x;
-    y = (stageRect.height / camera.scale) - y;
-  }
-  return { x: x, y: y };
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
@@ -2816,9 +2802,9 @@ function attachTokenDragHandlers(el) {
     el.setPointerCapture(e.pointerId);
     dragging = true;
 
-    var pos = screenToWorld(e.clientX, e.clientY);
-    var px = pos.x;
-    var py = pos.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
 
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
@@ -2830,9 +2816,9 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointermove", function(e){
     if (!dragging) return;
-    var pos = screenToWorld(e.clientX, e.clientY);
-    var px = pos.x;
-    var py = pos.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
 
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
@@ -2867,9 +2853,9 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 
   tokenPools[owner][type] -= 1;
 
-  var pos = screenToWorld(clientX, clientY);
-  var px0 = pos.x;
-  var py0 = pos.y;
+  var stageRect0 = stage.getBoundingClientRect();
+  var px0 = (clientX - stageRect0.left) / camera.scale;
+  var py0 = (clientY - stageRect0.top)  / camera.scale;
 
   var tok = createTokenCube(owner, type, px0, py0);
    // NET: broadcast token spawn
@@ -3002,8 +2988,6 @@ function returnTokensForOwner(owner, typesToReturn) {
   });
 }
 
-var isFlippedPOV = false;
-
 function endTurn(owner) {
   returnTokensForOwner(owner, ["attack","resource"]);
 }
@@ -3031,18 +3015,6 @@ function resetAllTokens() {
   });
 }
 
-function screenToWorld(clientX, clientY) {
-  var stageRect = stage.getBoundingClientRect();
-  var scale = camera.scale;
-  var x = (clientX - stageRect.left) / scale;
-  var y = (clientY - stageRect.top) / scale;
-  if (isFlippedPOV) {
-    x = (stageRect.width / scale) - x;
-    y = (stageRect.height / scale) - y;
-  }
-  return {x: x, y: y};
-}
-
 endP1Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p1"); });
 endP2Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", function(e){ e.preventDefault(); resetAllTokens(); });
@@ -3058,9 +3030,6 @@ function build() {
 
   stage.style.width = DESIGN_W + "px";
   stage.style.height = DESIGN_H + "px";
-
-  isFlippedPOV = window.__gameConfig && window.__gameConfig.youAre === "p2";
-  stage.classList.toggle("flipped-pov", isFlippedPOV);
 
   var entries = Object.entries(zones);
   for (var i = 0; i < entries.length; i++) {
@@ -3258,9 +3227,9 @@ function attachDragHandlers(el, cardData, kind) {
       baseFreedAssignment = false;
     }
 
-    var pos = screenToWorld(e.clientX, e.clientY);
-    var px = pos.x;
-    var py = pos.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
 
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
@@ -3288,9 +3257,9 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (longPressFired) return;
 
-    var pos = screenToWorld(e.clientX, e.clientY);
-    var px = pos.x;
-    var py = pos.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
@@ -3964,19 +3933,6 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
         prompt("Copy this invite:", msg + "\n\n" + url);
       });
     }
-
-    // Set host config and start board
-    window.__gameConfig = {
-      role: "host",
-      hostName: hostName,
-      guestName: "",
-      mode: modeKey,
-      mandoNeutral: mando,
-      p1Faction: hostFactionForLink,
-      p2Faction: oppositeFaction(hostFactionForLink),
-      youAre: "p1"
-    };
-    try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
 
     return true;
   }
