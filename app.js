@@ -1,5 +1,5 @@
 /* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
+   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Non-destructive cleanup)
    - Keeps ALL existing features
    - Removes duplicate “early crash overlay vs crash overlay” conflicts
    - Makes boot + overlay + menu audio more robust (no optional chaining)
@@ -232,56 +232,28 @@ if (!window.stage || !window.stage.querySelector) {
   }
 
  if (msg.t === "token_return") {
-  var owner = msg.owner;
-  var counts = msg.counts || {};
-  var ids = msg.tokenIds || [];
+      var owner = msg.owner;
+      var kind  = msg.kind;
+      var count = +msg.count || 0;
 
-   // Remove returned tokens (visual sync)
-  if (ids && ids.length) {
-    // Preferred: remove by id
-    for (var i = 0; i < ids.length; i++) {
-      var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
-      if (tok2) {
-        if (tok2.isConnected) tok2.remove();
-        try { tokenEls.delete(tok2); } catch (e) {}
+      if (count > 0) {
+        // keep logical pool in sync
+        if (tokenPools && tokenPools[owner] && tokenPools[owner][kind] != null) {
+          tokenPools[owner][kind] += count;
+        }
+
+        // Snap tokens back into their bin/tray visually
+        var moved = 0;
+        var all = document.querySelectorAll(".token");
+        for (var i=0; i<all.length && moved < count; i++) {
+          var el = all[i];
+          if ((el.dataset.owner || "") !== owner) continue;
+          if ((el.dataset.kind  || "") !== kind) continue;
+          if ((el.dataset.inTray || "") === "true") continue;
+          if (snapTokenToBin(el)) moved++;
+        }
       }
     }
-  } else {
-    // Fallback: remove by owner + type using counts (covers older tokens missing tokenId)
-    var types = msg.types || ["attack","resource"];
-    var need = {
-      damage: Number((counts && counts.damage) || 0),
-      attack: Number((counts && counts.attack) || 0),
-      resource: Number((counts && counts.resource) || 0)
-    };
-
-    for (var ti = 0; ti < types.length; ti++) {
-      var ty = types[ti];
-
-      // If counts didn't include this type, skip
-      if (!need[ty] || need[ty] <= 0) continue;
-
-      // Remove up to "need[ty]" tokens of this type for this owner
-      while (need[ty] > 0) {
-        var found = stage.querySelector(".tokenCube[data-owner='" + owner + "'][data-type='" + ty + "']");
-        if (!found) break;
-
-        if (found.isConnected) found.remove();
-        try { tokenEls.delete(found); } catch (e2) {}
-        need[ty]--;
-      }
-    }
-  }
-
-  // Sync pool counts too (so future spawning remains consistent)
-  if (tokenPools[owner]) {
-    if (counts.damage)   tokenPools[owner].damage   += (Number(counts.damage)   || 0);
-    if (counts.attack)   tokenPools[owner].attack   += (Number(counts.attack)   || 0);
-    if (counts.resource) tokenPools[owner].resource += (Number(counts.resource) || 0);
-  }
-
-  return;
-}
 
 
   if (msg.t === "force_set") {
@@ -1658,6 +1630,9 @@ var tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER }
 };
+
+// Bin DOM refs so returned tokens can snap back visually
+var tokenBinEls = { p1: Object.create(null), p2: Object.create(null) };
 var tokenEls = new Set();
 
 /* =========================
@@ -2798,223 +2773,651 @@ function raiseAttachedTokens(cardEl) {
     if (id) {
       var attached = document.querySelectorAll("[data-attached-to='" + id + "']");
       attached.forEach(function(t){
-         (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
-diff --git a/app.js b/app.js
-index 268f5301994ba281936ed8e6b8e90b25f7877d17..e2604ca95f2e8344b9064ab50ab62fdc0c55928b 100644
---- a/app.js
-+++ b/app.js
-@@ -2801,50 +2801,60 @@ function raiseAttachedTokens(cardEl) {
-         if (t.parentNode) t.parentNode.appendChild(t); // bring above in DOM
-         t.style.zIndex = "9999";
-       });
-     }
-   } catch (e) {}
- }
- // ===== END PATCH =====
- 
- function toggleRotate(cardEl) {
-   var cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-   var next = (cur + 90) % 360;
-   cardEl.dataset.rot = String(next);
-   applyRotationSize(cardEl);
-   refreshSnapRects();
-   raiseAttachedTokens(cardEl);
- 
- }
- 
- function toggleFlip(cardEl) {
-   var cur = cardEl.dataset.face || "up";
-   cardEl.dataset.face = (cur === "up") ? "down" : "up";
-   raiseAttachedTokens(cardEl);
- 
- }
- 
-+function getCardRestingZ(el, kind) {
-+  if (kind === "base") {
-+    if (el.dataset.capSide && el.dataset.capIndex != null) {
-+      return CAP_Z_BASE + Number(el.dataset.capIndex || "0");
-+    }
-+    return 12000;
-+  }
-+  return 15000;
-+}
-+
- /* =========================
-    TOKENS
-    ========================= */
- var tokenBankEls = { p1: null, p2: null };
- 
- function tokenClassFor(type) {
-   if (type === "damage") return "tokenRed";
-   if (type === "attack") return "tokenBlue";
-   return "tokenGold";
- }
- 
- function createTokenCube(owner, type, x, y) {
-   var t = document.createElement("div");
-   t.className = "tokenCube " + tokenClassFor(type);
-   t.dataset.owner = owner;
-   t.dataset.type = type;
-    // Ensure every token has a stable network id
- t.dataset.tokenId = "t_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
- 
-   t.style.left = (x - TOKEN_SIZE/2) + "px";
-   t.style.top  = (y - TOKEN_SIZE/2) + "px";
-   t.style.zIndex = "16000";
-   stage.appendChild(t);
-   tokenEls.add(t);
- 
-@@ -3238,51 +3248,51 @@ function attachDragHandlers(el, cardData, kind) {
-   var lastTap = 0;
- 
-   el.addEventListener("pointerdown", function(e){
-     if (previewOpen) return;
-     if (e.button !== 0) return;
- 
-     clearFlipTimer();
-     suppressNextPointerUp = false;
- 
-     var now = Date.now();
-     var dt = now - lastTap;
-     lastTap = now;
- 
-    if (kind === "unit" && dt < DOUBLE_TAP_MS) {
-   suppressNextPointerUp = true;
-   toggleRotate(el);
- 
-   // NET: sync rotation immediately (no extra drag needed)
-   vttSend({
-     t: "card_move",
-     clientId: window.__vttClientId,
-     room: window.__vttRoomId,
-     cardId: el.dataset.cardId,
-     x: parseFloat(el.style.left || "0"),
-     y: parseFloat(el.style.top  || "0"),
--    z: parseInt(el.style.zIndex || "15000", 10),
-+    z: getCardRestingZ(el, kind),
-     rot: Number(el.dataset.rot || "0"),
-     face: el.dataset.face || "up",
-     capSide: el.dataset.capSide || null,
-     capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
-     at: __vttNowMs()
-   });
- 
-   return;
- }
- 
-     el.setPointerCapture(e.pointerId);
-     dragging = true;
-     startLongPress(e);
- 
-     if (kind === "base") {
-       baseHadCapturedAssignment = !!el.dataset.capSide;
-       baseFreedAssignment = false;
-     }
- 
-     var stageRect = stage.getBoundingClientRect();
-     var px = (e.clientX - stageRect.left) / camera.scale;
-     var py = (e.clientY - stageRect.top) / camera.scale;
- 
-     var left = parseFloat(el.style.left || "0");
-     var top = parseFloat(el.style.top || "0");
-@@ -3324,92 +3334,92 @@ function attachDragHandlers(el, cardData, kind) {
-     dragging = false;
- 
-     if (suppressNextPointerUp) {
-       suppressNextPointerUp = false;
-       el.style.zIndex = (kind === "base") ? "12000" : "15000";
-       return;
-     }
- 
-     if (longPressFired) {
-       longPressFired = false;
-       return;
-     }
- 
-     if (!movedDuringPress) {
-       clearFlipTimer();
-       flipTimer = setTimeout(function(){
-         toggleFlip(el);
-          // NET: sync flip immediately (no extra drag needed)
- vttSend({
-   t: "card_move",
-   clientId: window.__vttClientId,
-   room: window.__vttRoomId,
-   cardId: el.dataset.cardId,
-   x: parseFloat(el.style.left || "0"),
-   y: parseFloat(el.style.top  || "0"),
--  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
-+  z: getCardRestingZ(el, kind),
-   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
-   face: el.dataset.face || "up",
-   capSide: el.dataset.capSide || null,
-   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
-   at: __vttNowMs()
- });
- 
-         if (kind === "base") {
-           if (el.dataset.capSide) {
-             var idx = Number(el.dataset.capIndex || "0");
-             el.style.zIndex = String(CAP_Z_BASE + idx);
-           } else {
-             el.style.zIndex = "12000";
-           }
-         } else {
-           el.style.zIndex = "15000";
-         }
-       }, FLIP_CONFIRM_MS);
-       return;
-     }
- 
-     if (kind === "base") {
-       snapBaseAutoFill(el);
-       if (!el.dataset.capSide) {
-         snapBaseToNearestBaseStack(el);
-         el.style.zIndex = "12000";
-       }
-    } else {
-   snapCardToNearestZone(el);
-   el.style.zIndex = "15000";
- }
- 
- // NET: broadcast final position/state after move
- vttSend({
-   t: "card_move",
-   clientId: window.__vttClientId,
-   room: window.__vttRoomId,
-   cardId: el.dataset.cardId,
-   x: parseFloat(el.style.left || "0"),
-   y: parseFloat(el.style.top  || "0"),
--  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
-+  z: getCardRestingZ(el, kind),
-   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
-   face: el.dataset.face || "up",
-   capSide: el.dataset.capSide || null,
-   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
-   at: __vttNowMs()
- });
- 
- });
- 
- 
-   el.addEventListener("pointercancel", function(){
-     dragging = false;
-     clearPressTimer();
-     clearFlipTimer();
-     suppressNextPointerUp = false;
-   });
- }
- 
- /* =========================
-    DEV DATA (kept)
-    ========================= */
- var OBIWAN = {
-   id: "obiwan",
-   name: "Obi-Wan Kenobi",
-   type: "Unit",
- 
-EOF
-)
+        if (t.parentNode) t.parentNode.appendChild(t); // bring above in DOM
+        t.style.zIndex = "9999";
+      });
+    }
+  } catch (e) {}
+}
+// ===== END PATCH =====
+
+function toggleRotate(cardEl) {
+  var cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  var next = (cur + 90) % 360;
+  cardEl.dataset.rot = String(next);
+  applyRotationSize(cardEl);
+  refreshSnapRects();
+  raiseAttachedTokens(cardEl);
+
+}
+
+function toggleFlip(cardEl) {
+  var cur = cardEl.dataset.face || "up";
+  cardEl.dataset.face = (cur === "up") ? "down" : "up";
+  raiseAttachedTokens(cardEl);
+
+}
+
+/* =========================
+   TOKENS
+   ========================= */
+var tokenBankEls = { p1: null, p2: null };
+
+function tokenClassFor(type) {
+  if (type === "damage") return "tokenRed";
+  if (type === "attack") return "tokenBlue";
+  return "tokenGold";
+}
+
+function createTokenCube(owner, type, x, y) {
+  var t = document.createElement("div");
+  t.className = "tokenCube " + tokenClassFor(type);
+  t.dataset.owner = owner;
+  t.dataset.type = type;
+   // Ensure every token has a stable network id
+t.dataset.tokenId = "t_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+
+  t.style.left = (x - TOKEN_SIZE/2) + "px";
+  t.style.top  = (y - TOKEN_SIZE/2) + "px";
+  t.style.zIndex = "16000";
+  stage.appendChild(t);
+  tokenEls.add(t);
+
+  attachTokenDragHandlers(t);
+  return t;
+}
+
+function attachTokenDragHandlers(el) {
+  var dragging = false;
+  var offX = 0, offY = 0;
+
+  el.addEventListener("pointerdown", function(e){
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
+    var left = parseFloat(el.style.left || "0");
+    var top  = parseFloat(el.style.top || "0");
+    offX = px - left;
+    offY = py - top;
+
+    el.style.zIndex = "60000";
+  });
+
+  el.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = (px - offX) + "px";
+    el.style.top  = (py - offY) + "px";
+  });
+
+  el.addEventListener("pointerup", function(e){
+    dragging = false;
+    try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+   // NET: broadcast token move on release
+var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
+var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+
+vttSend({
+  t: "token_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  tokenId: el.dataset.tokenId,
+  x: x,
+  y: y,
+  z: 16000,
+  at: __vttNowMs()
+});
+
+     el.style.zIndex = "16000";
+  });
+
+  el.addEventListener("pointercancel", function(){ dragging = false; });
+}
+
+
+function snapTokenToBin(el) {
+  try {
+    var owner = el.dataset.owner;
+    var kind = el.dataset.kind;
+    var bin = tokenBinEls && tokenBinEls[owner] && tokenBinEls[owner][kind];
+    if (!bin) return false;
+
+    var br = bin.getBoundingClientRect();
+    var board = getBoardRect();
+    // snap near center with small jitter so stacks don't look perfectly overlapped
+    var jitter = (Math.random() - 0.5) * 10;
+    var x = (br.left + br.width/2) - board.left + jitter;
+    var y = (br.top  + br.height/2) - board.top  + jitter;
+
+    setXY(el, x, y);
+    el.style.zIndex = 1;
+    el.dataset.inTray = "true";
+    return true;
+  } catch(_) {
+    return false;
+  }
+}
+
+function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
+  if (tokenPools[owner][type] <= 0) return;
+
+  tokenPools[owner][type] -= 1;
+
+  var stageRect0 = stage.getBoundingClientRect();
+  var px0 = (clientX - stageRect0.left) / camera.scale;
+  var py0 = (clientY - stageRect0.top)  / camera.scale;
+
+  var tok = createTokenCube(owner, type, px0, py0);
+   // NET: broadcast token spawn
+vttSend({
+  t: "token_spawn",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  tokenId: tok.dataset.tokenId,
+  owner: owner,
+  type: type,
+  x: px0,
+  y: py0,
+  z: 16000,
+  at: __vttNowMs()
+});
+
+  tok.style.zIndex = "60000";
+
+  try { tok.setPointerCapture(pointerId); } catch (e) {}
+
+  function move(e) {
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top)  / camera.scale;
+    tok.style.left = (px - TOKEN_SIZE/2) + "px";
+    tok.style.top  = (py - TOKEN_SIZE/2) + "px";
+  }
+
+  function up(e) {
+    try { tok.releasePointerCapture(pointerId); } catch (err) {}
+    tok.style.zIndex = "16000";
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", up, true);
+    window.removeEventListener("pointercancel", up, true);
+  }
+
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", up, true);
+  window.addEventListener("pointercancel", up, true);
+}
+
+function buildTokenBank(owner, r) {
+  var bank = document.createElement("div");
+  bank.className = "tokenBank";
+  bank.style.left = r.x + "px";
+  bank.style.top  = r.y + "px";
+  bank.style.width = r.w + "px";
+  bank.style.height = r.h + "px";
+  bank.dataset.owner = owner;
+
+  var row = document.createElement("div");
+  row.className = "tokenBinsRow";
+
+  var bins = [
+    { type:"damage" },
+    { type:"attack" },
+    { type:"resource" }
+  ];
+
+  for (var i = 0; i < bins.length; i++) {
+    (function(b){
+      var bin = document.createElement("div");
+      bin.className = "tokenBin";
+      bin.dataset.owner = owner;
+      bin.dataset.type = b.type;
+
+      
+      // remember this bin so return-to-tray can snap tokens here
+      try { tokenBinEls[owner][b.type] = bin; } catch(_) {}
+var source = document.createElement("div");
+      source.className = "tokenSourceCube " + tokenClassFor(b.type);
+      source.style.left = "0px";
+      source.style.top  = "0px";
+      bin.appendChild(source);
+
+      bin.addEventListener("pointerdown", function(e){
+        if (previewOpen) return;
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        spawnTokenFromBin(owner, b.type, e.clientX, e.clientY, e.pointerId);
+      });
+
+      row.appendChild(bin);
+    })(bins[i]);
+  }
+
+  bank.appendChild(row);
+  bank.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+  bank.addEventListener("pointermove", function(e){ e.stopPropagation(); });
+  bank.addEventListener("pointerup", function(e){ e.stopPropagation(); });
+
+  stage.appendChild(bank);
+  tokenBankEls[owner] = bank;
+}
+
+function returnTokensForOwner(owner, kindsList) {
+  kindsList = kindsList || ["attack", "resource", "damage"];
+
+  // Return any owned tokens that are NOT already in the tray/bank
+  var moved = Object.create(null);
+  kindsList.forEach(function(k){ moved[k]=0; });
+
+  var all = document.querySelectorAll(".token");
+  all.forEach(function(el){
+    if ((el.dataset.owner || "") !== owner) return;
+    var kind = el.dataset.kind || "";
+    if (kindsList.indexOf(kind) === -1) return;
+
+    // Only return tokens that are out on the table
+    if ((el.dataset.inTray || "") === "true") return;
+
+    if (snapTokenToBin(el)) {
+      moved[kind] += 1;
+      if (tokenPools && tokenPools[owner] && tokenPools[owner][kind] != null) {
+        tokenPools[owner][kind] += 1;
+      }
+    }
+  });
+
+  // Sync to peer: tell them to return the same number (they'll snap theirs too)
+  if (isConnected()) {
+    kindsList.forEach(function(kind){
+      var c = moved[kind] || 0;
+      if (c > 0) sendRoom({ t:"token_return", owner: owner, kind: kind, count: c });
+    });
+  }
+}
+
+function endTurn(owner) {
+  returnTokensForOwner(owner, ["attack","resource"]);
+}
+
+function resetAllTokens() {
+  Array.from(tokenEls).forEach(function(t){
+    if (t.isConnected) t.remove();
+    tokenEls.delete(t);
+  });
+
+  tokenPools.p1.damage = TOKENS_DAMAGE_PER_PLAYER;
+  tokenPools.p1.attack = TOKENS_ATTACK_PER_PLAYER;
+  tokenPools.p1.resource = TOKENS_RESOURCE_PER_PLAYER;
+
+  tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
+  tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
+  tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
+}
+
+endP1Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p1"); });
+endP2Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p2"); });
+resetTokensBtn.addEventListener("click", function(e){ e.preventDefault(); resetAllTokens(); });
+
+/* =========================
+   BUILD
+   ========================= */
+function build() {
+  stage.innerHTML = "";
+
+  var zones = computeZones();
+  zonesCache = zones;
+
+  stage.style.width = DESIGN_W + "px";
+  stage.style.height = DESIGN_H + "px";
+
+  var entries = Object.entries(zones);
+  for (var i = 0; i < entries.length; i++) {
+    var id = entries[i][0];
+    var rr = entries[i][1];
+    if (id === "p1_token_bank" || id === "p2_token_bank") continue;
+
+    var el = document.createElement("div");
+    el.className = "zone";
+    el.dataset.zoneId = id;
+    el.style.left = rr.x + "px";
+    el.style.top = rr.y + "px";
+    el.style.width = rr.w + "px";
+    el.style.height = rr.h + "px";
+    stage.appendChild(el);
+  }
+
+  buildForceTrackSlots(zones.force_track);
+  ensureForceMarker(FORCE_NEUTRAL_INDEX);
+
+  buildCapturedBaseSlots(zones.p2_captured_bases, "p2");
+  buildCapturedBaseSlots(zones.p1_captured_bases, "p1");
+
+  buildTokenBank("p2", zones.p2_token_bank);
+  buildTokenBank("p1", zones.p1_token_bank);
+
+  applyCamera();
+  refreshSnapRects();
+  ensureDrawCountBadges();
+  bindPileZoneClicks();
+  fitToScreen();
+  if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
+ if (typeof window.__vttFlushPendingNetMsgs === "function") window.__vttFlushPendingNetMsgs();
+
+}
+
+function initBoard() { build(); }
+
+window.addEventListener("resize", function(){ fitToScreen(); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", function(){ fitToScreen(); });
+
+/* =========================
+   FACTION BORDER HELPERS
+   ========================= */
+function getFactionKey(cardData){
+  var raw = String(
+    (cardData.faction != null) ? cardData.faction :
+    (cardData.side != null) ? cardData.side :
+    (cardData.allegiance != null) ? cardData.allegiance :
+    (cardData.border != null) ? cardData.border :
+    ""
+  ).toLowerCase().trim();
+
+  if (raw === "mando" || raw === "mandalorian" || raw === "mandalorians") return "mando";
+  if (raw === "neutral" || raw === "grey" || raw === "gray" || raw === "silver") return "neutral";
+  if (raw === "blue") return "blue";
+  if (raw === "red") return "red";
+
+  if (raw === "empire" || raw === "separatists" || raw === "separatist") return "blue";
+  if (raw === "rebels" || raw === "rebel" || raw === "republic") return "red";
+
+  return "";
+}
+
+function applyFactionBorderClass(el, cardData){
+  el.classList.remove("fBlue","fRed","fNeutral","fMando");
+  var k = getFactionKey(cardData);
+  if (k === "blue") el.classList.add("fBlue");
+  else if (k === "red") el.classList.add("fRed");
+  else if (k === "neutral") el.classList.add("fNeutral");
+  else if (k === "mando") el.classList.add("fMando");
+}
+
+/* =========================
+   CARD FACTORY + DRAG
+   ========================= */
+function makeCardEl(cardData, kind) {
+  var el = document.createElement("div");
+  el.className = "card";
+  applyFactionBorderClass(el, cardData);
+  el.dataset.kind = kind;
+  el.dataset.cardId = String(cardData.id) + "_" + Math.random().toString(16).slice(2);
+   // Keep original card data for network spawn
+  el.__cardData = cardData;
+ el.dataset.face = "up";
+
+  var face = document.createElement("div");
+  face.className = "cardFace";
+  face.style.backgroundImage = "url('" + (cardData.img || "") + "')";
+  el.appendChild(face);
+
+  var back = document.createElement("div");
+  back.className = "cardBack";
+  back.textContent = "Face Down";
+  el.appendChild(back);
+
+  if (kind === "unit") {
+    el.dataset.rot = "0";
+    applyRotationSize(el);
+  } else {
+    el.style.width = BASE_W + "px";
+    el.style.height = BASE_H + "px";
+    face.style.transform = "none";
+  }
+
+  el.addEventListener("contextmenu", function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    togglePreview(cardData);
+  });
+
+  attachDragHandlers(el, cardData, kind);
+  return el;
+}
+
+function attachDragHandlers(el, cardData, kind) {
+  var dragging = false;
+  var offsetX = 0;
+  var offsetY = 0;
+
+  var pressTimer = null;
+  var longPressFired = false;
+  var downX = 0;
+  var downY = 0;
+  var movedDuringPress = false;
+
+  var baseHadCapturedAssignment = false;
+  var baseFreedAssignment = false;
+
+  var DOUBLE_TAP_MS = 360;
+  var FLIP_CONFIRM_MS = 380;
+
+  var flipTimer = null;
+  var suppressNextPointerUp = false;
+
+  function clearFlipTimer(){ if (flipTimer) { clearTimeout(flipTimer); flipTimer = null; } }
+  function clearPressTimer(){ if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+
+  function startLongPress(e) {
+    clearPressTimer();
+    longPressFired = false;
+    movedDuringPress = false;
+    downX = e.clientX;
+    downY = e.clientY;
+
+    pressTimer = setTimeout(function(){
+      longPressFired = true;
+      showPreview(cardData);
+    }, 380);
+  }
+
+  var lastTap = 0;
+
+  el.addEventListener("pointerdown", function(e){
+    if (previewOpen) return;
+    if (e.button !== 0) return;
+
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+
+    var now = Date.now();
+    var dt = now - lastTap;
+    lastTap = now;
+
+   if (kind === "unit" && dt < DOUBLE_TAP_MS) {
+  suppressNextPointerUp = true;
+  toggleRotate(el);
+
+  // NET: sync rotation immediately (no extra drag needed)
+  vttSend({
+    t: "card_move",
+    clientId: window.__vttClientId,
+    room: window.__vttRoomId,
+    cardId: el.dataset.cardId,
+    x: parseFloat(el.style.left || "0"),
+    y: parseFloat(el.style.top  || "0"),
+    z: parseInt(el.style.zIndex || "15000", 10),
+    rot: Number(el.dataset.rot || "0"),
+    face: el.dataset.face || "up",
+    capSide: el.dataset.capSide || null,
+    capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+    at: __vttNowMs()
+  });
+
+  return;
+}
+
+    el.setPointerCapture(e.pointerId);
+    dragging = true;
+    startLongPress(e);
+
+    if (kind === "base") {
+      baseHadCapturedAssignment = !!el.dataset.capSide;
+      baseFreedAssignment = false;
+    }
+
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
+    var left = parseFloat(el.style.left || "0");
+    var top = parseFloat(el.style.top || "0");
+    offsetX = px - left;
+    offsetY = py - top;
+
+    el.style.zIndex = "50000";
+  });
+
+  el.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+
+    var dx = e.clientX - downX;
+    var dy = e.clientY - downY;
+    if (Math.hypot(dx, dy) > 8) movedDuringPress = true;
+
+    if (!longPressFired && Math.hypot(dx, dy) > 8) {
+      clearPressTimer();
+
+      if (kind === "base" && baseHadCapturedAssignment && !baseFreedAssignment) {
+        clearCapturedAssignment(el);
+        baseFreedAssignment = true;
+      }
+    }
+
+    if (longPressFired) return;
+
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
+    el.style.left = (px - offsetX) + "px";
+    el.style.top  = (py - offsetY) + "px";
+  });
+
+  el.addEventListener("pointerup", function(e){
+    clearPressTimer();
+    try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+    dragging = false;
+
+    if (suppressNextPointerUp) {
+      suppressNextPointerUp = false;
+      el.style.zIndex = (kind === "base") ? "12000" : "15000";
+      return;
+    }
+
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+
+    if (!movedDuringPress) {
+      clearFlipTimer();
+      flipTimer = setTimeout(function(){
+        toggleFlip(el);
+         // NET: sync flip immediately (no extra drag needed)
+vttSend({
+  t: "card_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+  face: el.dataset.face || "up",
+  capSide: el.dataset.capSide || null,
+  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+  at: __vttNowMs()
+});
+
+        if (kind === "base") {
+          if (el.dataset.capSide) {
+            var idx = Number(el.dataset.capIndex || "0");
+            el.style.zIndex = String(CAP_Z_BASE + idx);
+          } else {
+            el.style.zIndex = "12000";
+          }
+        } else {
+          el.style.zIndex = "15000";
+        }
+      }, FLIP_CONFIRM_MS);
+      return;
+    }
+
+    if (kind === "base") {
+      snapBaseAutoFill(el);
+      if (!el.dataset.capSide) {
+        snapBaseToNearestBaseStack(el);
+        el.style.zIndex = "12000";
+      }
+   } else {
+  snapCardToNearestZone(el);
+  el.style.zIndex = "15000";
+}
+
+// NET: broadcast final position/state after move
+vttSend({
+  t: "card_move",
+  clientId: window.__vttClientId,
+  room: window.__vttRoomId,
+  cardId: el.dataset.cardId,
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
+  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+  face: el.dataset.face || "up",
+  capSide: el.dataset.capSide || null,
+  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+  at: __vttNowMs()
+});
+
+});
+
+
+  el.addEventListener("pointercancel", function(){
+    dragging = false;
+    clearPressTimer();
+    clearFlipTimer();
+    suppressNextPointerUp = false;
+  });
+}
+
+/* =========================
+   DEV DATA (kept)
+   ========================= */
+var OBIWAN = {
+  id: "obiwan",
+  name: "Obi-Wan Kenobi",
+  type: "Unit",
+  subtype: "Jedi",
+  cost: 4,
+  attack: 2,
+  resources: 1,
+  force: 1,
+  effect: "If you control the Force, draw 1 card.",
+  reward: "Gain 1 Force.",
+  img: "https://picsum.photos/250/350?random=12"
+};
+
 var TEST_BASE = {
   id: "base_test",
   name: "Test Base",
