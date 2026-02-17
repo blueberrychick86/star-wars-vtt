@@ -1,5 +1,5 @@
 /* ========================================================================
-   Star Wars VTT - CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
+   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
    - Keeps ALL existing features
    - Removes duplicate “early crash overlay vs crash overlay” conflicts
    - Makes boot + overlay + menu audio more robust (no optional chaining)
@@ -20,6 +20,24 @@ window.__vttRoomId = null;
 // NET: incoming move queue + applier (safe before board exists)
 // ==============================
 window.__vttPendingMoves = window.__vttPendingMoves || [];
+// ==============================
+// NET: pending messages that require stage (safe before board exists)
+// ==============================
+window.__vttPendingNetMsgs = window.__vttPendingNetMsgs || [];
+
+window.__vttFlushPendingNetMsgs = function(){
+  try {
+    if (!window.__vttPendingNetMsgs || !window.__vttPendingNetMsgs.length) return;
+    if (!window.stage || !window.stage.querySelector) return;
+
+    var pending = window.__vttPendingNetMsgs.slice();
+    window.__vttPendingNetMsgs.length = 0;
+
+    for (var i = 0; i < pending.length; i++){
+      try { window.__vttOnNetMessage(pending[i]); } catch (e) {}
+    }
+  } catch (e) {}
+};
 
 window.applyCardMove = function(m){
   try {
@@ -120,6 +138,11 @@ function vttSend(msg){
 // Message dispatcher (you’ll add handlers in Patch 3)
 window.__vttOnNetMessage = function(msg){
   if (!msg || !msg.t) return;
+// If stage isn't built yet, queue messages that rely on stage
+if (!window.stage || !window.stage.querySelector) {
+  window.__vttPendingNetMsgs.push(msg);
+  return;
+}
 
   if (msg.t === "card_spawn") {
     // If card already exists, ignore
@@ -198,7 +221,7 @@ window.__vttOnNetMessage = function(msg){
     return;
   }
 
-  if (msg.t === "token_move") {
+    if (msg.t === "token_move") {
     var tok = stage.querySelector(".tokenCube[data-token-id='" + msg.tokenId + "']");
     if (!tok) return;
 
@@ -206,30 +229,32 @@ window.__vttOnNetMessage = function(msg){
     if (msg.y != null) tok.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
     if (msg.z != null) tok.style.zIndex = String(msg.z);
     return;
-      if (msg.t === "token_return") {
-    var owner = msg.owner;
-    var counts = msg.counts || {};
-    var ids = msg.tokenIds || [];
+  }
 
-    // remove the tokens by id (visual sync)
-    for (var i = 0; i < ids.length; i++) {
-      var tok = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
-      if (tok) {
-        if (tok.isConnected) tok.remove();
-        try { tokenEls.delete(tok); } catch (e) {}
+ if (msg.t === "token_return") {
+      var owner = msg.owner;
+      var kind  = msg.kind;
+      var count = +msg.count || 0;
+
+      if (count > 0) {
+        // keep logical pool in sync
+        if (tokenPools && tokenPools[owner] && tokenPools[owner][kind] != null) {
+          tokenPools[owner][kind] += count;
+        }
+
+        // Snap tokens back into their bin/tray visually
+        var moved = 0;
+        var all = document.querySelectorAll(".token");
+        for (var i=0; i<all.length && moved < count; i++) {
+          var el = all[i];
+          if ((el.dataset.owner || "") !== owner) continue;
+          if ((el.dataset.kind  || "") !== kind) continue;
+          if ((el.dataset.inTray || "") === "true") continue;
+          if (snapTokenToBin(el)) moved++;
+        }
       }
     }
 
-    // sync pool counts too (so spawning stays consistent)
-    if (tokenPools[owner]) {
-      if (counts.damage)   tokenPools[owner].damage   += Number(counts.damage)   || 0;
-      if (counts.attack)   tokenPools[owner].attack   += Number(counts.attack)   || 0;
-      if (counts.resource) tokenPools[owner].resource += Number(counts.resource) || 0;
-    }
-    return;
-  }
- 
-  }
 
   if (msg.t === "force_set") {
     if (!forceMarker) return;
@@ -1605,6 +1630,9 @@ var tokenPools = {
   p1: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER },
   p2: { damage: TOKENS_DAMAGE_PER_PLAYER, attack: TOKENS_ATTACK_PER_PLAYER, resource: TOKENS_RESOURCE_PER_PLAYER }
 };
+
+// Bin DOM refs so returned tokens can snap back visually
+var tokenBinEls = { p1: Object.create(null), p2: Object.create(null) };
 var tokenEls = new Set();
 
 /* =========================
@@ -2731,6 +2759,27 @@ function applyRotationSize(cardEl) {
   var face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
+// ===== PATCH: keep attached tokens above card after rotate/flip =====
+function raiseAttachedTokens(cardEl) {
+  try {
+    // If tokens are children inside the card
+    var kids = cardEl.querySelectorAll(".token, .tok, [data-token], [data-kind='token']");
+    if (kids && kids.length) {
+      kids.forEach(function(t){ t.style.zIndex = "5"; });
+    }
+
+    // If tokens are separate elements referencing the card
+    var id = cardEl.dataset.id || cardEl.id || "";
+    if (id) {
+      var attached = document.querySelectorAll("[data-attached-to='" + id + "']");
+      attached.forEach(function(t){
+        if (t.parentNode) t.parentNode.appendChild(t); // bring above in DOM
+        t.style.zIndex = "9999";
+      });
+    }
+  } catch (e) {}
+}
+// ===== END PATCH =====
 
 function toggleRotate(cardEl) {
   var cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
@@ -2738,11 +2787,15 @@ function toggleRotate(cardEl) {
   cardEl.dataset.rot = String(next);
   applyRotationSize(cardEl);
   refreshSnapRects();
+  raiseAttachedTokens(cardEl);
+
 }
 
 function toggleFlip(cardEl) {
   var cur = cardEl.dataset.face || "up";
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
+  raiseAttachedTokens(cardEl);
+
 }
 
 /* =========================
@@ -2831,6 +2884,30 @@ vttSend({
   el.addEventListener("pointercancel", function(){ dragging = false; });
 }
 
+
+function snapTokenToBin(el) {
+  try {
+    var owner = el.dataset.owner;
+    var kind = el.dataset.kind;
+    var bin = tokenBinEls && tokenBinEls[owner] && tokenBinEls[owner][kind];
+    if (!bin) return false;
+
+    var br = bin.getBoundingClientRect();
+    var board = getBoardRect();
+    // snap near center with small jitter so stacks don't look perfectly overlapped
+    var jitter = (Math.random() - 0.5) * 10;
+    var x = (br.left + br.width/2) - board.left + jitter;
+    var y = (br.top  + br.height/2) - board.top  + jitter;
+
+    setXY(el, x, y);
+    el.style.zIndex = 1;
+    el.dataset.inTray = "true";
+    return true;
+  } catch(_) {
+    return false;
+  }
+}
+
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
   if (tokenPools[owner][type] <= 0) return;
 
@@ -2905,7 +2982,10 @@ function buildTokenBank(owner, r) {
       bin.dataset.owner = owner;
       bin.dataset.type = b.type;
 
-      var source = document.createElement("div");
+      
+      // remember this bin so return-to-tray can snap tokens here
+      try { tokenBinEls[owner][b.type] = bin; } catch(_) {}
+var source = document.createElement("div");
       source.className = "tokenSourceCube " + tokenClassFor(b.type);
       source.style.left = "0px";
       source.style.top  = "0px";
@@ -2932,43 +3012,37 @@ function buildTokenBank(owner, r) {
   tokenBankEls[owner] = bank;
 }
 
-function returnTokensForOwner(owner, typesToReturn) {
-  var toRemove = [];
-  var returnedCounts = { damage: 0, attack: 0, resource: 0 };
-  var returnedIds = [];
+function returnTokensForOwner(owner, kindsList) {
+  kindsList = kindsList || ["attack", "resource", "damage"];
 
-  tokenEls.forEach(function(t){
-    if (!t.isConnected) return;
-    if (t.dataset.owner !== owner) return;
+  // Return any owned tokens that are NOT already in the tray/bank
+  var moved = Object.create(null);
+  kindsList.forEach(function(k){ moved[k]=0; });
 
-    var type = t.dataset.type;
-    if (typesToReturn && typesToReturn.indexOf(type) === -1) return;
+  var all = document.querySelectorAll(".token");
+  all.forEach(function(el){
+    if ((el.dataset.owner || "") !== owner) return;
+    var kind = el.dataset.kind || "";
+    if (kindsList.indexOf(kind) === -1) return;
 
-    tokenPools[owner][type] += 1;
+    // Only return tokens that are out on the table
+    if ((el.dataset.inTray || "") === "true") return;
 
-    // track what we're returning
-    returnedCounts[type] = (returnedCounts[type] || 0) + 1;
-    if (t.dataset.tokenId) returnedIds.push(t.dataset.tokenId);
-
-    toRemove.push(t);
+    if (snapTokenToBin(el)) {
+      moved[kind] += 1;
+      if (tokenPools && tokenPools[owner] && tokenPools[owner][kind] != null) {
+        tokenPools[owner][kind] += 1;
+      }
+    }
   });
 
-  // remove tokens locally
-  toRemove.forEach(function(t){
-    if (t.isConnected) t.remove();
-    tokenEls.delete(t);
-  });
-
-  // 👇 THIS IS WHERE THE NET SEND GOES
-  vttSend({
-    t: "token_return",
-    clientId: window.__vttClientId,
-    room: window.__vttRoomId,
-    owner: owner,
-    counts: returnedCounts,
-    tokenIds: returnedIds,
-    at: __vttNowMs()
-  });
+  // Sync to peer: tell them to return the same number (they'll snap theirs too)
+  if (isConnected()) {
+    kindsList.forEach(function(kind){
+      var c = moved[kind] || 0;
+      if (c > 0) sendRoom({ t:"token_return", owner: owner, kind: kind, count: c });
+    });
+  }
 }
 
 function endTurn(owner) {
@@ -3037,7 +3111,8 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
- 
+ if (typeof window.__vttFlushPendingNetMsgs === "function") window.__vttFlushPendingNetMsgs();
+
 }
 
 function initBoard() { build(); }
