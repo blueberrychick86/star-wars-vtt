@@ -228,22 +228,7 @@ window.__vttOnNetMessage = function(msg){
     }
     return;
   }
-
-  if (msg.t === "token_reset") {
-    // reset all tokens
-    Array.from(tokenEls).forEach(function(t){
-      if (t.isConnected) t.remove();
-      tokenEls.delete(t);
-    });
-
-    tokenPools.p1.damage = TOKENS_DAMAGE_PER_PLAYER;
-    tokenPools.p1.attack = TOKENS_ATTACK_PER_PLAYER;
-    tokenPools.p1.resource = TOKENS_RESOURCE_PER_PLAYER;
-
-    tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
-    tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
-    tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
-    return;
+ 
   }
 
   if (msg.t === "force_set") {
@@ -3003,14 +2988,6 @@ function resetAllTokens() {
   tokenPools.p2.damage = TOKENS_DAMAGE_PER_PLAYER;
   tokenPools.p2.attack = TOKENS_ATTACK_PER_PLAYER;
   tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
-
-  // NET: broadcast reset
-  vttSend({
-    t: "token_reset",
-    clientId: window.__vttClientId,
-    room: window.__vttRoomId,
-    at: __vttNowMs()
-  });
 }
 
 endP1Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p1"); });
