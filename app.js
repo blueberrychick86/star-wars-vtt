@@ -206,7 +206,9 @@ window.__vttOnNetMessage = function(msg){
     if (msg.y != null) tok.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
     if (msg.z != null) tok.style.zIndex = String(msg.z);
     return;
-      if (msg.t === "token_return") {
+  }
+
+  if (msg.t === "token_return") {
     var owner = msg.owner;
     var counts = msg.counts || {};
     var ids = msg.tokenIds || [];
