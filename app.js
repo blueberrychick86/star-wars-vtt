@@ -3180,13 +3180,15 @@ function attachDragHandlers(el, cardData, kind) {
     cardId: el.dataset.cardId,
     x: parseFloat(el.style.left || "0"),
     y: parseFloat(el.style.top  || "0"),
-    z: parseInt(el.style.zIndex || "15000", 10),
+    z: (kind === "base") ? 12000 : 15000,
     rot: Number(el.dataset.rot || "0"),
     face: el.dataset.face || "up",
     capSide: el.dataset.capSide || null,
     capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
     at: __vttNowMs()
   });
+
+  el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
   return;
 }
