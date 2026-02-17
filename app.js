@@ -1,5 +1,5 @@
 /* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
+   Star Wars VTT - CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
    - Keeps ALL existing features
    - Removes duplicate “early crash overlay vs crash overlay” conflicts
    - Makes boot + overlay + menu audio more robust (no optional chaining)
