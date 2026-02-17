@@ -1,12 +1,12 @@
 /* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Non-destructive cleanup)
+   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
    - Keeps ALL existing features
+   - Removes duplicate “early crash overlay vs crash overlay” conflicts
    - Makes boot + overlay + menu audio more robust (no optional chaining)
    - Keeps tray, tokens, snapping, preview, rotate/flip, invite/join flow
-   - Adds token view on both clients
    ======================================================================== */
 
-console.log("VTT BASELINE 2026-02-16 (CLEAN) — faction borders locked + 3px borders");
+console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -121,6 +121,7 @@ function __vttLogRecv(obj){
     console.log("📩 RECV:", obj && obj.t ? obj.t : "(no-type)", obj);
   } catch (e) {}
 }
+
 function isConnected(){
   var ws = window.__vttSocket;
   return !!ws && ws.readyState === 1;
