@@ -2828,7 +2828,7 @@ vttSend({
      el.style.zIndex = "20000";
   });
 
-  el.addEventListener("pointercancel", function(){ dragging = false; });
+  el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "20000"; });
 }
 
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
@@ -3323,6 +3323,7 @@ vttSend({
     clearPressTimer();
     clearFlipTimer();
     suppressNextPointerUp = false;
+    el.style.zIndex = (kind === "base") ? "12000" : "15000";
   });
 }
 
