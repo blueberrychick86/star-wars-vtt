@@ -121,6 +121,10 @@ function __vttLogRecv(obj){
     console.log("📩 RECV:", obj && obj.t ? obj.t : "(no-type)", obj);
   } catch (e) {}
 }
+function isConnected(){
+  var ws = window.__vttSocket;
+  return !!ws && ws.readyState === 1;
+}
 
 function vttSend(msg){
   var ws = window.__vttSocket;
