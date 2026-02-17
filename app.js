@@ -190,7 +190,7 @@ window.__vttOnNetMessage = function(msg){
 
     t.style.left = (msg.x - TOKEN_SIZE/2) + "px";
     t.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
-    t.style.zIndex = "16000";
+    t.style.zIndex = "20000";
 
     stage.appendChild(t);
     tokenEls.add(t);
@@ -2794,7 +2794,7 @@ function attachTokenDragHandlers(el) {
     offX = px - left;
     offY = py - top;
 
-    el.style.zIndex = "60000";
+    el.style.zIndex = "70000";
   });
 
   el.addEventListener("pointermove", function(e){
@@ -2821,11 +2821,11 @@ vttSend({
   tokenId: el.dataset.tokenId,
   x: x,
   y: y,
-  z: 16000,
+  z: 20000,
   at: __vttNowMs()
 });
 
-     el.style.zIndex = "16000";
+     el.style.zIndex = "20000";
   });
 
   el.addEventListener("pointercancel", function(){ dragging = false; });
