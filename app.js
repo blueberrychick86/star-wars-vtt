@@ -1,5 +1,5 @@
 /* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
+   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Non-destructive cleanup)
    - Keeps ALL existing features
    - Removes duplicate “early crash overlay vs crash overlay” conflicts
    - Makes boot + overlay + menu audio more robust (no optional chaining)
@@ -20,24 +20,6 @@ window.__vttRoomId = null;
 // NET: incoming move queue + applier (safe before board exists)
 // ==============================
 window.__vttPendingMoves = window.__vttPendingMoves || [];
-// ==============================
-// NET: pending messages that require stage (safe before board exists)
-// ==============================
-window.__vttPendingNetMsgs = window.__vttPendingNetMsgs || [];
-
-window.__vttFlushPendingNetMsgs = function(){
-  try {
-    if (!window.__vttPendingNetMsgs || !window.__vttPendingNetMsgs.length) return;
-    if (!window.stage || !window.stage.querySelector) return;
-
-    var pending = window.__vttPendingNetMsgs.slice();
-    window.__vttPendingNetMsgs.length = 0;
-
-    for (var i = 0; i < pending.length; i++){
-      try { window.__vttOnNetMessage(pending[i]); } catch (e) {}
-    }
-  } catch (e) {}
-};
 
 window.applyCardMove = function(m){
   try {
@@ -138,11 +120,6 @@ function vttSend(msg){
 // Message dispatcher (you’ll add handlers in Patch 3)
 window.__vttOnNetMessage = function(msg){
   if (!msg || !msg.t) return;
-// If stage isn't built yet, queue messages that rely on stage
-if (!window.stage || !window.stage.querySelector) {
-  window.__vttPendingNetMsgs.push(msg);
-  return;
-}
 
   if (msg.t === "card_spawn") {
     // If card already exists, ignore
@@ -231,14 +208,12 @@ if (!window.stage || !window.stage.querySelector) {
     return;
   }
 
- if (msg.t === "token_return") {
-  var owner = msg.owner;
-  var counts = msg.counts || {};
-  var ids = msg.tokenIds || [];
+  if (msg.t === "token_return") {
+    var owner = msg.owner;
+    var counts = msg.counts || {};
+    var ids = msg.tokenIds || [];
 
-   // Remove returned tokens (visual sync)
-  if (ids && ids.length) {
-    // Preferred: remove by id
+    // remove the tokens by id (visual sync)
     for (var i = 0; i < ids.length; i++) {
       var tok2 = stage.querySelector(".tokenCube[data-token-id='" + ids[i] + "']");
       if (tok2) {
@@ -246,43 +221,26 @@ if (!window.stage || !window.stage.querySelector) {
         try { tokenEls.delete(tok2); } catch (e) {}
       }
     }
-  } else {
-    // Fallback: remove by owner + type using counts (covers older tokens missing tokenId)
-    var types = msg.types || ["attack","resource"];
-    var need = {
-      damage: Number((counts && counts.damage) || 0),
-      attack: Number((counts && counts.attack) || 0),
-      resource: Number((counts && counts.resource) || 0)
-    };
 
-    for (var ti = 0; ti < types.length; ti++) {
-      var ty = types[ti];
-
-      // If counts didn't include this type, skip
-      if (!need[ty] || need[ty] <= 0) continue;
-
-      // Remove up to "need[ty]" tokens of this type for this owner
-      while (need[ty] > 0) {
-        var found = stage.querySelector(".tokenCube[data-owner='" + owner + "'][data-type='" + ty + "']");
-        if (!found) break;
-
-        if (found.isConnected) found.remove();
-        try { tokenEls.delete(found); } catch (e2) {}
-        need[ty]--;
-      }
+    // sync pool counts too (so spawning stays consistent)
+    if (tokenPools[owner]) {
+      if (counts.damage)   tokenPools[owner].damage   += (Number(counts.damage)   || 0);
+      if (counts.attack)   tokenPools[owner].attack   += (Number(counts.attack)   || 0);
+      if (counts.resource) tokenPools[owner].resource += (Number(counts.resource) || 0);
     }
+    return;
   }
 
-  // Sync pool counts too (so future spawning remains consistent)
-  if (tokenPools[owner]) {
-    if (counts.damage)   tokenPools[owner].damage   += (Number(counts.damage)   || 0);
-    if (counts.attack)   tokenPools[owner].attack   += (Number(counts.attack)   || 0);
-    if (counts.resource) tokenPools[owner].resource += (Number(counts.resource) || 0);
+    // sync pool counts too (so spawning stays consistent)
+    if (tokenPools[owner]) {
+      if (counts.damage)   tokenPools[owner].damage   += Number(counts.damage)   || 0;
+      if (counts.attack)   tokenPools[owner].attack   += Number(counts.attack)   || 0;
+      if (counts.resource) tokenPools[owner].resource += Number(counts.resource) || 0;
+    }
+    return;
   }
-
-  return;
-}
-
+ 
+  }
 
   if (msg.t === "force_set") {
     if (!forceMarker) return;
@@ -2784,27 +2742,6 @@ function applyRotationSize(cardEl) {
   var face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
-// ===== PATCH: keep attached tokens above card after rotate/flip =====
-function raiseAttachedTokens(cardEl) {
-  try {
-    // If tokens are children inside the card
-    var kids = cardEl.querySelectorAll(".token, .tok, [data-token], [data-kind='token']");
-    if (kids && kids.length) {
-      kids.forEach(function(t){ t.style.zIndex = "5"; });
-    }
-
-    // If tokens are separate elements referencing the card
-    var id = cardEl.dataset.id || cardEl.id || "";
-    if (id) {
-      var attached = document.querySelectorAll("[data-attached-to='" + id + "']");
-      attached.forEach(function(t){
-        if (t.parentNode) t.parentNode.appendChild(t); // bring above in DOM
-        t.style.zIndex = "9999";
-      });
-    }
-  } catch (e) {}
-}
-// ===== END PATCH =====
 
 function toggleRotate(cardEl) {
   var cur = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
@@ -2812,15 +2749,11 @@ function toggleRotate(cardEl) {
   cardEl.dataset.rot = String(next);
   applyRotationSize(cardEl);
   refreshSnapRects();
-  raiseAttachedTokens(cardEl);
-
 }
 
 function toggleFlip(cardEl) {
   var cur = cardEl.dataset.face || "up";
   cardEl.dataset.face = (cur === "up") ? "down" : "up";
-  raiseAttachedTokens(cardEl);
-
 }
 
 /* =========================
@@ -3043,7 +2976,6 @@ function returnTokensForOwner(owner, typesToReturn) {
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
     owner: owner,
-    types: typesToReturn || null,
     counts: returnedCounts,
     tokenIds: returnedIds,
     at: __vttNowMs()
@@ -3116,8 +3048,7 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
- if (typeof window.__vttFlushPendingNetMsgs === "function") window.__vttFlushPendingNetMsgs();
-
+ 
 }
 
 function initBoard() { build(); }
