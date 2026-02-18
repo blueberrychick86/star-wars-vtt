@@ -4248,8 +4248,21 @@ try {
       // Non-destructive host config initialization (only when no config exists)
       try {
         if (!window.__gameConfig) {
-          var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
-          var hostFaction = seat || ((window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "blue");
+         // Prefer menu faction (host choice) over any pre-set seat default
+var menuFaction = (window.__menuSelection && window.__menuSelection.faction)
+  ? String(window.__menuSelection.faction).toLowerCase()
+  : "";
+
+var seat = menuFaction || ((window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "");
+
+// Keep VTT_LOCAL in sync so camera/bottom-view logic follows the chosen faction
+try {
+  window.VTT_LOCAL = window.VTT_LOCAL || {};
+  if (seat) window.VTT_LOCAL.seat = seat;
+} catch (e) { /* ignore */ }
+
+var hostFaction = seat || "blue";
+
           window.__gameConfig = {
             role: "host",
             p1Faction: "blue",
