@@ -119,9 +119,42 @@ function vttSend(msg){
     return false;
   }
 }
+// ==============================
+// NET: queue ANY net message until board exists (prevents early-join crashes)
+// ==============================
+window.__vttPendingNet = window.__vttPendingNet || [];
+
+window.__vttStageReady = function(){
+  return !!(window.stage && window.stage.querySelector);
+};
+
+window.__vttFlushPendingNet = function(){
+  try {
+    if (!window.__vttStageReady()) return;
+    if (!window.__vttPendingNet || !window.__vttPendingNet.length) return;
+
+    var list = window.__vttPendingNet.slice();
+    window.__vttPendingNet.length = 0;
+
+    for (var i = 0; i < list.length; i++) {
+      try {
+        if (typeof window.__vttOnNetMessage === "function") window.__vttOnNetMessage(list[i]);
+      } catch (e) {
+        console.warn("flush net msg failed:", e, list[i]);
+      }
+    }
+  } catch (e) {}
+};
 
 // Message dispatcher (you’ll add handlers in Patch 3)
 window.__vttOnNetMessage = function(msg){
+    // If stage isn't ready yet, queue and apply after build()
+  if (!window.__vttStageReady || !window.__vttStageReady()) {
+    window.__vttPendingNet = window.__vttPendingNet || [];
+    window.__vttPendingNet.push(msg);
+    return;
+  }
+
   if (!msg || !msg.t) return;
 
   if (msg.t === "card_spawn") {
@@ -1473,6 +1506,73 @@ window.addEventListener("pointerdown", function () {
    ========================= */
 var table = document.createElement("div");
 table.id = "table";
+/* =========================
+   LOCAL SEAT + CAMERA (VISUAL ONLY)
+   - Does NOT sync
+   - Rotates #table for the second player so their viewpoint is always bottom
+   ========================= */
+
+(function setupLocalSeatAndCamera() {
+  function getParam(name) {
+    try { return new URLSearchParams(location.search).get(name); }
+    catch (e) { return null; }
+  }
+
+  function oppositeFaction(f) {
+    f = (f || "").toLowerCase();
+    if (f === "blue") return "yellow";
+    if (f === "yellow") return "blue";
+    return null;
+  }
+
+  // Room-scoped storage so seat choice persists per room
+  var roomId = getParam("room") || getParam("r") || "";
+  var seatKey = "vtt_seat__" + (roomId || "default");
+
+  // Try explicit params first (if you ever add them later)
+  var explicitSeat =
+    getParam("seat") ||
+    getParam("player") ||
+    getParam("p") ||
+    null;
+
+  // Your URLs already use hostFaction in your workflow
+  var hostFaction = getParam("hostFaction"); // typically "blue" or "yellow"
+  var isJoin = (getParam("join") === "1");
+
+  // Determine local seat:
+  // 1) explicit param
+  // 2) saved localStorage seat for this room
+  // 3) if join=1 -> opposite of hostFaction
+  // 4) else -> hostFaction (host)
+  var localSeat =
+    (explicitSeat && explicitSeat.toLowerCase()) ||
+    (localStorage.getItem(seatKey) || "") ||
+    (isJoin ? oppositeFaction(hostFaction) : (hostFaction || "")) ||
+    "blue";
+
+  localSeat = (localSeat || "blue").toLowerCase();
+  localStorage.setItem(seatKey, localSeat);
+
+  // Expose locally for debugging (no sync)
+  window.VTT_LOCAL = window.VTT_LOCAL || {};
+  window.VTT_LOCAL.seat = localSeat;
+
+  function applyLocalCamera() {
+    // Visual-only transform; does not affect synced coordinates/state
+    table.style.transformOrigin = "50% 50%";
+    table.style.transform = (localSeat === "yellow" || localSeat === "p2")
+      ? "rotate(180deg)"
+      : "";
+  }
+
+  // Apply after DOM has a moment to settle
+  setTimeout(applyLocalCamera, 0);
+
+  // If your app later changes seat locally, you can call:
+  window.VTT_LOCAL.applyCamera = applyLocalCamera;
+})();
+
 app.appendChild(table);
 
 var hud = document.createElement("div");
@@ -3086,7 +3186,8 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
- 
+   if (typeof window.__vttFlushPendingNet === "function") window.__vttFlushPendingNet();
+
 }
 
 function initBoard() { build(); }
