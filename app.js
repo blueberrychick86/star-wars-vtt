@@ -4209,6 +4209,61 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
 
       var applied = applyMenuSelection(window.__menuSelection || {});
       menu.style.display = "none";
+
+      // INSERT AFTER: var applied = applyMenuSelection(window.__menuSelection || {});// === PATCH: Host __gameConfig init (blue=P1) =================================
+// Ensures host has a config object (guest flow already sets window.__gameConfig).
+try {
+  if (!window.__gameConfig) {
+    var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+
+    var hostFaction = seat ||
+      ((window.__menuSelection && window.__menuSelection.faction)
+        ? String(window.__menuSelection.faction).toLowerCase()
+        : "blue");
+
+    window.__gameConfig = {
+      role: "host",
+      p1Faction: "blue",
+      p2Faction: "red",
+      youAre: (seat === "blue" || seat === "p1") ? "p1" : "p2",
+      hostFaction: hostFaction,
+      hostName: (window.__menuSelection && window.__menuSelection.hostName)
+        ? window.__menuSelection.hostName
+        : "Player",
+      mode: (window.__menuSelection && window.__menuSelection.mode)
+        ? window.__menuSelection.mode
+        : undefined,
+      mandoNeutral: !!(window.__menuSelection && window.__menuSelection.mandoNeutral)
+    };
+
+    console.log("[VTT] Host config initialized:", window.__gameConfig);
+  }
+} catch (e) {
+  console.warn("[VTT] Host config init failed:", e);
+}
+// === END PATCH ===============================================================
+
+      // Non-destructive host config initialization (only when no config exists)
+      try {
+        if (!window.__gameConfig) {
+          var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+          var hostFaction = seat || ((window.__menuSelection && window.__menuSelection.faction) ? window.__menuSelection.faction : "blue");
+          window.__gameConfig = {
+            role: "host",
+            p1Faction: "blue",
+            p2Faction: "red",
+            youAre: (seat === "blue" || seat === "p1") ? "p1" : "p2",
+            hostFaction: hostFaction,
+            hostName: (window.__menuSelection && window.__menuSelection.hostName) ? window.__menuSelection.hostName : (typeof getHostName === 'function' ? getHostName() : "Player"),
+            mode: (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "original trilogy",
+            mandoNeutral: !!(window.__menuSelection && window.__menuSelection.mandoNeutral)
+          };
+          console.log("Host config initialized:", window.__gameConfig);
+        }
+      } catch (e) { console.warn("Host config init failed:", e); }
+
       try { initBoard(); } catch (err2) { console.error("initBoard() failed:", err2); }
       console.log("Menu applied:", applied);
     });
