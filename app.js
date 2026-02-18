@@ -4249,9 +4249,13 @@ try {
       try {
         if (!window.__gameConfig) {
          // Prefer menu faction (host choice) over any pre-set seat default
-var menuFaction = (window.__menuSelection && window.__menuSelection.faction)
-  ? String(window.__menuSelection.faction).toLowerCase()
-  : "";
+// Prefer the freshly-applied selection (applied.faction) if available
+var menuFaction = (applied && applied.faction)
+  ? String(applied.faction).toLowerCase()
+  : ((window.__menuSelection && window.__menuSelection.faction)
+      ? String(window.__menuSelection.faction).toLowerCase()
+      : "");
+
 
 var seat = menuFaction || ((window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "");
 
