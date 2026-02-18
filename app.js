@@ -1575,6 +1575,80 @@ table.id = "table";
 
 app.appendChild(table);
 
+// SEARCH ANCHOR: app.appendChild(table);
+// REPLACE RANGE: replace unsafe defineProperty enforcement with safer poll-and-set
+// Non-destructive: ensure __gameConfig is a normal object and normalize factions once present
+(function enforceBlueIsP1_safe(){
+
+  // One-time restoration in case previous defineProperty was used
+  try {
+    var c = window.__gameConfig;
+    delete window.__gameConfig;
+    window.__gameConfig = c;
+  } catch (e) { /* ignore */ }
+
+  // idempotent guard
+    // idempotent guard (install once per page load)
+  if (window.__vtt_enforceBlueP1_installed) return;
+  window.__vtt_enforceBlueP1_installed = true;
+
+
+  (function enforceBlueIsP1_safe(){
+
+  // One-time restoration in case previous defineProperty was used
+  try {
+    var c = window.__gameConfig;
+    delete window.__gameConfig;
+    window.__gameConfig = c;
+  } catch (e) { /* ignore */ }
+
+  // install once per page load
+  if (window.__vtt_enforceBlueP1_installed) return;
+  window.__vtt_enforceBlueP1_installed = true;
+
+  function normalizeCfg(cfg){
+    try {
+      if (!cfg || typeof cfg !== "object") return false;
+
+      cfg.p1Faction = "blue";
+      cfg.p2Faction = "red";
+
+      var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+        ? String(window.VTT_LOCAL.seat).toLowerCase()
+        : "";
+
+      cfg.youAre = (seat === "blue" || seat === "p1") ? "p1" : "p2";
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // If config exists now, normalize immediately
+  if (normalizeCfg(window.__gameConfig)) {
+    return;
+  }
+
+  // Otherwise poll for up to ~10s
+  var attempts = 0;
+  var maxAttempts = 50; // 50 * 200ms = 10s
+  var iv = setInterval(function(){
+    attempts++;
+
+    if (normalizeCfg(window.__gameConfig)) {
+      clearInterval(iv);
+      return;
+    }
+
+    if (attempts >= maxAttempts) {
+      clearInterval(iv);
+    }
+  }, 200);
+
+})();
+
+
 var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
@@ -1855,7 +1929,50 @@ function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
+
+  // PATCH: ensure tray cards always have click handler AFTER render builds them
+  setTimeout(function(){
+    var tray = document.getElementById("tray");
+    if (tray) {
+      tray.querySelectorAll("[data-card-id]").forEach(function(cardEl){
+        cardEl.onclick = function(){
+          spawnFromTray(cardEl.dataset.cardId);
+        };
+      });
+    }
+  }, 0);
 }
+
+/* =========================
+   PATCH: Tray click delegation (survives tray rebuild)
+   ========================= */
+(function __vttTrayDelegationOnce(){
+  if (window.__VTT_TRAY_DELEGATION__) return;
+  window.__VTT_TRAY_DELEGATION__ = true;
+
+  document.addEventListener("click", function(e){
+    var tray = document.getElementById("tray");
+    if (!tray) return;
+    if (!tray.contains(e.target)) return;
+
+    // Adjust selector(s) to match your tray cards
+    var cardEl = e.target.closest(".tray-card, [data-card-id], [data-card]");
+    if (!cardEl) return;
+
+    var cardId =
+      cardEl.dataset.cardId ||
+      cardEl.dataset.card ||
+      cardEl.getAttribute("data-card-id") ||
+      cardEl.getAttribute("data-card");
+
+    if (!cardId) return;
+
+    // IMPORTANT: replace spawnFromTray with your real function name
+    if (typeof spawnFromTray === "function") {
+      spawnFromTray(cardId);
+    }
+  }, true);
+})();
 
 function closeTray() {
   if (!trayState.open) return;
