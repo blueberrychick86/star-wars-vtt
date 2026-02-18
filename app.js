@@ -1580,22 +1580,7 @@ app.appendChild(table);
 // Non-destructive: ensure __gameConfig is a normal object and normalize factions once present
 (function enforceBlueIsP1_safe(){
 
-  // One-time restoration in case previous defineProperty was used
-  try {
-    var c = window.__gameConfig;
-    delete window.__gameConfig;
-    window.__gameConfig = c;
-  } catch (e) { /* ignore */ }
-
-  // idempotent guard
-    // idempotent guard (install once per page load)
-  if (window.__vtt_enforceBlueP1_installed) return;
-  window.__vtt_enforceBlueP1_installed = true;
-
-
-  (function enforceBlueIsP1_safe(){
-
-  // One-time restoration in case previous defineProperty was used
+  // One-time restoration in case a previous defineProperty was used
   try {
     var c = window.__gameConfig;
     delete window.__gameConfig;
@@ -1618,7 +1603,6 @@ app.appendChild(table);
         : "";
 
       cfg.youAre = (seat === "blue" || seat === "p1") ? "p1" : "p2";
-
       return true;
     } catch (e) {
       return false;
@@ -1626,27 +1610,24 @@ app.appendChild(table);
   }
 
   // If config exists now, normalize immediately
-  if (normalizeCfg(window.__gameConfig)) {
-    return;
-  }
+  if (normalizeCfg(window.__gameConfig)) return;
 
   // Otherwise poll for up to ~10s
   var attempts = 0;
   var maxAttempts = 50; // 50 * 200ms = 10s
   var iv = setInterval(function(){
     attempts++;
-
     if (normalizeCfg(window.__gameConfig)) {
       clearInterval(iv);
       return;
     }
-
     if (attempts >= maxAttempts) {
       clearInterval(iv);
     }
   }, 200);
 
 })();
+
 
 
 var hud = document.createElement("div");
