@@ -90,6 +90,63 @@ window.__vttClientId = (function(){
 })();
 
 function __vttNowMs(){ try { return Date.now(); } catch(e){ return 0; } }
+/* =========================
+   PATCH: TURN ANNOUNCER OVERLAY
+   ========================= */
+window.__vttTurn = window.__vttTurn || { active: "p1" };
+
+function __vttEnsureTurnAnnouncer(){
+  if (window.__vttTurnAnnouncerEl && window.__vttTurnAnnouncerEl.isConnected) return window.__vttTurnAnnouncerEl;
+
+  var el = document.createElement("div");
+  el.id = "vttTurnAnnouncer";
+  el.style.position = "fixed";
+  el.style.left = "50%";
+  el.style.top = "14%";
+  el.style.transform = "translateX(-50%)";
+  el.style.zIndex = "999999";
+  el.style.padding = "14px 18px";
+  el.style.borderRadius = "14px";
+  el.style.background = "rgba(0,0,0,0.78)";
+  el.style.color = "#fff";
+  el.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+  el.style.fontWeight = "800";
+  el.style.letterSpacing = "0.2px";
+  el.style.textAlign = "center";
+  el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
+  el.style.display = "none";
+  el.style.pointerEvents = "none";
+  document.body.appendChild(el);
+
+  window.__vttTurnAnnouncerEl = el;
+  return el;
+}
+
+function __vttGetDisplayNameForSeat(seat){
+  try {
+    // If you later store player names per seat, this is where it plugs in.
+    if (seat === "p1") return (window.__gameConfig && window.__gameConfig.hostName) ? window.__gameConfig.hostName : "Player 1";
+    if (seat === "p2") return (window.__gameConfig && window.__gameConfig.guestName) ? window.__gameConfig.guestName : "Player 2";
+  } catch (e) {}
+  return (seat === "p2") ? "Player 2" : "Player 1";
+}
+
+function __vttShowTurnAnnouncer(activeSeat){
+  try {
+    var el = __vttEnsureTurnAnnouncer();
+    var me = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "p1";
+    var who = __vttGetDisplayNameForSeat(activeSeat);
+    var mine = (String(activeSeat).toLowerCase() === me);
+
+    el.textContent = mine ? (who + " — IT’S YOUR TURN") : (who + " — THEIR TURN");
+    el.style.display = "block";
+
+    clearTimeout(window.__vttTurnAnnouncerTimer);
+    window.__vttTurnAnnouncerTimer = setTimeout(function(){
+      try { el.style.display = "none"; } catch (e) {}
+    }, 1800);
+  } catch (e) {}
+}
 
 function __vttSafeParseJSON(s){
   try { return JSON.parse(s); } catch (e) { return null; }
@@ -1568,6 +1625,43 @@ table.id = "table";
       ? "rotate(180deg)"
       : "";
   }
+/* =========================
+   PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
+   - Re-runs applyLocalCamera once __gameConfig exists
+   - Polls briefly to avoid “runs too early” race
+   ========================= */
+(function __vttForceLocalBottomViewOnce(){
+  if (window.__vttForceLocalBottomViewOnceInstalled) return;
+  window.__vttForceLocalBottomViewOnceInstalled = true;
+
+  function runIfReady(){
+    try {
+      if (typeof applyLocalCamera !== "function") return false;
+      // We consider it “ready” when seat is known OR youAre exists
+      var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+      var you = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
+      if (!seat && !you) return false;
+
+      applyLocalCamera(); // re-apply camera orientation
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // Run immediately if possible
+  if (runIfReady()) return;
+
+  // Otherwise poll for up to ~10s
+  var tries = 0;
+  var max = 50; // 50 * 200ms = 10s
+  var iv = setInterval(function(){
+    tries++;
+    if (runIfReady() || tries >= max) clearInterval(iv);
+  }, 200);
+
+  // Also re-run after resize/orientation changes (safe + non-destructive)
+  window.addEventListener("resize", function(){ try { if (typeof applyLocalCamera === "function") applyLocalCamera(); } catch(e){} });
+  window.addEventListener("orientationchange", function(){ try { if (typeof applyLocalCamera === "function") applyLocalCamera(); } catch(e){} });
+})();
 
   // Apply after DOM has a moment to settle
   setTimeout(applyLocalCamera, 0);
@@ -3275,7 +3369,7 @@ function returnTokensForOwner(owner, typesToReturn) {
 }
 
 function endTurn(owner) {
-    // --- TURN ENFORCEMENT (Blue = P1 always starts) ---
+  // --- TURN ENFORCEMENT (Blue = P1 always starts) ---
   if (!window.__activePlayer) {
     window.__activePlayer = "p1"; // Blue always first
   }
@@ -3286,9 +3380,38 @@ function endTurn(owner) {
     return;
   }
 
+  // Do the end-turn work
   returnTokensForOwner(owner, ["attack","resource"]);
-}  // Switch turn after successful end
-window.__activePlayer = (window.__activePlayer === "p1") ? "p2" : "p1";
+
+  // Switch turn after successful end
+  window.__activePlayer = (window.__activePlayer === "p1") ? "p2" : "p1";
+  /* =========================
+     PATCH: TURN SYNC + ANNOUNCER
+     - Broadcast active turn (no hidden cards)
+     ========================= */
+  try {
+    var next = window.__activePlayer;
+
+    window.__vttTurn = window.__vttTurn || {};
+    window.__vttTurn.active = next;
+
+    // Announce locally
+    if (typeof __vttShowTurnAnnouncer === "function") {
+      __vttShowTurnAnnouncer(next);
+    }
+
+    // Broadcast to the room
+    vttSend({
+      t: "turn_set",
+      clientId: window.__vttClientId,
+      room: window.__vttRoomId,
+      active: next,
+      at: __vttNowMs()
+    });
+  } catch (e) {}
+
+  // (We’ll insert announcer + broadcast here next)
+}
 
 
 function resetAllTokens() {
