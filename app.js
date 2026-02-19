@@ -3286,7 +3286,7 @@ function endTurn(owner) {
 
   returnTokensForOwner(owner, ["attack","resource"]);
 }  // Switch turn after successful end
-  window.__activePlayer = (owner === "p1") ? "p2" : "p1";
+window.__activePlayer = (window.__activePlayer === "p1") ? "p2" : "p1";
 
 
 function resetAllTokens() {
