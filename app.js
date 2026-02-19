@@ -1694,7 +1694,7 @@ playfield.id = "playfield";
     null;
 
   // Your URLs already use hostFaction in your workflow
-  var hostFaction = getParam("hostFaction"); // typically "blue" or "yellow"
+  var hostFaction = getParam("hostFaction"); // typically "blue" or "red"
   var isJoin = (getParam("join") === "1");
 
   // Determine local seat:
@@ -1709,6 +1709,10 @@ playfield.id = "playfield";
     "blue";
 
   localSeat = (localSeat || "blue").toLowerCase();
+  if (localSeat === "yellow") {
+    console.warn("[VTT] Legacy seat 'yellow' detected; normalizing to 'blue' (2-player only).");
+    localSeat = "blue";
+  }
   localStorage.setItem(seatKey, localSeat);
 
   // Expose locally for debugging (no sync)
