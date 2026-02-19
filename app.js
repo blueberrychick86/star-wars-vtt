@@ -214,6 +214,14 @@ window.__vttOnNetMessage = function(msg){
 
   if (!msg || !msg.t) return;
 
+  if (msg.t === "turn_set") {
+    window.__activePlayer = msg.active;
+    if (typeof __vttShowTurnAnnouncer === "function") {
+      __vttShowTurnAnnouncer(msg.active);
+    }
+    return;
+  }
+
   if (msg.t === "card_spawn") {
     // If card already exists, ignore
     var existing = stage.querySelector(".card[data-card-id='" + msg.cardId + "']");
@@ -1621,9 +1629,10 @@ table.id = "table";
   function applyLocalCamera() {
     // Visual-only transform; does not affect synced coordinates/state
     table.style.transformOrigin = "50% 50%";
-    table.style.transform = (window.VTT_LOCAL && window.VTT_LOCAL.seat) && (window.VTT_LOCAL.seat === "red" || window.VTT_LOCAL.seat === "yellow" || window.VTT_LOCAL.seat === "p2")
-      ? "rotate(180deg)"
-      : "";
+    var youAre = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
+    var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+    var shouldFlip = youAre ? (youAre === "p2") : (seat === "red");
+    table.style.transform = shouldFlip ? "rotate(180deg)" : "";
   }
 /* =========================
    PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
@@ -3384,13 +3393,13 @@ function endTurn(owner) {
   returnTokensForOwner(owner, ["attack","resource"]);
 
   // Switch turn after successful end
-  window.__activePlayer = (window.__activePlayer === "p1") ? "p2" : "p1";
+  var next = (window.__activePlayer === "p1") ? "p2" : "p1";
+  window.__activePlayer = next;
   /* =========================
      PATCH: TURN SYNC + ANNOUNCER
      - Broadcast active turn (no hidden cards)
      ========================= */
   try {
-    var next = window.__activePlayer;
 
     window.__vttTurn = window.__vttTurn || {};
     window.__vttTurn.active = next;
