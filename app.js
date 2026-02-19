@@ -686,6 +686,7 @@ function rect(x, y, w, h) { return { x: x, y: y, w: w, h: h }; }
 var style = document.createElement("style");
 style.textContent = `
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
+  #playfield { position:absolute; inset:0; overflow:hidden; touch-action:none; transform-origin:50% 50%; }
   #hud {
     position: fixed;
     left: 10px;
@@ -1658,6 +1659,8 @@ window.addEventListener("pointerdown", function () {
    ========================= */
 var table = document.createElement("div");
 table.id = "table";
+var playfield = document.createElement("div");
+playfield.id = "playfield";
 /* =========================
    LOCAL SEAT + CAMERA (VISUAL ONLY)
    - Does NOT sync
@@ -1850,7 +1853,8 @@ hud.appendChild(turnBadge);
 
 var stage = document.createElement("div");
 stage.id = "stage";
-table.appendChild(stage);
+table.appendChild(playfield);
+playfield.appendChild(stage);
 window.stage = stage;
 
 
