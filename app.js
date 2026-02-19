@@ -304,6 +304,7 @@ window.__vttOnNetMessage = function(msg){
     if (window.__gameConfig && window.__gameConfig.role === "host" && window.__gameState.started) {
       TurnManager.broadcastTurnSet(window.__gameState.activeSeat, window.__gameState.turn);
     }
+    try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
     return;
   }
 
@@ -2200,6 +2201,7 @@ function closeTray() {
 
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
+  try { tray.style.pointerEvents = "auto"; } catch (e) {}
 
   try { window.scrollTo(0, 0); } catch (e) {}
   try { document.documentElement.scrollTop = 0; } catch (e) {}
@@ -2345,7 +2347,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
       // preserve owner info from the tray tile (if present)
-      try { el.dataset.owner = tile.__owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
+      try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
 
 if (kind === "base") {
@@ -2363,7 +2365,7 @@ sendMove({
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-  owner: (el.dataset.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1")),
+  owner: (el.dataset.owner || ownerSeatFromLocalColor()),
   kind: kind,
   cardData: (String(el.dataset.face || "up") === "up") ? (el.__cardData || card) : null,   // privacy: don't leak facedown identity
   x: parseFloat(el.style.left || "0"),
@@ -4005,6 +4007,7 @@ sendMove({
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
+  owner: ownerSeatFromLocalColor(),
   kind: "unit",
   cardData: el.__cardData || cards[i],
   x: parseFloat(el.style.left || "0"),
@@ -4171,6 +4174,7 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
     try { if (cfg.room) connectToRoom(cfg.room); } catch (e) { console.warn("Guest connectToRoom failed:", e); }
 
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
+    try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
     console.log("Joined as guest (P2):", window.__gameConfig);
   }
 
@@ -4532,6 +4536,7 @@ var hostFaction = seat || "blue";
       } catch (e) { console.warn("Host config init failed:", e); }
 
       try { initBoard(); } catch (err2) { console.error("initBoard() failed:", err2); }
+      try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
       console.log("Menu applied:", applied);
     });
   });
