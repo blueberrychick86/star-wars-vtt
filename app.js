@@ -90,62 +90,137 @@ window.__vttClientId = (function(){
 })();
 
 function __vttNowMs(){ try { return Date.now(); } catch(e){ return 0; } }
-/* =========================
-   PATCH: TURN ANNOUNCER OVERLAY
-   ========================= */
-window.__vttTurn = window.__vttTurn || { active: "p1" };
 
-function __vttEnsureTurnAnnouncer(){
-  if (window.__vttTurnAnnouncerEl && window.__vttTurnAnnouncerEl.isConnected) return window.__vttTurnAnnouncerEl;
+window.__gameState = window.__gameState || { activeSeat: "blue", turn: 1, started: false };
 
+function seatColorFromAny(v) {
+  var s = String(v || "").toLowerCase();
+  if (s === "p1") return "blue";
+  if (s === "p2") return "red";
+  if (s === "blue" || s === "red") return s;
+  return "blue";
+}
+
+function getLocalSeatColor() {
+  try {
+    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) return seatColorFromAny(window.VTT_LOCAL.seat);
+  } catch (e) {}
+  try {
+    if (window.__gameConfig && window.__gameConfig.youAre) return seatColorFromAny(window.__gameConfig.youAre);
+  } catch (e2) {}
+  return "blue";
+}
+
+function __vttEnsureToastEl(){
+  if (window.__vttToastEl && window.__vttToastEl.isConnected) return window.__vttToastEl;
   var el = document.createElement("div");
-  el.id = "vttTurnAnnouncer";
+  el.id = "vttToast";
   el.style.position = "fixed";
   el.style.left = "50%";
   el.style.top = "14%";
   el.style.transform = "translateX(-50%)";
   el.style.zIndex = "999999";
-  el.style.padding = "14px 18px";
-  el.style.borderRadius = "14px";
-  el.style.background = "rgba(0,0,0,0.78)";
+  el.style.padding = "12px 16px";
+  el.style.borderRadius = "12px";
+  el.style.background = "rgba(0,0,0,0.82)";
   el.style.color = "#fff";
-  el.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
   el.style.fontWeight = "800";
-  el.style.letterSpacing = "0.2px";
-  el.style.textAlign = "center";
-  el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
   el.style.display = "none";
   el.style.pointerEvents = "none";
   document.body.appendChild(el);
-
-  window.__vttTurnAnnouncerEl = el;
+  window.__vttToastEl = el;
   return el;
 }
 
-function __vttGetDisplayNameForSeat(seat){
+function showToast(msg, ms){
   try {
-    // If you later store player names per seat, this is where it plugs in.
-    if (seat === "p1") return (window.__gameConfig && window.__gameConfig.hostName) ? window.__gameConfig.hostName : "Player 1";
-    if (seat === "p2") return (window.__gameConfig && window.__gameConfig.guestName) ? window.__gameConfig.guestName : "Player 2";
+    var el = __vttEnsureToastEl();
+    el.textContent = msg;
+    el.style.display = "block";
+    clearTimeout(window.__vttToastTimer);
+    window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
   } catch (e) {}
-  return (seat === "p2") ? "Player 2" : "Player 1";
 }
 
-function __vttShowTurnAnnouncer(activeSeat){
-  try {
-    var el = __vttEnsureTurnAnnouncer();
-    var me = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "p1";
-    var who = __vttGetDisplayNameForSeat(activeSeat);
-    var mine = (String(activeSeat).toLowerCase() === me);
+var Permissions = {
+  canPerform: function(action, context){
+    if (!action) action = "move_shared_piece";
+    if (this.isReadOnlyAction(action)) return true;
+    return !!TurnManager.isMyTurn();
+  },
+  isReadOnlyAction: function(action){
+    return action === "pan" || action === "zoom" || action === "hover" || action === "open_tray" || action === "search_tray" || action === "view_card";
+  }
+};
 
-    el.textContent = mine ? (who + " — IT’S YOUR TURN") : (who + " — THEIR TURN");
-    el.style.display = "block";
+var TurnManager = {
+  isMyTurn: function(){
+    return getLocalSeatColor() === seatColorFromAny(window.__gameState.activeSeat);
+  },
+  requestEndTurn: function(){
+    if (window.__gameConfig && window.__gameConfig.role === "host") {
+      this.hostHandleEndTurn({ fromSeat: getLocalSeatColor() });
+      return;
+    }
+    var payload = { t: "REQUEST_END_TURN", fromSeat: getLocalSeatColor(), clientId: window.__vttClientId, room: window.__vttRoomId, at: __vttNowMs() };
+    console.log("TURN REQUEST_END_TURN send", payload);
+    return sendMove(payload, "request_end_turn", { fromSeat: getLocalSeatColor() });
+  },
+  hostHandleEndTurn: function(msg){
+    var fromSeat = seatColorFromAny(msg && msg.fromSeat);
+    console.log("TURN REQUEST_END_TURN recv", msg);
+    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
+    if (!window.__gameState.started) return;
+    if (fromSeat !== seatColorFromAny(window.__gameState.activeSeat)) return;
+    var next = (seatColorFromAny(window.__gameState.activeSeat) === "blue") ? "red" : "blue";
+    var nextTurn = Number(window.__gameState.turn || 1) + 1;
+    this.broadcastTurnSet(next, nextTurn);
+  },
+  broadcastTurnSet: function(activeSeat, turn){
+    window.__gameState.activeSeat = seatColorFromAny(activeSeat);
+    window.__gameState.turn = Number(turn || 1);
+    window.__gameState.started = true;
+    var payload = { t: "TURN_SET", activeSeat: window.__gameState.activeSeat, turn: window.__gameState.turn, clientId: window.__vttClientId, room: window.__vttRoomId, at: __vttNowMs() };
+    console.log("TURN TURN_SET send", payload);
+    vttSend(payload);
+    this.applyTurnUI();
+  },
+  applyTurnUI: function(){
+    var active = seatColorFromAny(window.__gameState.activeSeat).toUpperCase();
+    var badge = document.getElementById("turnBadge");
+    if (badge) badge.textContent = "TURN: " + active;
+    var endBtn = document.getElementById("endTurnBtn");
+    if (endBtn) endBtn.disabled = !this.isMyTurn();
+    if (this.isMyTurn()) showToast("YOUR TURN", 1300);
+  },
+  handleTurnSet: function(msg){
+    console.log("TURN TURN_SET recv", msg);
+    var wasStarted = !!window.__gameState.started;
+    window.__gameState.activeSeat = seatColorFromAny(msg && msg.activeSeat);
+    window.__gameState.turn = Number((msg && msg.turn) || 1);
+    window.__gameState.started = true;
+    if (!wasStarted && window.__gameState.turn === 1 && seatColorFromAny(window.__gameState.activeSeat) === "blue") {
+      showToast("Game start — BLUE goes first.", 1700);
+    }
+    this.applyTurnUI();
+  },
+  ensureGameStart: function(){
+    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
+    if (window.__gameState.started) return;
+    window.__gameState.started = true;
+    window.__gameState.activeSeat = "blue";
+    window.__gameState.turn = 1;
+    showToast("Game start — BLUE goes first.", 1700);
+    this.broadcastTurnSet("blue", 1);
+  }
+};
 
-    clearTimeout(window.__vttTurnAnnouncerTimer);
-    window.__vttTurnAnnouncerTimer = setTimeout(function(){
-      try { el.style.display = "none"; } catch (e) {}
-    }, 1800);
-  } catch (e) {}
+function sendMove(msg, action, context){
+  if (!Permissions.canPerform(action, context)) {
+    showToast("Not your turn", 1200);
+    return false;
+  }
+  return vttSend(msg);
 }
 
 function __vttSafeParseJSON(s){
@@ -214,10 +289,20 @@ window.__vttOnNetMessage = function(msg){
 
   if (!msg || !msg.t) return;
 
-  if (msg.t === "turn_set") {
-    window.__activePlayer = msg.active;
-    if (typeof __vttShowTurnAnnouncer === "function") {
-      __vttShowTurnAnnouncer(msg.active);
+  if (msg.t === "TURN_SET" || msg.t === "turn_set") {
+    TurnManager.handleTurnSet({ activeSeat: msg.activeSeat || msg.active, turn: msg.turn });
+    return;
+  }
+
+  if (msg.t === "REQUEST_END_TURN") {
+    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
+    TurnManager.hostHandleEndTurn(msg);
+    return;
+  }
+
+  if (msg.t === "hello") {
+    if (window.__gameConfig && window.__gameConfig.role === "host" && window.__gameState.started) {
+      TurnManager.broadcastTurnSet(window.__gameState.activeSeat, window.__gameState.turn);
     }
     return;
   }
@@ -1629,10 +1714,9 @@ table.id = "table";
   function applyLocalCamera() {
   // Visual-only transform; does not affect synced coordinates/state
   table.style.transformOrigin = "50% 50%";
-  var youAre = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
   var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
   if (seat === "yellow") seat = "blue";
-  var shouldFlip = (youAre === "p2") || (!youAre && seat === "red");
+  var shouldFlip = (seat === "red");
   table.style.transform = shouldFlip ? "rotate(180deg)" : "";
 }
 
@@ -1755,6 +1839,13 @@ var endP1Btn = mkHudBtn("END P1");
 var endP2Btn = mkHudBtn("END P2");
 var resetTokensBtn = mkHudBtn("RESET");
 var factionTestBtn = mkHudBtn("FACTION TEST");
+var turnBadge = document.createElement("div");
+turnBadge.id = "turnBadge";
+turnBadge.className = "hudBtn";
+turnBadge.style.display = "inline-flex";
+turnBadge.style.alignItems = "center";
+turnBadge.textContent = "TURN: BLUE";
+hud.appendChild(turnBadge);
 
 var stage = document.createElement("div");
 stage.id = "stage";
@@ -2241,6 +2332,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
+      if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
       var p = viewportToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
@@ -2266,7 +2358,7 @@ if (kind === "base") {
 /* =========================
    NET: broadcast spawn so other client can create the card
    ========================= */
-vttSend({
+sendMove({
   t: "card_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -2282,7 +2374,7 @@ vttSend({
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-});
+}, "play_from_tray", { source: "tray" });
 
 onCommitToBoard();
            } // end: if (!releasedOverTray)
@@ -2300,6 +2392,7 @@ onCommitToBoard();
 
   tile.addEventListener("pointerdown", function(e){
     if (e.button !== 0) return;
+    if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
         // PRIVACY: only owner can drag/use this tray tile
     try {
       var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
@@ -3185,6 +3278,7 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointerdown", function(e){
     if (previewOpen) return;
+    if (!Permissions.canPerform("move_shared_piece", { pieceType: "token" })) { showToast("Not your turn", 1200); return; }
     if (e.button !== 0) return;
     e.stopPropagation();
     el.setPointerCapture(e.pointerId);
@@ -3219,7 +3313,7 @@ function attachTokenDragHandlers(el) {
 var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
 var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
 
-vttSend({
+sendMove({
   t: "token_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3229,7 +3323,7 @@ vttSend({
  z: 16000,
 
   at: __vttNowMs()
-});
+}, "move_shared_piece", { pieceType: "token" });
 
      el.style.zIndex = "16000"; // canonical token resting layer
 
@@ -3239,6 +3333,7 @@ el.addEventListener("pointercancel", function(){ dragging = false; el.style.zInd
 }
 
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
+  if (!Permissions.canPerform("move_shared_piece", { pieceType: "token" })) { showToast("Not your turn", 1200); return; }
   if (tokenPools[owner][type] <= 0) return;
 
   tokenPools[owner][type] -= 1;
@@ -3249,7 +3344,7 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 
   var tok = createTokenCube(owner, type, px0, py0);
    // NET: broadcast token spawn
-vttSend({
+sendMove({
   t: "token_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3260,7 +3355,7 @@ vttSend({
   y: py0,
   z: 16000,
   at: __vttNowMs()
-});
+}, "move_shared_piece", { pieceType: "token" });
 
   tok.style.zIndex = "70000"; // drag layer while spawning
 
@@ -3368,7 +3463,7 @@ function returnTokensForOwner(owner, typesToReturn) {
   });
 
   // 👇 THIS IS WHERE THE NET SEND GOES
-  vttSend({
+  sendMove({
     t: "token_return",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
@@ -3376,58 +3471,21 @@ function returnTokensForOwner(owner, typesToReturn) {
     counts: returnedCounts,
     tokenIds: returnedIds,
     at: __vttNowMs()
-  });
+  }, "alter_shared_pile", { owner: owner });
 }
 
 function endTurn(owner) {
-  // --- TURN ENFORCEMENT (Blue = P1 always starts) ---
-  if (!window.__activePlayer) {
-    window.__activePlayer = "p1"; // Blue always first
-  }
-
-  // Block if not your turn
-  if (owner !== window.__activePlayer) {
-    console.warn("Not this player's turn:", owner);
+  if (!Permissions.canPerform("alter_shared_pile", { owner: owner })) {
+    showToast("Not your turn", 1200);
     return;
   }
-
-  // Do the end-turn work
   returnTokensForOwner(owner, ["attack","resource"]);
-
-  // Switch turn after successful end
-  var next = (window.__activePlayer === "p1") ? "p2" : "p1";
-  window.__activePlayer = next;
-  /* =========================
-     PATCH: TURN SYNC + ANNOUNCER
-     - Broadcast active turn (no hidden cards)
-     ========================= */
-  try {
-
-    window.__vttTurn = window.__vttTurn || {};
-    window.__vttTurn.active = next;
-
-    // Announce locally
-    if (typeof __vttShowTurnAnnouncer === "function") {
-      __vttShowTurnAnnouncer(next);
-    }
-
-    // Broadcast to the room
-    vttSend({
-      t: "turn_set",
-      clientId: window.__vttClientId,
-      room: window.__vttRoomId,
-      active: next,
-      at: __vttNowMs()
-    });
-  } catch (e) {}
-
-  // (We’ll insert announcer + broadcast here next)
+  TurnManager.requestEndTurn();
 }
 
-
 function resetAllTokens() {
-    // Reset turn to Blue/P1
-  window.__activePlayer = "p1";
+  window.__gameState.activeSeat = "blue";
+  window.__gameState.turn = 1;
 Array.from(tokenEls).forEach(function(t){
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
@@ -3442,27 +3500,22 @@ Array.from(tokenEls).forEach(function(t){
   tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
 
   // NET: broadcast reset
-  vttSend({
+  sendMove({
     t: "token_reset",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
     at: __vttNowMs()
-  });
+  }, "alter_shared_pile", { reset: true });
 }
 
-endP1Btn.addEventListener("click", function(e){
+endP1Btn.style.display = "none";
+endP2Btn.style.display = "none";
+var endTurnBtn = mkHudBtn("END TURN");
+endTurnBtn.id = "endTurnBtn";
+endTurnBtn.addEventListener("click", function(e){
   e.preventDefault();
-  try {
-    if (window.__gameConfig && window.__gameConfig.youAre && window.__gameConfig.youAre !== "p1") return;
-  } catch (err) {}
-  endTurn("p1");
-});
-endP2Btn.addEventListener("click", function(e){
-  e.preventDefault();
-  try {
-    if (window.__gameConfig && window.__gameConfig.youAre && window.__gameConfig.youAre !== "p2") return;
-  } catch (err) {}
-  endTurn("p2");
+  var owner = (getLocalSeatColor() === "red") ? "p2" : "p1";
+  endTurn(owner);
 });
 resetTokensBtn.addEventListener("click", function(e){ e.preventDefault(); resetAllTokens(); });
 
@@ -3509,7 +3562,9 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
-   if (typeof window.__vttFlushPendingNet === "function") window.__vttFlushPendingNet();
+  if (typeof window.__vttFlushPendingNet === "function") window.__vttFlushPendingNet();
+  TurnManager.ensureGameStart();
+  TurnManager.applyTurnUI();
 
 }
 
@@ -3634,6 +3689,7 @@ function attachDragHandlers(el, cardData, kind) {
 
   el.addEventListener("pointerdown", function(e){
     if (previewOpen) return;
+    if (!Permissions.canPerform("move_shared_piece", { pieceType: "card" })) { showToast("Not your turn", 1200); return; }
     if (e.button !== 0) return;
 
     clearFlipTimer();
@@ -3648,7 +3704,7 @@ function attachDragHandlers(el, cardData, kind) {
   toggleRotate(el);
 
   // NET: sync rotation immediately (no extra drag needed)
-  vttSend({
+  sendMove({
     t: "card_move",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
@@ -3661,7 +3717,7 @@ function attachDragHandlers(el, cardData, kind) {
     capSide: el.dataset.capSide || null,
     capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
     at: __vttNowMs()
-  });
+  }, "move_shared_piece", { pieceType: "card" });
 
   el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
@@ -3736,7 +3792,7 @@ function attachDragHandlers(el, cardData, kind) {
       flipTimer = setTimeout(function(){
         toggleFlip(el);
          // NET: sync flip immediately (no extra drag needed)
-vttSend({
+sendMove({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3749,7 +3805,7 @@ vttSend({
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-});
+}, "move_shared_piece", { pieceType: "card" });
 
         if (kind === "base") {
           if (el.dataset.capSide) {
@@ -3777,7 +3833,7 @@ vttSend({
 }
 
 // NET: broadcast final position/state after move
-vttSend({
+sendMove({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3790,7 +3846,7 @@ vttSend({
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-});
+}, "move_shared_piece", { pieceType: "card" });
 
 });
 
@@ -3944,7 +4000,7 @@ factionTestBtn.addEventListener("click", function(e){
     stage.appendChild(el);
            // NET: spawn this card for the other client
 // NET: spawn this card for the other client (FIXED)
-vttSend({
+sendMove({
   t: "card_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3959,7 +4015,7 @@ vttSend({
   capSide: null,
   capIndex: null,
   at: __vttNowMs()
-});
+}, "move_shared_piece", { pieceType: "card" });
 } // end for cards loop
 
 }); // end factionTestBtn click handler
