@@ -1520,11 +1520,13 @@ table.id = "table";
   }
 
   function oppositeFaction(f) {
-    f = (f || "").toLowerCase();
-    if (f === "blue") return "yellow";
-    if (f === "yellow") return "blue";
-    return null;
-  }
+  f = (f || "").toLowerCase();
+  if (f === "blue") return "red";
+  if (f === "red") return "blue";
+  return null;
+}
+
+
 
   // Room-scoped storage so seat choice persists per room
   var roomId = getParam("room") || getParam("r") || "";
@@ -3960,7 +3962,8 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
       mandoNeutral: !!cfg.mandoNeutral,
       p1Faction: cfg.hostFaction,
       p2Faction: guestFaction,
-      youAre: "p2"
+      youAre: (guestFaction === "blue") ? "p1" : "p2"
+
     };
 
     window.__menuSelection = window.__menuSelection || {};
