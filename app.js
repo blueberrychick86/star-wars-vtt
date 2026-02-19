@@ -228,7 +228,8 @@ window.__vttOnNetMessage = function(msg){
 
     t.style.left = (msg.x - TOKEN_SIZE/2) + "px";
     t.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
-    t.style.zIndex = "20000";
+   t.style.zIndex = "16000"; // canonical token resting layer
+
 
     stage.appendChild(t);
     tokenEls.add(t);
@@ -2165,7 +2166,7 @@ vttSend({
   cardId: el.dataset.cardId,
   owner: (el.dataset.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1")),
   kind: kind,
-  cardData: el.__cardData || card,   // <- important
+  cardData: (String(el.dataset.face || "up") === "up") ? (el.__cardData || card) : null,   // privacy: don't leak facedown identity
   x: parseFloat(el.style.left || "0"),
   y: parseFloat(el.style.top  || "0"),
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
@@ -2180,13 +2181,25 @@ onCommitToBoard();
            } // end: if (!releasedOverTray)
   }   // end: finishDrag()
 
- tile.addEventListener("contextmenu", function(e){
+  tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
+    try {
+      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+      var own = (tile.__owner || "p1");
+      if (own !== me) return;
+    } catch (err) {}
     showPreview(card);
   });
 
   tile.addEventListener("pointerdown", function(e){
     if (e.button !== 0) return;
+        // PRIVACY: only owner can drag/use this tray tile
+    try {
+      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+      var own = (tile.__owner || "p1");
+      if (own !== me) return;
+    } catch (err) {}
+
     if (previewOpen) return;
     e.stopPropagation();
 
@@ -2265,7 +2278,25 @@ function renderTray() {
         tile.__owner = item.owner || (item.pileKey && (String(item.pileKey).indexOf("p2_") === 0 ? "p2" : "p1")) || "p1";
 
         tile.addEventListener("click", function(){
+                    // PRIVACY: only owner can preview this tile
+          try {
+            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+            var own = (tile.__owner || "p1");
+            if (own !== me) return;
+          } catch (err) { return; }
+
           if (tile.__justDragged) { tile.__justDragged = false; return; }
+                    // PRIVATE tray tiles: only owning seat can preview
+          try {
+            var me = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre) : "";
+            var own = String(tile.__owner || "p1");
+            if (me && own && me !== own) return;
+          } catch (err) {}
+
+          try {
+            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+            if ((tile.__owner || "p1") !== me) return;
+          } catch (e) {}
           showPreview(item.card);
         });
 
@@ -2302,9 +2333,23 @@ function renderTray() {
     for (var t = 0; t < visible.length; t++) {
       (function(card){
         var tile2 = makeTrayTile(card);
+                // mark ownership so preview/drag can enforce privacy
+        tile2.__owner = (trayState.searchOwner || "p1");
+
 
         tile2.addEventListener("click", function(){
+                    // PRIVACY: only owner can preview this tile
+          try {
+            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+            var own = (trayState.searchOwner || "p1");
+            if (own !== me) return;
+          } catch (err) { return; }
+
           if (tile2.__justDragged) { tile2.__justDragged = false; return; }
+          try {
+            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+            if ((tile2.__owner || "p1") !== me) return;
+          } catch (e) {}
           showPreview(card);
         });
 
@@ -2387,8 +2432,22 @@ function bindPileZoneClicks() {
       el.replaceWith(clone);
 
       clone.addEventListener("pointerdown", function(e){
+                // PRIVACY: only the owning player can open/peek this pile
+        try {
+          var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+          if (m.owner !== me) return;
+        } catch (err) { return; }
+
         if (previewOpen) return;
         e.stopPropagation();
+                // PRIVATE piles: only owning seat can open/peek
+        try {
+          var me = (window.__gameConfig && window.__gameConfig.youAre)
+            ? String(window.__gameConfig.youAre)
+            : "";
+          if (me && m.owner && me !== m.owner) return;
+        } catch (err) {}
+
 
         if (m.id === "p1_draw" || m.id === "p2_draw") {
           if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
@@ -3060,14 +3119,16 @@ vttSend({
   tokenId: el.dataset.tokenId,
   x: x,
   y: y,
-  z: 20000,
+ z: 16000,
+
   at: __vttNowMs()
 });
 
-     el.style.zIndex = "20000";
+     el.style.zIndex = "16000"; // canonical token resting layer
+
   });
 
-  el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "20000"; });
+el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "16000"; });
 }
 
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
@@ -3094,7 +3155,8 @@ vttSend({
   at: __vttNowMs()
 });
 
-  tok.style.zIndex = "60000";
+  tok.style.zIndex = "70000"; // drag layer while spawning
+
 
   try { tok.setPointerCapture(pointerId); } catch (e) {}
 
@@ -3211,11 +3273,26 @@ function returnTokensForOwner(owner, typesToReturn) {
 }
 
 function endTurn(owner) {
+    // --- TURN ENFORCEMENT (Blue = P1 always starts) ---
+  if (!window.__activePlayer) {
+    window.__activePlayer = "p1"; // Blue always first
+  }
+
+  // Block if not your turn
+  if (owner !== window.__activePlayer) {
+    console.warn("Not this player's turn:", owner);
+    return;
+  }
+
   returnTokensForOwner(owner, ["attack","resource"]);
-}
+}  // Switch turn after successful end
+  window.__activePlayer = (owner === "p1") ? "p2" : "p1";
+
 
 function resetAllTokens() {
-  Array.from(tokenEls).forEach(function(t){
+    // Reset turn to Blue/P1
+  window.__activePlayer = "p1";
+Array.from(tokenEls).forEach(function(t){
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
   });
@@ -3237,8 +3314,20 @@ function resetAllTokens() {
   });
 }
 
-endP1Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p1"); });
-endP2Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p2"); });
+endP1Btn.addEventListener("click", function(e){
+  e.preventDefault();
+  try {
+    if (window.__gameConfig && window.__gameConfig.youAre && window.__gameConfig.youAre !== "p1") return;
+  } catch (err) {}
+  endTurn("p1");
+});
+endP2Btn.addEventListener("click", function(e){
+  e.preventDefault();
+  try {
+    if (window.__gameConfig && window.__gameConfig.youAre && window.__gameConfig.youAre !== "p2") return;
+  } catch (err) {}
+  endTurn("p2");
+});
 resetTokensBtn.addEventListener("click", function(e){ e.preventDefault(); resetAllTokens(); });
 
 /* =========================
