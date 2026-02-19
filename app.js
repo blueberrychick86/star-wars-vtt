@@ -1627,13 +1627,15 @@ table.id = "table";
   window.VTT_LOCAL.seat = localSeat;
 
   function applyLocalCamera() {
-    // Visual-only transform; does not affect synced coordinates/state
-    table.style.transformOrigin = "50% 50%";
-    var youAre = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
-    var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
-    var shouldFlip = youAre ? (youAre === "p2") : (seat === "red");
-    table.style.transform = shouldFlip ? "rotate(180deg)" : "";
-  }
+  // Visual-only transform; does not affect synced coordinates/state
+  table.style.transformOrigin = "50% 50%";
+  var youAre = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
+  var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+  if (seat === "yellow") seat = "blue";
+  var shouldFlip = (youAre === "p2") || (!youAre && seat === "red");
+  table.style.transform = shouldFlip ? "rotate(180deg)" : "";
+}
+
 /* =========================
    PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
    - Re-runs applyLocalCamera once __gameConfig exists
