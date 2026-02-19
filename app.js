@@ -1621,7 +1621,7 @@ table.id = "table";
   function applyLocalCamera() {
     // Visual-only transform; does not affect synced coordinates/state
     table.style.transformOrigin = "50% 50%";
-    table.style.transform = (localSeat === "red" || localSeat === "p2" || localSeat === "yellow")
+    table.style.transform = (window.VTT_LOCAL && window.VTT_LOCAL.seat) && (window.VTT_LOCAL.seat === "red" || window.VTT_LOCAL.seat === "yellow" || window.VTT_LOCAL.seat === "p2")
       ? "rotate(180deg)"
       : "";
   }
