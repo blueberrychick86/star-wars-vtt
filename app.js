@@ -97,48 +97,18 @@ function seatColorFromAny(v) {
   var s = String(v || "").toLowerCase();
   if (s === "p1") return "blue";
   if (s === "p2") return "red";
-  if (s === "yellow") return "blue";
   if (s === "blue" || s === "red") return s;
   return "blue";
 }
 
-function getSeatParamRaw(){
-  try {
-    var q = new URLSearchParams(location.search);
-    return q.get("seat") || q.get("player") || q.get("p") || "";
-  } catch (e) {
-    return "";
-  }
-}
-
 function getLocalSeatColor() {
-  var rawUrlSeat = getSeatParamRaw();
-  if (rawUrlSeat) return seatColorFromAny(rawUrlSeat);
   try {
-    var localSeat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? seatColorFromAny(window.VTT_LOCAL.seat) : "";
-    if (localSeat) return localSeat;
+    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) return seatColorFromAny(window.VTT_LOCAL.seat);
   } catch (e) {}
   try {
-    var cfgSeat = (window.__gameConfig && window.__gameConfig.youAre) ? seatColorFromAny(window.__gameConfig.youAre) : "";
-    if (cfgSeat) return cfgSeat;
+    if (window.__gameConfig && window.__gameConfig.youAre) return seatColorFromAny(window.__gameConfig.youAre);
   } catch (e2) {}
   return "blue";
-}
-
-function ownerSeatFromLocalColor(){
-  return (getLocalSeatColor() === "red") ? "p2" : "p1";
-}
-
-function debugSeatStateOnce(){
-  if (window.__seatDebugShown) return;
-  window.__seatDebugShown = true;
-  var rawUrl = getSeatParamRaw() || "";
-  var rawLocal = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat) : "";
-  var rawCfg = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre) : "";
-  var active = (window.__gameState && window.__gameState.activeSeat) ? String(window.__gameState.activeSeat) : "";
-  var msg = "Seat debug: localSeatColor=" + getLocalSeatColor() + " | raw(url=" + rawUrl + ", local=" + rawLocal + ", cfg=" + rawCfg + ") | activeSeat=" + active;
-  try { console.log(msg); } catch (e) {}
-  showToast("Seat: " + getLocalSeatColor() + " (active: " + (active || "n/a") + ")", 1400);
 }
 
 function __vttEnsureToastEl(){
@@ -1745,9 +1715,10 @@ table.id = "table";
   function applyLocalCamera() {
   // Visual-only transform; does not affect synced coordinates/state
   table.style.transformOrigin = "50% 50%";
-  var localSeatColor = getLocalSeatColor();
-  table.style.transform = (localSeatColor === "red") ? "rotate(180deg)" : "rotate(0deg)";
-  debugSeatStateOnce();
+  var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+  if (seat === "yellow") seat = "blue";
+  var shouldFlip = (seat === "red");
+  table.style.transform = shouldFlip ? "rotate(180deg)" : "";
 }
 
 /* =========================
