@@ -24,7 +24,11 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
 } 
 
       /* Dock HUD bottom-center (single line, never wraps) */
-      #hud{
+      /* Reserve space so HUD does NOT cover playfield (do NOT shrink #table) */
+#playfield{
+  bottom: 90px !important;
+}
+#hud{
         position: fixed;
         left: 50%;
         bottom: 12px;
@@ -33,8 +37,8 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
         transform: translateX(-50%);
         display: flex;
         flex-direction: row;
-        flex-wrap: nowrap;          /* <- no wrap */
-        white-space: nowrap;        /* <- no wrap */
+        flex-wrap: nowrap !important;
+        white-space: nowrap !important;
         gap: 10px;
         align-items: center;
         justify-content: center;
@@ -2005,7 +2009,7 @@ var fitBtn = mkHudBtn("FIT");
 var endP1Btn = mkHudBtn("END P1");
 var endP2Btn = mkHudBtn("END P2");
 var resetTokensBtn = mkHudBtn("RESET");
-var factionTestBtn = mkHudBtn("FACTION TEST");
+varvar factionTestBtn = null; // disabled (not working right now) factionTestBtn = mkHudBtn("FACTION TEST");
 var turnBadge = document.createElement("div");
 turnBadge.id = "turnBadge";
 turnBadge.className = "hudBtn";
@@ -4155,7 +4159,7 @@ if (DEV_SPAWN_TEST_CARDS) {
     stage.appendChild(baseCard);
   }
 }
-
+if (factionTestBtn) {
 factionTestBtn.addEventListener("click", function(e){
   e.preventDefault();
   var cards = [TEST_BLUE, TEST_RED, TEST_NEUTRAL2, TEST_MANDO2];
@@ -4191,7 +4195,7 @@ sendMove({
 } // end for cards loop
 
 }); // end factionTestBtn click handler
-
+}
 /* =========================
    START MENU (ROBUST)
    - Change: "Host Game" enforces required selections
