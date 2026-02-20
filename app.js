@@ -3225,7 +3225,21 @@ function ensureForceMarker(initialIndex) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+// === PATCH: P2 vertical flip input fix (tokens) ============================
+  try {
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
 
+    if (seatNow === "red") {
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
+    }
+  } catch (e) {}
+  // === END PATCH =============================================================
     var left = parseFloat(forceMarker.style.left || "0");
     var top = parseFloat(forceMarker.style.top || "0");
     markerOffX = px - left;
@@ -3237,6 +3251,21 @@ function ensureForceMarker(initialIndex) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+     // === PATCH: P2 vertical flip input fix (tokens) ============================
+  try {
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
+
+    if (seatNow === "red") {
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
+    }
+  } catch (e) {}
+  // === END PATCH =============================================================
     forceMarker.style.left = (px - markerOffX) + "px";
     forceMarker.style.top  = (py - markerOffY) + "px";
   });
@@ -3411,7 +3440,21 @@ function attachTokenDragHandlers(el) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+// === P2 vertical flip input fix =========================================
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
 
+  if (seatNow === "red") {
+    var stageH = stageRect.height / camera.scale;
+    py = stageH - py;
+  }
+} catch (e) {}
+// ==========================================================================
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
     offX = px - left;
@@ -3425,7 +3468,21 @@ function attachTokenDragHandlers(el) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+// === P2 vertical flip input fix =========================================
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
 
+  if (seatNow === "red") {
+    var stageH = stageRect.height / camera.scale;
+    py = stageH - py;
+  }
+} catch (e) {}
+// ==========================================================================
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
   });
@@ -3434,8 +3491,42 @@ function attachTokenDragHandlers(el) {
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
    // NET: broadcast token move on release
-var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
-var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+// Token center coords (design space)
+var __nx = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
+var __ny = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+
+// === PATCH: normalize token coords for network when P2 view is flipped =======
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+
+  if (seatNow === "red" && typeof DESIGN_H === "number") {
+    __ny = DESIGN_H - __ny;
+  }
+} catch (e) {}
+// === END PATCH ===============================================================
+
+// === PATCH: normalize token Y for network when P2 view is flipped ============
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+
+  if (seatNow === "red") {
+    // convert back to shared board coordinates
+    y = (typeof DESIGN_H === "number")
+      ? (DESIGN_H - y)
+      : y;
+  }
+} catch (e) {}
+// === END PATCH ===============================================================
 
 sendMove({
   t: "token_move",
@@ -3490,6 +3581,21 @@ sendMove({
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top)  / camera.scale;
+      // === PATCH: P2 vertical flip input fix (tokens) ============================
+  try {
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
+
+    if (seatNow === "red") {
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
+    }
+  } catch (e) {}
+  // === END PATCH =============================================================
     tok.style.left = (px - TOKEN_SIZE/2) + "px";
     tok.style.top  = (py - TOKEN_SIZE/2) + "px";
   }
@@ -3860,7 +3966,21 @@ function attachDragHandlers(el, cardData, kind) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+ // === PATCH: P2 vertical flip input fix (tokens) ============================
+  try {
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
 
+    if (seatNow === "red") {
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
+    }
+  } catch (e) {}
+  // === END PATCH =============================================================
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
     offsetX = px - left;
@@ -3916,13 +4036,26 @@ function attachDragHandlers(el, cardData, kind) {
       flipTimer = setTimeout(function(){
         toggleFlip(el);
          // NET: sync flip immediately (no extra drag needed)
+         // === PATCH: normalize card coords for network when P2 view is flipped =========
+var __nx = parseFloat(el.style.left || "0");
+var __ny = parseFloat(el.style.top  || "0");
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+  if (seatNow === "red" && typeof DESIGN_H === "number") {
+    __ny = (DESIGN_H - __ny);
+  }
+} catch (e) {}
+// === END PATCH ===============================================================
 sendMove({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-  x: parseFloat(el.style.left || "0"),
-  y: parseFloat(el.style.top  || "0"),
+ x: __nx,
+y: __ny,
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
