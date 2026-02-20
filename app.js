@@ -1668,6 +1668,14 @@ playfield.id = "playfield";
    ========================= */
 
 (function setupLocalSeatAndCamera() {
+  function normalizeSeatForView(seat) {
+    var s = String(seat || "").toLowerCase();
+    if (s === "p1") return "blue";
+    if (s === "p2") return "red";
+    if (s === "yellow") return "blue";
+    return s || "blue";
+  }
+
   function getParam(name) {
     try { return new URLSearchParams(location.search).get(name); }
     catch (e) { return null; }
@@ -1708,11 +1716,7 @@ playfield.id = "playfield";
     (isJoin ? oppositeFaction(hostFaction) : (hostFaction || "")) ||
     "blue";
 
-  localSeat = (localSeat || "blue").toLowerCase();
-  if (localSeat === "yellow") {
-    console.warn("[VTT] Legacy seat 'yellow' detected; normalizing to 'blue' (2-player only).");
-    localSeat = "blue";
-  }
+  localSeat = normalizeSeatForView(localSeat);
   localStorage.setItem(seatKey, localSeat);
 
   // Expose locally for debugging (no sync)
@@ -1722,10 +1726,16 @@ playfield.id = "playfield";
   function applyLocalCamera() {
   // Visual-only transform; does not affect synced coordinates/state
   table.style.transformOrigin = "50% 50%";
-  var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
-  if (seat === "yellow") seat = "blue";
+  var seat = normalizeSeatForView(window.VTT_LOCAL && window.VTT_LOCAL.seat);
   var shouldFlip = (seat === "red");
   table.style.transform = shouldFlip ? "rotate(180deg)" : "";
+
+  // Keep non-board UI readable for the flipped player.
+  [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
+    if (!el || !el.style) return;
+    el.style.transformOrigin = "50% 50%";
+    el.style.transform = shouldFlip ? "rotate(180deg)" : "";
+  });
 }
 
 /* =========================
@@ -1833,6 +1843,7 @@ app.appendChild(table);
 var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
+window.hud = hud;
 
 function mkHudBtn(txt){
   var b = document.createElement("button");
@@ -1894,6 +1905,7 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
+window.previewBackdrop = previewBackdrop;
 
 // HARD modal trap (FIXED)
 (function trapPreviewInteractions(){
@@ -1977,6 +1989,7 @@ tray.appendChild(trayBody);
 
 trayShell.appendChild(tray);
 table.appendChild(trayShell);
+window.trayShell = trayShell;
 
 trayShell.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
 trayShell.addEventListener("pointermove", function(e){ e.stopPropagation(); });
