@@ -1786,7 +1786,7 @@ try {
     pf.style.transformOrigin = "50% 50%";
    // Force horizontal mirror for P2 (use !important so later camera transforms don't overwrite it)
 if (seatNow === "red") {
-  pf.style.setProperty("transform", "scaleX(-1)", "important");
+  pf.style.setProperty("transform", "scaleY(-1)", "important");
 } else {
   pf.style.removeProperty("transform");
 }
