@@ -2009,7 +2009,8 @@ var fitBtn = mkHudBtn("FIT");
 var endP1Btn = mkHudBtn("END P1");
 var endP2Btn = mkHudBtn("END P2");
 var resetTokensBtn = mkHudBtn("RESET");
-varvar factionTestBtn = null; // disabled (not working right now) factionTestBtn = mkHudBtn("FACTION TEST");
+// var factionTestBtn = mkHudBtn("FACTION TEST"); // DISABLED (not working right now)
+var factionTestBtn = null;
 var turnBadge = document.createElement("div");
 turnBadge.id = "turnBadge";
 turnBadge.className = "hudBtn";
@@ -4159,7 +4160,7 @@ if (DEV_SPAWN_TEST_CARDS) {
     stage.appendChild(baseCard);
   }
 }
-if (factionTestBtn) {
+/*
 factionTestBtn.addEventListener("click", function(e){
   e.preventDefault();
   var cards = [TEST_BLUE, TEST_RED, TEST_NEUTRAL2, TEST_MANDO2];
@@ -4195,8 +4196,8 @@ sendMove({
 } // end for cards loop
 
 }); // end factionTestBtn click handler
-}
-/* =========================
+/* 
+   =========================
    START MENU (ROBUST)
    - Change: "Host Game" enforces required selections
    - Change: "Host Game" auto-invites (Invite button can stay hidden)
