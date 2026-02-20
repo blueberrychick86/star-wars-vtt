@@ -1766,7 +1766,7 @@ playfield.id = "playfield";
 
   table.style.transformOrigin = "50% 50%";
   table.style.transform = "";
-     // === PATCH: P2 playfield flip (horizontal only) =============================
+     // === PATCH: P2 playfield rotate 180 (playfield ONLY) ========================
 try {
   var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
     ? String(window.VTT_LOCAL.seat).toLowerCase()
@@ -1780,16 +1780,14 @@ try {
   // Add a seat class for CSS targeting (HUD fixes below)
   document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
 
-  // IMPORTANT:
-  // - This flips ONLY the playfield container (table).
-  // - It does NOT touch the rest of the UI unless your UI is inside #table.
-  if (seatNow === "red") {
-    // Horizontal mirror
-    // If you already have a rotate/scale being applied elsewhere, this composes with it.
-    table.style.transform = (table.style.transform ? table.style.transform + " " : "") + "scaleX(-1)";
+  // Rotate ONLY the playfield (not the HUD / trays / buttons)
+  var pf = document.getElementById("playfield");
+  if (pf && pf.style) {
+    pf.style.transformOrigin = "50% 50%";
+    pf.style.transform = (seatNow === "red") ? "rotate(180deg)" : "";
   }
 } catch (e) {
-  console.warn("[VTT] P2 playfield flip patch failed:", e);
+  console.warn("[VTT] P2 playfield rotate patch failed:", e);
 }
 // === END PATCH ==============================================================
 
