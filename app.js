@@ -21,7 +21,7 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
     .vtt-seat-p2 button,
     .vtt-seat-p2 .btn,
     .vtt-seat-p2 .controls button {
-      transform: scaleY(-1);
+        transform: none;
     }
   `;
   document.head.appendChild(st);
