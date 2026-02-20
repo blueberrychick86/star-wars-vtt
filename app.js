@@ -17,12 +17,55 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
   var st = document.createElement("style");
   st.id = "vttP2HudTextFixStyle";
   st.textContent = `
-    /* When P2 seat is active, unflip button text */
-    .vtt-seat-p2 button,
-    .vtt-seat-p2 .btn,
-    .vtt-seat-p2 .controls button {
-      transform: scaleY(-1);
-    }
+          /* Reserve space so HUD does NOT cover the playfield */
+     /* Reserve space so HUD does NOT cover playfield */
+#table{
+  bottom: 90px !important;
+} 
+
+      /* Dock HUD bottom-center (single line, never wraps) */
+      #hud{
+        position: fixed;
+        left: 50%;
+        bottom: 12px;
+        top: auto;
+
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;          /* <- no wrap */
+        white-space: nowrap;        /* <- no wrap */
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+
+        max-width: calc(100vw - 24px);
+        overflow-x: auto;           /* <- if too many buttons, it scrolls horizontally */
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+
+        z-index: 99999;
+
+        /* HUD container should NOT block the board */
+        pointer-events: none;
+      }
+
+      /* But the actual buttons inside should still be clickable */
+      #hud > *{
+        pointer-events: auto;
+        flex: 0 0 auto;             /* <- prevent shrinking/wrapping */
+      }
+
+      /* Ensure HUD buttons/text are never flipped by seat CSS */
+      html.vtt-seat-p2 #hud,
+      html.vtt-seat-p2 #hud *{
+        transform: none !important;
+      }
+
+      /* Keep the HUD centered even under the override above */
+      html.vtt-seat-p2 #hud{
+        transform: translateX(-50%) !important;
+      }
   `;
   document.head.appendChild(st);
 })();
