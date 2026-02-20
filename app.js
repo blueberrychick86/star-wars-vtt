@@ -1902,15 +1902,10 @@ app.appendChild(table);
 
 var hud = document.createElement("div");
 hud.id = "hud";
-// === PATCH: HUD should NOT live inside #table (prevents camera flip from affecting UI) ===
-try {
-  if (hud && hud.parentNode) hud.parentNode.removeChild(hud);
-  document.body.appendChild(hud);
-} catch (e) {
-  // fallback (keep old behavior if something weird happens)
-  try { table.appendChild(hud); } catch (_e) {}
+if (hud && hud.parentNode) {
+  hud.parentNode.removeChild(hud);
 }
-// === END PATCH =========================================================================
+document.body.appendChild(hud);
 window.hud = hud;
 // === PATCH: Bottom-center HUD bar styling + unflip any inherited transforms ============
 (function vttHudBottomCenterPatch(){
