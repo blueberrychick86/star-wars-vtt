@@ -1728,13 +1728,13 @@ playfield.id = "playfield";
   table.style.transformOrigin = "50% 50%";
   var seat = normalizeSeatForView(window.VTT_LOCAL && window.VTT_LOCAL.seat);
   var shouldFlip = (seat === "red");
-  table.style.transform = shouldFlip ? "scaleY(-1)" : "";
+  table.style.transform = shouldFlip ? "rotate(180deg)" : "";
 
   // Keep non-board UI readable for the flipped player.
   [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
     if (!el || !el.style) return;
     el.style.transformOrigin = "50% 50%";
-    el.style.transform = shouldFlip ? "scaleY(-1)" : "";
+    el.style.transform = shouldFlip ? "rotate(180deg)" : "";
   });
 }
 
