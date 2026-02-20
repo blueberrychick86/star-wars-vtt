@@ -2873,6 +2873,11 @@ function computeZones() {
 
   var yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
   var yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
+   // === PATCH: pull base stacks inward (away from playfield edges) =============
+var BASE_STACK_INSET = 36; // tweak: 24 / 30 / 36 / 42
+yTopBase += BASE_STACK_INSET;     // move P2 base stack DOWN toward galaxy row
+yBottomBase -= BASE_STACK_INSET;  // move P1 base stack UP toward galaxy row
+// === END PATCH ==============================================================
 
   var yTopExile = yRow1 - (CARD_H + BIG_GAP);
   var yBotExile = yRow2 + CARD_H + BIG_GAP;
