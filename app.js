@@ -17,59 +17,12 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
   var st = document.createElement("style");
   st.id = "vttP2HudTextFixStyle";
   st.textContent = `
-          /* Reserve space so HUD does NOT cover the playfield */
-     /* Reserve space so HUD does NOT cover playfield */
-#table{
-  bottom: 90px !important;
-} 
-
-      /* Dock HUD bottom-center (single line, never wraps) */
-      /* Reserve space so HUD does NOT cover playfield (do NOT shrink #table) */
-#playfield{
-  bottom: 90px !important;
-}
-#hud{
-        position: fixed;
-        left: 50%;
-        bottom: 12px;
-        top: auto;
-
-        transform: translateX(-50%);
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap !important;
-        white-space: nowrap !important;
-        gap: 10px;
-        align-items: center;
-        justify-content: center;
-
-        max-width: calc(100vw - 24px);
-        overflow-x: auto;           /* <- if too many buttons, it scrolls horizontally */
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-
-        z-index: 99999;
-
-        /* HUD container should NOT block the board */
-        pointer-events: none;
-      }
-
-      /* But the actual buttons inside should still be clickable */
-      #hud > *{
-        pointer-events: auto;
-        flex: 0 0 auto;             /* <- prevent shrinking/wrapping */
-      }
-
-      /* Ensure HUD buttons/text are never flipped by seat CSS */
-      html.vtt-seat-p2 #hud,
-      html.vtt-seat-p2 #hud *{
-        transform: none !important;
-      }
-
-      /* Keep the HUD centered even under the override above */
-      html.vtt-seat-p2 #hud{
-        transform: translateX(-50%) !important;
-      }
+    /* When P2 seat is active, unflip button text */
+    .vtt-seat-p2 button,
+    .vtt-seat-p2 .btn,
+    .vtt-seat-p2 .controls button {
+      transform: scaleY(-1);
+    }
   `;
   document.head.appendChild(st);
 })();
@@ -1831,7 +1784,8 @@ try {
   var pf = document.getElementById("playfield");
   if (pf && pf.style) {
     pf.style.transformOrigin = "50% 50%";
-pf.style.transform = (seatNow === "red") ? "rotate(180deg) scaleX(-1)" : "";  }
+    pf.style.transform = (seatNow === "red") ? "rotate(180deg)" : "";
+  }
 } catch (e) {
   console.warn("[VTT] P2 playfield rotate patch failed:", e);
 }
@@ -1950,75 +1904,7 @@ var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
 window.hud = hud;
-// === PATCH: HUD dock bottom-center + correct orientation (P2 safe) ===========
-(function vttDockHudToViewport(){
-  if (!hud || hud.__vttDocked) return;
-  hud.__vttDocked = true;
 
-  try {
-    // Move HUD out of #table so it does NOT inherit playfield transforms
-    document.body.appendChild(hud);
-  } catch (e) {
-    console.warn("[VTT] HUD dock failed:", e);
-  }
-
-  // Inject style once
-  if (!document.getElementById("vttHudDockStyle")) {
-    var st = document.createElement("style");
-    st.id = "vttHudDockStyle";
-    st.textContent = `
-      /* Dock HUD bottom-center (always readable) */
-      #hud{
-        position: fixed;
-        left: 50%;
-        bottom: 14px;
-        top: auto;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: center;
-        z-index: 99999;
-        pointer-events: auto;
-      }
-
-      /* Ensure HUD buttons/text are never flipped by seat CSS */
-      html.vtt-seat-p2 #hud,
-      html.vtt-seat-p2 #hud *{
-        transform: none !important;
-      }
-
-      /* Keep the HUD centered even under the override above */
-      html.vtt-seat-p2 #hud{
-        transform: translateX(-50%) !important;
-      }
-      /* === PATCH: shrink HUD footprint hard =================================== */
-#hud{
-  bottom: 4px !important;     /* move closer to the bottom edge */
-  gap: 6px !important;        /* tighter spacing */
-  padding: 0 !important;      /* remove any accidental padding */
-}
-
-#hud > *{
-  margin: 0 !important;       /* kill margins that can inflate height */
-}
-
-#hud button,
-#hud .btn,
-#hud .hudBtn,
-#hud .hud-button{
-  padding: 6px 10px !important;   /* smaller buttons */
-  font-size: 12px !important;     /* smaller text */
-  line-height: 1 !important;
-  min-height: 0 !important;
-  height: auto !important;
-}
-/* === END PATCH =========================================================== */
-    `;
-    document.head.appendChild(st);
-  }
-})();
-// === END PATCH ==============================================================
 function mkHudBtn(txt){
   var b = document.createElement("button");
   b.className = "hudBtn";
@@ -2031,8 +1917,7 @@ var fitBtn = mkHudBtn("FIT");
 var endP1Btn = mkHudBtn("END P1");
 var endP2Btn = mkHudBtn("END P2");
 var resetTokensBtn = mkHudBtn("RESET");
-// var factionTestBtn = mkHudBtn("FACTION TEST"); // DISABLED (not working right now)
-var factionTestBtn = null;
+var factionTestBtn = mkHudBtn("FACTION TEST");
 var turnBadge = document.createElement("div");
 turnBadge.id = "turnBadge";
 turnBadge.className = "hudBtn";
@@ -2895,11 +2780,6 @@ function computeZones() {
 
   var yTopBase = yRow1 - BASE_H - BASE_ROW_GAP;
   var yBottomBase = (yRow2 + CARD_H) + BASE_ROW_GAP;
-   // === PATCH: pull base stacks inward (away from playfield edges) =============
-var BASE_STACK_INSET = 36; // tweak: 24 / 30 / 36 / 42
-yTopBase += BASE_STACK_INSET;     // move P2 base stack DOWN toward galaxy row
-yBottomBase -= BASE_STACK_INSET;  // move P1 base stack UP toward galaxy row
-// === END PATCH ==============================================================
 
   var yTopExile = yRow1 - (CARD_H + BIG_GAP);
   var yBotExile = yRow2 + CARD_H + BIG_GAP;
@@ -4187,7 +4067,7 @@ if (DEV_SPAWN_TEST_CARDS) {
     stage.appendChild(baseCard);
   }
 }
-/*
+
 factionTestBtn.addEventListener("click", function(e){
   e.preventDefault();
   var cards = [TEST_BLUE, TEST_RED, TEST_NEUTRAL2, TEST_MANDO2];
@@ -4223,8 +4103,8 @@ sendMove({
 } // end for cards loop
 
 }); // end factionTestBtn click handler
-/* 
-   =========================
+
+/* =========================
    START MENU (ROBUST)
    - Change: "Host Game" enforces required selections
    - Change: "Host Game" auto-invites (Invite button can stay hidden)
