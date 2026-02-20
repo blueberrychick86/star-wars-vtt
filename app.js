@@ -1992,6 +1992,28 @@ window.hud = hud;
       html.vtt-seat-p2 #hud{
         transform: translateX(-50%) !important;
       }
+      /* === PATCH: shrink HUD footprint hard =================================== */
+#hud{
+  bottom: 4px !important;     /* move closer to the bottom edge */
+  gap: 6px !important;        /* tighter spacing */
+  padding: 0 !important;      /* remove any accidental padding */
+}
+
+#hud > *{
+  margin: 0 !important;       /* kill margins that can inflate height */
+}
+
+#hud button,
+#hud .btn,
+#hud .hudBtn,
+#hud .hud-button{
+  padding: 6px 10px !important;   /* smaller buttons */
+  font-size: 12px !important;     /* smaller text */
+  line-height: 1 !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+/* === END PATCH =========================================================== */
     `;
     document.head.appendChild(st);
   }
