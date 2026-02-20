@@ -1903,7 +1903,53 @@ var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
 window.hud = hud;
+// === PATCH: HUD dock bottom-center + correct orientation (P2 safe) ===========
+(function vttDockHudToViewport(){
+  if (!hud || hud.__vttDocked) return;
+  hud.__vttDocked = true;
 
+  try {
+    // Move HUD out of #table so it does NOT inherit playfield transforms
+    document.body.appendChild(hud);
+  } catch (e) {
+    console.warn("[VTT] HUD dock failed:", e);
+  }
+
+  // Inject style once
+  if (!document.getElementById("vttHudDockStyle")) {
+    var st = document.createElement("style");
+    st.id = "vttHudDockStyle";
+    st.textContent = `
+      /* Dock HUD bottom-center (always readable) */
+      #hud{
+        position: fixed;
+        left: 50%;
+        bottom: 14px;
+        top: auto;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        pointer-events: auto;
+      }
+
+      /* Ensure HUD buttons/text are never flipped by seat CSS */
+      html.vtt-seat-p2 #hud,
+      html.vtt-seat-p2 #hud *{
+        transform: none !important;
+      }
+
+      /* Keep the HUD centered even under the override above */
+      html.vtt-seat-p2 #hud{
+        transform: translateX(-50%) !important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+})();
+// === END PATCH ==============================================================
 function mkHudBtn(txt){
   var b = document.createElement("button");
   b.className = "hudBtn";
