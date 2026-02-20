@@ -1766,8 +1766,12 @@ playfield.id = "playfield";
   window.VTT_LOCAL.seat = localSeat;
 
   function applyLocalCamera() {
-  // Keep a single shared orientation for both seats so P2/Red uses
+   // Keep a single shared orientation for both seats so P2/Red uses
   // the same board layout shown in reference mocks.
+  var tableEl = document.getElementById("table");
+  if (!tableEl || !tableEl.style) return; // table not built yet; avoid white-screen crash
+  var table = tableEl;
+
   table.style.transformOrigin = "50% 50%";
   table.style.transform = "";
      // === PATCH: P2 playfield flip (horizontal only) =============================
