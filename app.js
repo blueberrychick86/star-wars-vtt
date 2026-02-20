@@ -1784,7 +1784,12 @@ try {
   var pf = document.getElementById("playfield");
   if (pf && pf.style) {
     pf.style.transformOrigin = "50% 50%";
-   pf.style.transform = (seatNow === "red") ? "scaleX(-1)" : "";
+   // Force horizontal mirror for P2 (use !important so later camera transforms don't overwrite it)
+if (seatNow === "red") {
+  pf.style.setProperty("transform", "scaleX(-1)", "important");
+} else {
+  pf.style.removeProperty("transform");
+}
   }
 } catch (e) {
   console.warn("[VTT] P2 playfield rotate patch failed:", e);
@@ -1797,7 +1802,43 @@ try {
     el.style.transform = "";
   });
 }
+// === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
+(function __vttWrapApplyLocalCameraForP2Flip(){
+  if (window.__vttP2FlipWrapped) return;
+  window.__vttP2FlipWrapped = true;
 
+  function applyP2FlipNow(){
+    try {
+      var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+        ? String(window.VTT_LOCAL.seat).toLowerCase()
+        : "";
+      if (seatNow === "p2") seatNow = "red";
+      if (seatNow === "p1") seatNow = "blue";
+      if (seatNow === "yellow") seatNow = "blue";
+
+      var pf = document.getElementById("playfield");
+      if (!pf || !pf.style) return;
+
+      if (seatNow === "red") {
+        pf.style.setProperty("transform", "scaleX(-1)", "important");
+      } else {
+        pf.style.removeProperty("transform");
+      }
+    } catch (e) {}
+  }
+
+  var _orig = window.applyLocalCamera;
+  if (typeof _orig === "function") {
+    window.applyLocalCamera = function(){
+      var r = _orig.apply(this, arguments);
+      applyP2FlipNow();
+      return r;
+    };
+  }
+
+  applyP2FlipNow();
+})();
+// === END PATCH =================================================================
 /* =========================
    PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
    - Re-runs applyLocalCamera once __gameConfig exists
