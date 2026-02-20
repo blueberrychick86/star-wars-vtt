@@ -3491,9 +3491,24 @@ try {
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
    // NET: broadcast token move on release
-// Token center coords (design space)
-var __nx = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
-var __ny = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+// NET: broadcast token move on release (center coords, design space)
+var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
+var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
+
+// === PATCH: normalize token Y for network when P2 view is flipped ============
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+
+  if (seatNow === "red" && typeof DESIGN_H === "number") {
+    y = DESIGN_H - y;
+  }
+} catch (e) {}
+// === END PATCH ===============================================================
 
 // === PATCH: normalize token coords for network when P2 view is flipped =======
 try {
