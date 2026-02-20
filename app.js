@@ -1664,7 +1664,7 @@ playfield.id = "playfield";
 /* =========================
    LOCAL SEAT + CAMERA (VISUAL ONLY)
    - Does NOT sync
-   - Rotates #table for the second player so their viewpoint is always bottom
+   - Flips #table vertically for the second player so their viewpoint is always bottom
    ========================= */
 
 (function setupLocalSeatAndCamera() {
