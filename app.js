@@ -1664,7 +1664,7 @@ playfield.id = "playfield";
 /* =========================
    LOCAL SEAT + CAMERA (VISUAL ONLY)
    - Does NOT sync
-   - Flips #table horizontally for the second player so their viewpoint is always bottom
+   - Flips #table vertically for the second player so their viewpoint is always bottom
    ========================= */
 
 (function setupLocalSeatAndCamera() {
@@ -1728,13 +1728,13 @@ playfield.id = "playfield";
   table.style.transformOrigin = "50% 50%";
   var seat = normalizeSeatForView(window.VTT_LOCAL && window.VTT_LOCAL.seat);
   var shouldFlip = (seat === "red");
-  table.style.transform = shouldFlip ? "scaleX(-1)" : "";
+  table.style.transform = shouldFlip ? "rotate(180deg)" : "";
 
   // Keep non-board UI readable for the flipped player.
   [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
     if (!el || !el.style) return;
     el.style.transformOrigin = "50% 50%";
-    el.style.transform = shouldFlip ? "scaleX(-1)" : "";
+    el.style.transform = shouldFlip ? "rotate(180deg)" : "";
   });
 }
 
