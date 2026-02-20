@@ -715,28 +715,20 @@ style.textContent = `
     pointer-events:auto;
     
   }
-// === PATCH: P2 HUD text unflip (vertical) ===================================
+// === PATCH: P2 HUD text unflip (safe global inject) =========================
 (function ensureP2HudTextFixStyle(){
   if (document.getElementById("vttP2HudTextFixStyle")) return;
 
   var st = document.createElement("style");
   st.id = "vttP2HudTextFixStyle";
-  st.textContent = `
-    /* When P2 seat is active, make button text readable even if parent is flipped */
-    .vtt-seat-p2 button,
-    .vtt-seat-p2 .btn,
-    .vtt-seat-p2 .hud button,
-    .vtt-seat-p2 .controls button {
-      transform: scaleY(-1);
-    }
 
-    /* If your button labels are inside spans/divs, this helps keep layout stable */
-    .vtt-seat-p2 button > span,
-    .vtt-seat-p2 button > div {
-      transform: scaleY(-1);
-      display: inline-block;
-    }
-  `;
+  st.innerHTML =
+    ".vtt-seat-p2 button," +
+    ".vtt-seat-p2 .btn," +
+    ".vtt-seat-p2 .controls button{" +
+    "transform: scaleY(-1);" +
+    "}";
+
   document.head.appendChild(st);
 })();
 // === END PATCH ==============================================================
