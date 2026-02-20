@@ -10,6 +10,23 @@
 
 
 console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
+// === PATCH: P2 HUD text unflip (safe global inject) =========================
+(function ensureP2HudTextFixStyle(){
+  if (document.getElementById("vttP2HudTextFixStyle")) return;
+
+  var st = document.createElement("style");
+  st.id = "vttP2HudTextFixStyle";
+  st.textContent = `
+    /* When P2 seat is active, unflip button text */
+    .vtt-seat-p2 button,
+    .vtt-seat-p2 .btn,
+    .vtt-seat-p2 .controls button {
+      transform: scaleY(-1);
+    }
+  `;
+  document.head.appendChild(st);
+})();
+// === END PATCH ==============================================================
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -696,8 +713,33 @@ style.textContent = `
     gap:6px;
     flex-wrap:wrap;
     pointer-events:auto;
+    
   }
+// === PATCH: P2 HUD text unflip (vertical) ===================================
+(function ensureP2HudTextFixStyle(){
+  if (document.getElementById("vttP2HudTextFixStyle")) return;
 
+  var st = document.createElement("style");
+  st.id = "vttP2HudTextFixStyle";
+  st.textContent = `
+    /* When P2 seat is active, make button text readable even if parent is flipped */
+    .vtt-seat-p2 button,
+    .vtt-seat-p2 .btn,
+    .vtt-seat-p2 .hud button,
+    .vtt-seat-p2 .controls button {
+      transform: scaleY(-1);
+    }
+
+    /* If your button labels are inside spans/divs, this helps keep layout stable */
+    .vtt-seat-p2 button > span,
+    .vtt-seat-p2 button > div {
+      transform: scaleY(-1);
+      display: inline-block;
+    }
+  `;
+  document.head.appendChild(st);
+})();
+// === END PATCH ==============================================================
   /* Global spacing for MenuFont */
   .menu-font,
   .inviteBtn,
@@ -1728,6 +1770,32 @@ playfield.id = "playfield";
   // the same board layout shown in reference mocks.
   table.style.transformOrigin = "50% 50%";
   table.style.transform = "";
+     // === PATCH: P2 playfield flip (horizontal only) =============================
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+
+  // normalize common aliases
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+
+  // Add a seat class for CSS targeting (HUD fixes below)
+  document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
+
+  // IMPORTANT:
+  // - This flips ONLY the playfield container (table).
+  // - It does NOT touch the rest of the UI unless your UI is inside #table.
+  if (seatNow === "red") {
+    // Horizontal mirror
+    // If you already have a rotate/scale being applied elsewhere, this composes with it.
+    table.style.transform = (table.style.transform ? table.style.transform + " " : "") + "scaleX(-1)";
+  }
+} catch (e) {
+  console.warn("[VTT] P2 playfield flip patch failed:", e);
+}
+// === END PATCH ==============================================================
 
   [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
     if (!el || !el.style) return;
