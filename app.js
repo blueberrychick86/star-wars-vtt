@@ -1784,8 +1784,7 @@ try {
   var pf = document.getElementById("playfield");
   if (pf && pf.style) {
     pf.style.transformOrigin = "50% 50%";
-    pf.style.transform = (seatNow === "red") ? "rotate(180deg)" : "";
-  }
+pf.style.transform = (seatNow === "red") ? "rotate(180deg) scaleX(-1)" : "";  }
 } catch (e) {
   console.warn("[VTT] P2 playfield rotate patch failed:", e);
 }
