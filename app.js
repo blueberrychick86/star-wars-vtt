@@ -1729,6 +1729,13 @@ playfield.id = "playfield";
   var seat = normalizeSeatForView(window.VTT_LOCAL && window.VTT_LOCAL.seat);
   var shouldFlip = (seat === "red");
   table.style.transform = shouldFlip ? "rotate(180deg)" : "";
+
+  // Keep non-board UI readable for the flipped player.
+  [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
+    if (!el || !el.style) return;
+    el.style.transformOrigin = "50% 50%";
+    el.style.transform = shouldFlip ? "rotate(180deg)" : "";
+  });
 }
 
 /* =========================
@@ -1836,6 +1843,7 @@ app.appendChild(table);
 var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
+window.hud = hud;
 
 function mkHudBtn(txt){
   var b = document.createElement("button");
@@ -1897,6 +1905,7 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
+window.previewBackdrop = previewBackdrop;
 
 // HARD modal trap (FIXED)
 (function trapPreviewInteractions(){
@@ -1980,6 +1989,7 @@ tray.appendChild(trayBody);
 
 trayShell.appendChild(tray);
 table.appendChild(trayShell);
+window.trayShell = trayShell;
 
 trayShell.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
 trayShell.addEventListener("pointermove", function(e){ e.stopPropagation(); });
