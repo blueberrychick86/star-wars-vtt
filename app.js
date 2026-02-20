@@ -1902,9 +1902,78 @@ app.appendChild(table);
 
 var hud = document.createElement("div");
 hud.id = "hud";
-table.appendChild(hud);
+// === PATCH: HUD should NOT live inside #table (prevents camera flip from affecting UI) ===
+try {
+  if (hud && hud.parentNode) hud.parentNode.removeChild(hud);
+  document.body.appendChild(hud);
+} catch (e) {
+  // fallback (keep old behavior if something weird happens)
+  try { table.appendChild(hud); } catch (_e) {}
+}
+// === END PATCH =========================================================================
 window.hud = hud;
+// === PATCH: Bottom-center HUD bar styling + unflip any inherited transforms ============
+(function vttHudBottomCenterPatch(){
+  // 1) Add CSS override (wins over earlier styles)
+  if (!document.getElementById("vttHudBottomCenterStyle")) {
+    var st = document.createElement("style");
+    st.id = "vttHudBottomCenterStyle";
+    st.textContent = `
+      /* HUD anchored bottom center, separate from playfield */
+      #hud{
+        position:fixed !important;
+        left:50% !important;
+        right:auto !important;
+        top:auto !important;
+        bottom:12px !important;
+        transform:translateX(-50%) !important;
 
+        z-index:1000000 !important;
+        display:flex !important;
+        gap:8px !important;
+        flex-wrap:wrap !important;
+        align-items:center !important;
+        justify-content:center !important;
+
+        padding:10px 12px !important;
+        border-radius:14px !important;
+        background:rgba(0,0,0,.62) !important;
+        border:1px solid rgba(255,255,255,.18) !important;
+        backdrop-filter: blur(6px);
+        pointer-events:auto !important;
+      }
+
+      /* HARD reset: button text should never inherit flips */
+      #hud, #hud *{
+        transform:none !important;
+      }
+
+      #hud button, #hud .hudBtn{
+        transform:none !important;
+        direction:ltr !important;
+        unicode-bidi:plaintext !important;
+      }
+
+      /* If any P2 class tries to flip buttons globally, override it for HUD */
+      .vtt-seat-p2 #hud button,
+      .vtt-seat-p2 #hud .btn,
+      .vtt-seat-p2 #hud .controls button{
+        transform:none !important;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  // 2) If an old "P2 HUD text fix" style exists and is flipping things, neutralize it
+  try {
+    var old = document.getElementById("vttP2HudTextFixStyle");
+    if (old) {
+      // keep it non-destructive: just override its effect by appending safer rules
+      old.textContent += "\n#hud, #hud *{ transform:none !important; }\n";
+    }
+  } catch(e) {}
+})();
+// === END PATCH ==========================================================================
 function mkHudBtn(txt){
   var b = document.createElement("button");
   b.className = "hudBtn";
