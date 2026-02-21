@@ -2467,7 +2467,25 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       // preserve owner info from the tray tile (if present)
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
+// === PATCH: P2 flip-safe snapping + net coords (cards) =====================
+var __seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+  ? String(window.VTT_LOCAL.seat).toLowerCase()
+  : "";
+if (__seatNow === "p2") __seatNow = "red";
+if (__seatNow === "p1") __seatNow = "blue";
+if (__seatNow === "yellow") __seatNow = "blue";
 
+var __isP2 = (__seatNow === "red");
+var __H = (typeof DESIGN_H === "number")
+  ? DESIGN_H
+  : (stage.getBoundingClientRect().height / camera.scale);
+
+// Convert element into SHARED (unflipped) space for snapping + network
+if (__isP2) {
+  var __lt = parseFloat(el.style.top || "0");
+  el.style.top = (__H - __lt) + "px";
+}
+// === END PATCH ==============================================================
 if (kind === "base") {
   snapBaseAutoFill(el);
   if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
@@ -4108,8 +4126,8 @@ sendMove({
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-  x: parseFloat(el.style.left || "0"),
-  y: parseFloat(el.style.top  || "0"),
+   x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"), // (already normalized for P2 by the patch above)
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
@@ -4117,6 +4135,12 @@ sendMove({
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
 }, "move_shared_piece", { pieceType: "card" });
+     // === PATCH: restore P2 local visual coords after snap + net ==================
+if (__isP2) {
+  var __st = parseFloat(el.style.top || "0"); // currently shared space
+  el.style.top = (__H - __st) + "px";         // back to P2-local (flipped) space
+}
+// === END PATCH ==============================================================
 });
 
 
