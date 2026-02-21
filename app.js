@@ -4034,11 +4034,40 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
     dragging = false;
+// === PATCH: P2 card pointerup normalize (snap + send use shared coords) =======
+var __p2Flip = false;
+try {
+  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+    ? String(window.VTT_LOCAL.seat).toLowerCase()
+    : "";
+  if (seatNow === "p2") seatNow = "red";
+  if (seatNow === "p1") seatNow = "blue";
+  if (seatNow === "yellow") seatNow = "blue";
+  __p2Flip = (seatNow === "red");
+} catch (e) {}
 
+var __didNormalize = false;
+var __origTop = 0;
+
+// Convert visual top -> shared top for snap/send
+if (__p2Flip && typeof DESIGN_H === "number") {
+  __origTop = parseFloat(el.style.top || "0");
+  el.style.top = (DESIGN_H - __origTop) + "px";
+  __didNormalize = true;
+}
+
+function __restoreP2VisualTop() {
+  if (!__didNormalize) return;
+  if (typeof DESIGN_H !== "number") return;
+  var __sharedTop = parseFloat(el.style.top || "0");
+  el.style.top = (DESIGN_H - __sharedTop) + "px";
+}
+// === END PATCH ===============================================================
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
-      return;
+       __restoreP2VisualTop();
+  return;
     }
 
     if (longPressFired) {
@@ -4119,7 +4148,7 @@ sendMove({
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
 }, "move_shared_piece", { pieceType: "card" });
-
+__restoreP2VisualTop();
 });
 
 
