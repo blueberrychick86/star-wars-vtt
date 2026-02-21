@@ -1804,7 +1804,7 @@ if (seatNow === "red") {
       if (!pf || !pf.style) return;
 
       if (seatNow === "red") {
-        pf.style.setProperty("transform", "scaleX(-1)", "important");
+       pf.style.setProperty("transform", "scaleY(-1)", "important");
       } else {
         pf.style.removeProperty("transform");
       }
