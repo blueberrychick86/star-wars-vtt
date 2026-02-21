@@ -1788,6 +1788,8 @@ if (seatNow === "red") {
 }
 // === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
 (function __vttWrapApplyLocalCameraForP2Flip(){
+  // NO-OP: applyLocalCamera() is the single authoritative place for P2 playfield flip.
+  return;
   if (window.__vttP2FlipWrapped) return;
   window.__vttP2FlipWrapped = true;
 
@@ -4019,6 +4021,20 @@ py = H - py;
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
+    // Keep drag math in the same shared space as pointerdown for P2 flipped view.
+    try {
+      var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+        ? String(window.VTT_LOCAL.seat).toLowerCase()
+        : "";
+      if (seatNow === "p2") seatNow = "red";
+      if (seatNow === "p1") seatNow = "blue";
+      if (seatNow === "yellow") seatNow = "blue";
+
+      if (seatNow === "red") {
+        var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
+        py = H - py;
+      }
+    } catch (e) {}
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
@@ -4028,27 +4044,7 @@ py = H - py;
     clearPressTimer();
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
     dragging = false;
-// === PATCH: P2 card pointerup normalize (snap + send use shared coords) =======
-var __p2Flip = false;
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-  __p2Flip = (seatNow === "red");
-} catch (e) {}
-
-var __didNormalize = false;
-var __origTop = 0;
-
-// Convert visual top -> shared top for snap/send
-if (__p2Flip && typeof DESIGN_H === "number") {
-  __origTop = parseFloat(el.style.top || "0");
-  el.style.top = (DESIGN_H - __origTop) + "px";
-  __didNormalize = true;
-}
+// P2 normalization removed here: pointerdown/pointermove already keep shared-space coords.
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
