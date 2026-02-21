@@ -10,23 +10,7 @@
 
 
 console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
-// === PATCH: P2 HUD text unflip (safe global inject) =========================
-(function ensureP2HudTextFixStyle(){
-  if (document.getElementById("vttP2HudTextFixStyle")) return;
-
-  var st = document.createElement("style");
-  st.id = "vttP2HudTextFixStyle";
-  st.textContent = `
-    /* When P2 seat is active, unflip button text */
-    .vtt-seat-p2 button,
-    .vtt-seat-p2 .btn,
-    .vtt-seat-p2 .controls button {
-        transform: none;
-    }
-  `;
-  document.head.appendChild(st);
-})();
-// === END PATCH ==============================================================
+/* P2 HUD text unflip handled by real <style> injection above */
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -2317,7 +2301,17 @@ function closeTray() {
 
   trayState.open = false;
   traySearchRow.classList.remove("show");
-  trayCarousel.innerHTML = "";
+ // Instead of destroying the seat containers, just clear them
+try { if (trayCarouselP1) trayCarouselP1.innerHTML = ""; } catch (e) {}
+try { if (trayCarouselP2) trayCarouselP2.innerHTML = ""; } catch (e) {}
+
+// Safety: if something did remove them, re-attach
+try {
+  if (trayCarousel && trayCarouselP1 && trayCarouselP2) {
+    if (!trayCarousel.contains(trayCarouselP1)) trayCarousel.appendChild(trayCarouselP1);
+    if (!trayCarousel.contains(trayCarouselP2)) trayCarousel.appendChild(trayCarouselP2);
+  }
+} catch (e) {}
   trayShell.classList.remove("dragging");
   trayShell.classList.remove("dragging");
 
