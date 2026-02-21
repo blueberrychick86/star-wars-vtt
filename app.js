@@ -2443,19 +2443,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   }
 
   function finishDrag(clientX, clientY) {
-   // === PATCH: define P2 flip vars for finishDrag scope =========================
-var __seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-  ? String(window.VTT_LOCAL.seat).toLowerCase()
-  : "";
-if (__seatNow === "p2") __seatNow = "red";
-if (__seatNow === "p1") __seatNow = "blue";
-if (__seatNow === "yellow") __seatNow = "blue";
-
-var __isP2 = (__seatNow === "red");
-var __H = (typeof DESIGN_H === "number")
-  ? DESIGN_H
-  : (stage.getBoundingClientRect().height / camera.scale);
-// === END PATCH ===============================================================
      if (ghost) { ghost.remove(); ghost = null; }
     trayShell.classList.remove("dragging");
 
@@ -3247,8 +3234,8 @@ function ensureForceMarker(initialIndex) {
     if (seatNow === "yellow") seatNow = "blue";
 
     if (seatNow === "red") {
-      var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
-py = H - py;
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
     }
   } catch (e) {}
   // === END PATCH =============================================================
@@ -4016,8 +4003,8 @@ function attachDragHandlers(el, cardData, kind) {
     if (seatNow === "yellow") seatNow = "blue";
 
     if (seatNow === "red") {
-      var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
-py = H - py;
+      var stageH = stageRect.height / camera.scale;
+      py = stageH - py;
     }
   } catch (e) {}
   // === END PATCH =============================================================
@@ -4060,8 +4047,8 @@ py = H - py;
       if (seatNow === "yellow") seatNow = "blue";
 
       if (seatNow === "red") {
-        var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
-        py = H - py;
+        var stageH = stageRect.height / camera.scale;
+        py = stageH - py;
       }
     } catch (e) {}
 
@@ -4146,12 +4133,6 @@ sendMove({
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
 }, "move_shared_piece", { pieceType: "card" });
-     // === PATCH: restore P2 local visual coords after snap + net ==================
-if (__isP2) {
-  var __st = parseFloat(el.style.top || "0"); // currently shared space
-  el.style.top = (__H - __st) + "px";         // back to P2-local (flipped) space
-}
-// === END PATCH ==============================================================
 });
 
 
