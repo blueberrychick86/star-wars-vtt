@@ -3235,8 +3235,8 @@ function ensureForceMarker(initialIndex) {
     if (seatNow === "yellow") seatNow = "blue";
 
     if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
+      var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
+py = H - py;
     }
   } catch (e) {}
   // === END PATCH =============================================================
@@ -3991,8 +3991,8 @@ function attachDragHandlers(el, cardData, kind) {
     if (seatNow === "yellow") seatNow = "blue";
 
     if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
+      var H = (typeof DESIGN_H === "number") ? DESIGN_H : (stageRect.height / camera.scale);
+py = H - py;
     }
   } catch (e) {}
   // === END PATCH =============================================================
@@ -4055,18 +4055,9 @@ if (__p2Flip && typeof DESIGN_H === "number") {
   el.style.top = (DESIGN_H - __origTop) + "px";
   __didNormalize = true;
 }
-
-function __restoreP2VisualTop() {
-  if (!__didNormalize) return;
-  if (typeof DESIGN_H !== "number") return;
-  var __sharedTop = parseFloat(el.style.top || "0");
-  el.style.top = (DESIGN_H - __sharedTop) + "px";
-}
-// === END PATCH ===============================================================
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
-       __restoreP2VisualTop();
   return;
     }
 
@@ -4080,26 +4071,14 @@ function __restoreP2VisualTop() {
       flipTimer = setTimeout(function(){
         toggleFlip(el);
          // NET: sync flip immediately (no extra drag needed)
-         // === PATCH: normalize card coords for network when P2 view is flipped =========
-var __nx = parseFloat(el.style.left || "0");
-var __ny = parseFloat(el.style.top  || "0");
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-  if (seatNow === "red" && typeof DESIGN_H === "number") {
-    __ny = (DESIGN_H - __ny);
-  }
-} catch (e) {}
-// === END PATCH ===============================================================
+        
 sendMove({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
- x: __nx,
-y: __ny,
+x: parseFloat(el.style.left || "0"),
+y: parseFloat(el.style.top  || "0"),
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
@@ -4148,7 +4127,6 @@ sendMove({
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
 }, "move_shared_piece", { pieceType: "card" });
-__restoreP2VisualTop();
 });
 
 
