@@ -2468,19 +2468,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
 // === PATCH: P2 flip-safe snapping + net coords (cards) =====================
-var __seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-  ? String(window.VTT_LOCAL.seat).toLowerCase()
-  : "";
-if (__seatNow === "p2") __seatNow = "red";
-if (__seatNow === "p1") __seatNow = "blue";
-if (__seatNow === "yellow") __seatNow = "blue";
-
-var __isP2 = (__seatNow === "red");
-var __H = (typeof DESIGN_H === "number")
-  ? DESIGN_H
-  : (stage.getBoundingClientRect().height / camera.scale);
-
-// Convert element into SHARED (unflipped) space for snapping + network
 if (__isP2) {
   var __lt = parseFloat(el.style.top || "0");
   el.style.top = (__H - __lt) + "px";
@@ -3504,7 +3491,20 @@ try {
   el.addEventListener("pointerup", function(e){
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
-   // NET: broadcast token move on release
+  // === PATCH: P2 flip-safe vars must be in pointerup scope =====================
+var __seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+  ? String(window.VTT_LOCAL.seat).toLowerCase()
+  : "";
+if (__seatNow === "p2") __seatNow = "red";
+if (__seatNow === "p1") __seatNow = "blue";
+if (__seatNow === "yellow") __seatNow = "blue";
+
+var __isP2 = (__seatNow === "red");
+var __H = (typeof DESIGN_H === "number")
+  ? DESIGN_H
+  : (stage.getBoundingClientRect().height / camera.scale);
+// === END PATCH ===============================================================
+     // NET: broadcast token move on release
 // NET: broadcast token move on release (center coords, design space)
 var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
 var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
