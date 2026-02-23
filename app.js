@@ -338,6 +338,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capSide) el.dataset.capSide = msg.capSide;
     if (msg.capIndex != null) el.dataset.capIndex = String(msg.capIndex);
 
+    applyLocalCardFacing(el);
     stage.appendChild(el);
     refreshSnapRects();
     return;
