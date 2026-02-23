@@ -3082,6 +3082,11 @@ function refreshSnapRects() {
   }
 }
 
+function getP2SnapWorldHeight() {
+  if (getLocalSeatColor() !== "red") return 0;
+  return stage.getBoundingClientRect().height / camera.scale;
+}
+
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
@@ -3113,6 +3118,8 @@ function snapCardToNearestZone(cardEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   var w = parseFloat(cardEl.style.width);
   var h = parseFloat(cardEl.style.height);
@@ -3149,6 +3156,8 @@ function snapBaseToNearestBaseStack(baseEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
   baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
