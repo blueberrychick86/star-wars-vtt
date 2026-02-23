@@ -3919,7 +3919,14 @@ function applyFactionBorderClass(el, cardData){
    CARD FACTORY + DRAG
    ========================= */
 function applyLocalCardFacing(el) {
-  updateCardFacingForViewer(el);
+  if (!el || !el.style) return;
+  var t = String(el.style.transform || "");
+  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
+  if (getLocalSeatColor() === "red") {
+    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
+  } else if (hasCounter) {
+    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
+  }
 }
 
 function makeCardEl(cardData, kind) {
