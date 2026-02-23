@@ -2453,7 +2453,12 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
     if (!releasedOverTray) {
       if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var p = viewportToDesign(clientX, clientY);
+      var stageRect = stage.getBoundingClientRect();
+      var worldX = (clientX - stageRect.left) / camera.scale;
+      var worldY = (clientY - stageRect.top) / camera.scale;
+      var dropH = getP2SnapWorldHeight();
+      if (dropH) worldY = dropH - worldY;
+      var p = { x: worldX, y: worldY };
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
@@ -3082,6 +3087,11 @@ function refreshSnapRects() {
   }
 }
 
+function getP2SnapWorldHeight() {
+  if (getLocalSeatColor() !== "red") return 0;
+  return stage.getBoundingClientRect().height / camera.scale;
+}
+
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
@@ -3113,6 +3123,8 @@ function snapCardToNearestZone(cardEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   var w = parseFloat(cardEl.style.width);
   var h = parseFloat(cardEl.style.height);
@@ -3149,6 +3161,8 @@ function snapBaseToNearestBaseStack(baseEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
   baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
