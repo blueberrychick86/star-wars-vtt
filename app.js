@@ -338,6 +338,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capSide) el.dataset.capSide = msg.capSide;
     if (msg.capIndex != null) el.dataset.capIndex = String(msg.capIndex);
 
+    applyLocalCardFacing(el);
     stage.appendChild(el);
     refreshSnapRects();
     return;
@@ -365,6 +366,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capIndex != null) card.dataset.capIndex = String(msg.capIndex);
     else { try { delete card.dataset.capIndex; } catch(e){} }
 
+    applyLocalCardFacing(card);
     return;
   }
 
@@ -2453,7 +2455,12 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
     if (!releasedOverTray) {
       if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var p = viewportToDesign(clientX, clientY);
+      var stageRect = stage.getBoundingClientRect();
+      var worldX = (clientX - stageRect.left) / camera.scale;
+      var worldY = (clientY - stageRect.top) / camera.scale;
+      var dropH = getP2SnapWorldHeight();
+      if (dropH) worldY = dropH - worldY;
+      var p = { x: worldX, y: worldY };
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
@@ -2467,6 +2474,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       // preserve owner info from the tray tile (if present)
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
+      applyLocalCardFacing(el);
 // === PATCH: P2 flip-safe snapping + net coords (cards) =====================
 // No extra flip here: viewportToDesign() already returns shared coords.
 // (P2 visual flip is handled by playfield scaleY(-1) + drag math.)
@@ -3082,6 +3090,11 @@ function refreshSnapRects() {
   }
 }
 
+function getP2SnapWorldHeight() {
+  if (getLocalSeatColor() !== "red") return 0;
+  return stage.getBoundingClientRect().height / camera.scale;
+}
+
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
@@ -3113,6 +3126,8 @@ function snapCardToNearestZone(cardEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   var w = parseFloat(cardEl.style.width);
   var h = parseFloat(cardEl.style.height);
@@ -3149,6 +3164,8 @@ function snapBaseToNearestBaseStack(baseEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
   baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
@@ -3865,6 +3882,22 @@ function applyFactionBorderClass(el, cardData){
 /* =========================
    CARD FACTORY + DRAG
    ========================= */
+function applyLocalCardFacing(el) {
+  if (!el || !el.style) return;
+  var ownerRaw = "";
+  try {
+    ownerRaw = (el.dataset && (el.dataset.owner || el.dataset.seat || el.dataset.faction || el.dataset.side)) || "";
+  } catch (e) {}
+  var ownerColor = seatColorFromAny(ownerRaw);
+  var t = String(el.style.transform || "");
+  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
+  if (ownerColor === "red") {
+    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
+  } else if (hasCounter) {
+    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
+  }
+}
+
 function makeCardEl(cardData, kind) {
   var el = document.createElement("div");
   el.className = "card";
@@ -3903,6 +3936,7 @@ function makeCardEl(cardData, kind) {
   });
 
   attachDragHandlers(el, cardData, kind);
+  applyLocalCardFacing(el);
   return el;
 }
 
