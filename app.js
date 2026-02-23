@@ -58,6 +58,7 @@ window.applyCardMove = function(m){
 
     if (m.capSide) el.dataset.capSide = m.capSide; else delete el.dataset.capSide;
     if (m.capIndex != null) el.dataset.capIndex = String(m.capIndex); else delete el.dataset.capIndex;
+    if (typeof updateCardFacingForViewer === "function") updateCardFacingForViewer(el);
   } catch (e) {
     console.warn("applyCardMove failed:", e);
   }
@@ -110,6 +111,34 @@ function getLocalSeatColor() {
     if (window.__gameConfig && window.__gameConfig.youAre) return seatColorFromAny(window.__gameConfig.youAre);
   } catch (e2) {}
   return "blue";
+}
+
+function normalizeOwnerSeatKey(v) {
+  var s = String(v || "").toLowerCase();
+  if (s === "p1" || s === "blue" || s === "yellow") return "p1";
+  if (s === "p2" || s === "red") return "p2";
+  return "p1";
+}
+
+function getLocalOwnerSeatKey() {
+  return (getLocalSeatColor() === "red") ? "p2" : "p1";
+}
+
+function updateCardFacingForViewer(cardEl) {
+  if (!cardEl || !cardEl.style) return;
+  var owner = normalizeOwnerSeatKey(
+    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
+  );
+  var isOpp = owner !== getLocalOwnerSeatKey();
+  cardEl.dataset.vttFacing = isOpp ? "opp" : "self";
+
+  if ((cardEl.dataset.kind || "") === "unit") {
+    if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
+    return;
+  }
+
+  cardEl.style.transformOrigin = "50% 50%";
+  cardEl.style.transform = isOpp ? "rotate(180deg)" : "";
 }
 
 function __vttEnsureToastEl(){
@@ -338,6 +367,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capSide) el.dataset.capSide = msg.capSide;
     if (msg.capIndex != null) el.dataset.capIndex = String(msg.capIndex);
 
+    applyLocalCardFacing(el);
     stage.appendChild(el);
     refreshSnapRects();
     return;
@@ -365,6 +395,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capIndex != null) card.dataset.capIndex = String(msg.capIndex);
     else { try { delete card.dataset.capIndex; } catch(e){} }
 
+    applyLocalCardFacing(card);
     return;
   }
 
@@ -1785,6 +1816,11 @@ if (seatNow === "red") {
     el.style.transformOrigin = "50% 50%";
     el.style.transform = "";
   });
+
+  try {
+    var cards = stage.querySelectorAll(".card");
+    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
+  } catch (e) {}
 }
 // === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
 (function __vttWrapApplyLocalCameraForP2Flip(){
@@ -2453,7 +2489,12 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
     if (!releasedOverTray) {
       if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var p = viewportToDesign(clientX, clientY);
+      var stageRect = stage.getBoundingClientRect();
+      var worldX = (clientX - stageRect.left) / camera.scale;
+      var worldY = (clientY - stageRect.top) / camera.scale;
+      var dropH = getP2SnapWorldHeight();
+      if (dropH) worldY = dropH - worldY;
+      var p = { x: worldX, y: worldY };
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
@@ -2467,6 +2508,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       // preserve owner info from the tray tile (if present)
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
+      applyLocalCardFacing(el);
 // === PATCH: P2 flip-safe snapping + net coords (cards) =====================
 // No extra flip here: viewportToDesign() already returns shared coords.
 // (P2 visual flip is handled by playfield scaleY(-1) + drag math.)
@@ -3082,6 +3124,11 @@ function refreshSnapRects() {
   }
 }
 
+function getP2SnapWorldHeight() {
+  if (getLocalSeatColor() !== "red") return 0;
+  return stage.getBoundingClientRect().height / camera.scale;
+}
+
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
@@ -3113,6 +3160,8 @@ function snapCardToNearestZone(cardEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   var w = parseFloat(cardEl.style.width);
   var h = parseFloat(cardEl.style.height);
@@ -3149,6 +3198,8 @@ function snapBaseToNearestBaseStack(baseEl) {
   var stageRect = stage.getBoundingClientRect();
   var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
   var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+  var worldH = getP2SnapWorldHeight();
+  if (worldH) targetCenterY = worldH - targetCenterY;
 
   baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
   baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
@@ -3374,10 +3425,12 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  var facingRot = (cardEl.dataset.vttFacing === "opp") ? 180 : 0;
+  var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = "rotate(" + rot + "deg)";
+  cardEl.style.transform = "rotate(" + totalRot + "deg)";
   var face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
@@ -3865,6 +3918,10 @@ function applyFactionBorderClass(el, cardData){
 /* =========================
    CARD FACTORY + DRAG
    ========================= */
+function applyLocalCardFacing(el) {
+  updateCardFacingForViewer(el);
+}
+
 function makeCardEl(cardData, kind) {
   var el = document.createElement("div");
   el.className = "card";
@@ -3903,6 +3960,7 @@ function makeCardEl(cardData, kind) {
   });
 
   attachDragHandlers(el, cardData, kind);
+  applyLocalCardFacing(el);
   return el;
 }
 
