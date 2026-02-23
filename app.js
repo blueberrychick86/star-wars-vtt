@@ -365,6 +365,7 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capIndex != null) card.dataset.capIndex = String(msg.capIndex);
     else { try { delete card.dataset.capIndex; } catch(e){} }
 
+    applyLocalCardFacing(card);
     return;
   }
 
@@ -2472,6 +2473,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       // preserve owner info from the tray tile (if present)
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
+      applyLocalCardFacing(el);
 // === PATCH: P2 flip-safe snapping + net coords (cards) =====================
 // No extra flip here: viewportToDesign() already returns shared coords.
 // (P2 visual flip is handled by playfield scaleY(-1) + drag math.)
@@ -3879,6 +3881,17 @@ function applyFactionBorderClass(el, cardData){
 /* =========================
    CARD FACTORY + DRAG
    ========================= */
+function applyLocalCardFacing(el) {
+  if (!el || !el.style) return;
+  var t = String(el.style.transform || "");
+  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
+  if (getLocalSeatColor() === "red") {
+    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
+  } else if (hasCounter) {
+    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
+  }
+}
+
 function makeCardEl(cardData, kind) {
   var el = document.createElement("div");
   el.className = "card";
@@ -3917,6 +3930,7 @@ function makeCardEl(cardData, kind) {
   });
 
   attachDragHandlers(el, cardData, kind);
+  applyLocalCardFacing(el);
   return el;
 }
 
