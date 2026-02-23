@@ -3884,14 +3884,9 @@ function applyFactionBorderClass(el, cardData){
    ========================= */
 function applyLocalCardFacing(el) {
   if (!el || !el.style) return;
-  var ownerRaw = "";
-  try {
-    ownerRaw = (el.dataset && (el.dataset.owner || el.dataset.seat || el.dataset.faction || el.dataset.side)) || "";
-  } catch (e) {}
-  var ownerColor = seatColorFromAny(ownerRaw);
   var t = String(el.style.transform || "");
   var hasCounter = t.indexOf("scaleY(-1)") !== -1;
-  if (ownerColor === "red") {
+  if (getLocalSeatColor() === "red") {
     if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
   } else if (hasCounter) {
     el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
