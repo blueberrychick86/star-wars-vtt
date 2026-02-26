@@ -124,13 +124,38 @@ function getLocalOwnerSeatKey() {
   return (getLocalSeatColor() === "red") ? "p2" : "p1";
 }
 
+function getFacingDesignHeight() {
+  if (typeof DESIGN_H === "number" && isFinite(DESIGN_H) && DESIGN_H > 0) return DESIGN_H;
+  try {
+    if (window.stage && window.stage.getBoundingClientRect && window.camera && Number(window.camera.scale)) {
+      var rect = window.stage.getBoundingClientRect();
+      var s = Number(window.camera.scale) || 1;
+      if (rect && rect.height && s > 0) return rect.height / s;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function getViewerFacingBaseRotation(cardEl) {
+  if (!cardEl) return 0;
+  var top = Number(cardEl.style && cardEl.style.top);
+  if (!isFinite(top)) top = 0;
+
+  var h = Number(cardEl.style && cardEl.style.height);
+  if (!isFinite(h) || h <= 0) {
+    h = ((cardEl.dataset && cardEl.dataset.kind) === "unit") ? CARD_H : BASE_H;
+  }
+
+  var centerY = top + (h / 2);
+  var designH = getFacingDesignHeight();
+  if (!(designH > 0)) return 0;
+  return centerY < (designH / 2) ? 180 : 0;
+}
+
 function updateCardFacingForViewer(cardEl) {
   if (!cardEl || !cardEl.style) return;
-  var owner = normalizeOwnerSeatKey(
-    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
-  );
-  var isOpp = owner !== getLocalOwnerSeatKey();
-  cardEl.dataset.vttFacing = isOpp ? "opp" : "self";
+  var baseFacing = getViewerFacingBaseRotation(cardEl);
+  cardEl.dataset.vttFacing = String(baseFacing);
 
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
@@ -138,7 +163,7 @@ function updateCardFacingForViewer(cardEl) {
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = isOpp ? "rotate(180deg)" : "";
+  cardEl.style.transform = baseFacing ? ("rotate(" + baseFacing + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -3425,7 +3450,7 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var facingRot = (cardEl.dataset.vttFacing === "opp") ? 180 : 0;
+  var facingRot = ((Number(cardEl.dataset.vttFacing || "0") % 360) + 360) % 360;
   var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
@@ -3919,14 +3944,7 @@ function applyFactionBorderClass(el, cardData){
    CARD FACTORY + DRAG
    ========================= */
 function applyLocalCardFacing(el) {
-  if (!el || !el.style) return;
-  var t = String(el.style.transform || "");
-  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
-  if (getLocalSeatColor() === "red") {
-    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
-  } else if (hasCounter) {
-    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
-  }
+  updateCardFacingForViewer(el);
 }
 
 function makeCardEl(cardData, kind) {
