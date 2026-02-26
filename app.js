@@ -124,13 +124,81 @@ function getLocalOwnerSeatKey() {
   return (getLocalSeatColor() === "red") ? "p2" : "p1";
 }
 
+function getFacingDesignHeight() {
+  if (typeof DESIGN_H === "number" && isFinite(DESIGN_H) && DESIGN_H > 0) return DESIGN_H;
+  try {
+    if (window.stage && window.stage.getBoundingClientRect && window.camera && Number(window.camera.scale)) {
+      var rect = window.stage.getBoundingClientRect();
+      var s = Number(window.camera.scale) || 1;
+      if (rect && rect.height && s > 0) return rect.height / s;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function isViewerYFlipped() {
+  try {
+    var pf = document.getElementById("playfield");
+    if (!pf) return false;
+
+    var inlineT = String(pf.style && pf.style.transform || "");
+    if (inlineT.indexOf("scaleY(-1)") !== -1) return true;
+
+    var cs = window.getComputedStyle ? window.getComputedStyle(pf) : null;
+    if (!cs) return false;
+    var t = String(cs.transform || "");
+    if (!t || t === "none") return false;
+
+    var m2d = t.match(/^matrix\(([^)]+)\)$/);
+    if (m2d) {
+      var p2 = m2d[1].split(",");
+      var d = Number(p2[3]);
+      return isFinite(d) && d < 0;
+    }
+
+    var m3d = t.match(/^matrix3d\(([^)]+)\)$/);
+    if (m3d) {
+      var p3 = m3d[1].split(",");
+      var m22 = Number(p3[5]);
+      return isFinite(m22) && m22 < 0;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function vttViewerYFromDesignY(designY) {
+  var H = getFacingDesignHeight();
+  if (!(H > 0)) return Number(designY) || 0;
+  var y = Number(designY) || 0;
+  return isViewerYFlipped() ? (H - y) : y;
+}
+
+function getViewerFacingBaseRotation(cardEl) {
+  if (!cardEl) return 0;
+  var top = Number(cardEl.style && cardEl.style.top);
+  if (!isFinite(top)) top = 0;
+
+  var h = Number(cardEl.style && cardEl.style.height);
+  if (!isFinite(h) || h <= 0) {
+    var k = (cardEl.dataset && cardEl.dataset.kind) || "";
+    if (k === "base") h = BASE_H;
+    else h = CARD_H; // for unit + normal cards
+  }
+
+  var centerY = top + (h / 2);
+  var designH = getFacingDesignHeight();
+  if (!(designH > 0)) return 0;
+  var viewerY = vttViewerYFromDesignY(centerY);
+  return viewerY < (designH / 2) ? 180 : 0;
+}
+
 function updateCardFacingForViewer(cardEl) {
   if (!cardEl || !cardEl.style) return;
-  var owner = normalizeOwnerSeatKey(
-    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
-  );
-  var isOpp = owner !== getLocalOwnerSeatKey();
-  cardEl.dataset.vttFacing = isOpp ? "opp" : "self";
+  var baseFacing = getViewerFacingBaseRotation(cardEl);
+  cardEl.dataset.vttFacing = String(baseFacing);
+
+  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  var total = (rot + baseFacing) % 360;
 
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
@@ -138,7 +206,7 @@ function updateCardFacingForViewer(cardEl) {
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = isOpp ? "rotate(180deg)" : "";
+  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -169,6 +237,30 @@ function showToast(msg, ms){
     el.style.display = "block";
     clearTimeout(window.__vttToastTimer);
     window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
+  } catch (e) {}
+}
+
+
+function applyPlayfieldViewFlip(seatNow) {
+  try {
+    var pf = document.getElementById("playfield");
+    if (!pf || !pf.style) return;
+    pf.style.transformOrigin = "50% 50%";
+
+    var fallbackSeat = seatColorFromAny(seatNow || getLocalSeatColor());
+    var viewSeat = seatColorFromAny(window.__gameState && window.__gameState.activeSeat);
+    if (viewSeat !== "blue" && viewSeat !== "red") viewSeat = fallbackSeat;
+
+    if (viewSeat === "red") pf.style.setProperty("transform", "scaleY(-1)", "important");
+    else pf.style.removeProperty("transform");
+  } catch (e) {}
+}
+
+function refreshAllCardFacingVisuals() {
+  try {
+    if (!window.stage || !window.stage.querySelectorAll) return;
+    var cards = stage.querySelectorAll(".card");
+    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
   } catch (e) {}
 }
 
@@ -221,6 +313,16 @@ var TurnManager = {
     if (badge) badge.textContent = "TURN: " + active;
     var endBtn = document.getElementById("endTurnBtn");
     if (endBtn) endBtn.disabled = !this.isMyTurn();
+
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
+
+    applyPlayfieldViewFlip(seatNow);
+    refreshAllCardFacingVisuals();
     if (this.isMyTurn()) showToast("YOUR TURN", 1300);
   },
   handleTurnSet: function(msg){
@@ -1796,16 +1898,7 @@ try {
   document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
 
   // Rotate ONLY the playfield (not the HUD / trays / buttons)
-  var pf = document.getElementById("playfield");
-  if (pf && pf.style) {
-    pf.style.transformOrigin = "50% 50%";
-   // Force horizontal mirror for P2 (use !important so later camera transforms don't overwrite it)
-if (seatNow === "red") {
-  pf.style.setProperty("transform", "scaleY(-1)", "important");
-} else {
-  pf.style.removeProperty("transform");
-}
-  }
+  applyPlayfieldViewFlip(seatNow);
 } catch (e) {
   console.warn("[VTT] P2 playfield rotate patch failed:", e);
 }
@@ -1817,10 +1910,7 @@ if (seatNow === "red") {
     el.style.transform = "";
   });
 
-  try {
-    var cards = stage.querySelectorAll(".card");
-    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
-  } catch (e) {}
+  refreshAllCardFacingVisuals();
 }
 // === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
 (function __vttWrapApplyLocalCameraForP2Flip(){
@@ -3425,7 +3515,7 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var facingRot = (cardEl.dataset.vttFacing === "opp") ? 180 : 0;
+  var facingRot = ((Number(cardEl.dataset.vttFacing || "0") % 360) + 360) % 360;
   var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
@@ -3919,14 +4009,7 @@ function applyFactionBorderClass(el, cardData){
    CARD FACTORY + DRAG
    ========================= */
 function applyLocalCardFacing(el) {
-  if (!el || !el.style) return;
-  var t = String(el.style.transform || "");
-  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
-  if (getLocalSeatColor() === "red") {
-    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
-  } else if (hasCounter) {
-    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
-  }
+  updateCardFacingForViewer(el);
 }
 
 function makeCardEl(cardData, kind) {
