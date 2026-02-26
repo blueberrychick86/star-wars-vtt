@@ -130,7 +130,11 @@ function updateCardFacingForViewer(cardEl) {
     (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
   );
   var isOpp = owner !== getLocalOwnerSeatKey();
-  cardEl.dataset.vttFacing = isOpp ? "opp" : "self";
+  var baseFacing = isOpp ? 180 : 0;
+  cardEl.dataset.vttFacing = String(baseFacing);
+
+  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  var total = (rot + baseFacing) % 360;
 
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
@@ -138,7 +142,7 @@ function updateCardFacingForViewer(cardEl) {
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = isOpp ? "rotate(180deg)" : "";
+  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -169,6 +173,28 @@ function showToast(msg, ms){
     el.style.display = "block";
     clearTimeout(window.__vttToastTimer);
     window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
+  } catch (e) {}
+}
+
+
+function applyPlayfieldViewFlip(seatNow) {
+  try {
+    var pf = document.getElementById("playfield");
+    if (!pf || !pf.style) return;
+    pf.style.transformOrigin = "50% 50%";
+
+    var viewSeat = seatColorFromAny(seatNow || getLocalSeatColor());
+
+    if (viewSeat === "red") pf.style.setProperty("transform", "scaleY(-1)", "important");
+    else pf.style.removeProperty("transform");
+  } catch (e) {}
+}
+
+function refreshAllCardFacingVisuals() {
+  try {
+    if (!window.stage || !window.stage.querySelectorAll) return;
+    var cards = stage.querySelectorAll(".card");
+    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
   } catch (e) {}
 }
 
@@ -221,6 +247,9 @@ var TurnManager = {
     if (badge) badge.textContent = "TURN: " + active;
     var endBtn = document.getElementById("endTurnBtn");
     if (endBtn) endBtn.disabled = !this.isMyTurn();
+
+    // Keep card facing refresh on turn change, but do not change seat-driven playfield view here.
+    refreshAllCardFacingVisuals();
     if (this.isMyTurn()) showToast("YOUR TURN", 1300);
   },
   handleTurnSet: function(msg){
@@ -1796,16 +1825,7 @@ try {
   document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
 
   // Rotate ONLY the playfield (not the HUD / trays / buttons)
-  var pf = document.getElementById("playfield");
-  if (pf && pf.style) {
-    pf.style.transformOrigin = "50% 50%";
-   // Force horizontal mirror for P2 (use !important so later camera transforms don't overwrite it)
-if (seatNow === "red") {
-  pf.style.setProperty("transform", "scaleY(-1)", "important");
-} else {
-  pf.style.removeProperty("transform");
-}
-  }
+  applyPlayfieldViewFlip(seatNow);
 } catch (e) {
   console.warn("[VTT] P2 playfield rotate patch failed:", e);
 }
@@ -1817,10 +1837,7 @@ if (seatNow === "red") {
     el.style.transform = "";
   });
 
-  try {
-    var cards = stage.querySelectorAll(".card");
-    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
-  } catch (e) {}
+  refreshAllCardFacingVisuals();
 }
 // === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
 (function __vttWrapApplyLocalCameraForP2Flip(){
@@ -3425,7 +3442,7 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var facingRot = (cardEl.dataset.vttFacing === "opp") ? 180 : 0;
+  var facingRot = ((Number(cardEl.dataset.vttFacing || "0") % 360) + 360) % 360;
   var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
@@ -3919,14 +3936,7 @@ function applyFactionBorderClass(el, cardData){
    CARD FACTORY + DRAG
    ========================= */
 function applyLocalCardFacing(el) {
-  if (!el || !el.style) return;
-  var t = String(el.style.transform || "");
-  var hasCounter = t.indexOf("scaleY(-1)") !== -1;
-  if (getLocalSeatColor() === "red") {
-    if (!hasCounter) el.style.transform = t ? (t + " scaleY(-1)") : "scaleY(-1)";
-  } else if (hasCounter) {
-    el.style.transform = t.replace(/\s*scaleY\(-1\)/g, "").trim();
-  }
+  updateCardFacingForViewer(el);
 }
 
 function makeCardEl(cardData, kind) {
