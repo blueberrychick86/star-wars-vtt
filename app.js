@@ -197,6 +197,14 @@ function showToast(msg, ms){
   } catch (e) {}
 }
 
+function refreshAllCardFacingVisuals() {
+  try {
+    if (!window.stage || !window.stage.querySelectorAll) return;
+    var cards = stage.querySelectorAll(".card");
+    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
+  } catch (e) {}
+}
+
 var Permissions = {
   canPerform: function(action, context){
     if (!action) action = "move_shared_piece";
@@ -246,6 +254,7 @@ var TurnManager = {
     if (badge) badge.textContent = "TURN: " + active;
     var endBtn = document.getElementById("endTurnBtn");
     if (endBtn) endBtn.disabled = !this.isMyTurn();
+    refreshAllCardFacingVisuals();
     if (this.isMyTurn()) showToast("YOUR TURN", 1300);
   },
   handleTurnSet: function(msg){
@@ -1842,10 +1851,7 @@ if (seatNow === "red") {
     el.style.transform = "";
   });
 
-  try {
-    var cards = stage.querySelectorAll(".card");
-    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
-  } catch (e) {}
+  refreshAllCardFacingVisuals();
 }
 // === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
 (function __vttWrapApplyLocalCameraForP2Flip(){
