@@ -136,43 +136,6 @@ function getFacingDesignHeight() {
   return 0;
 }
 
-function isViewerYFlipped() {
-  try {
-    var pf = document.getElementById("playfield");
-    if (!pf) return false;
-
-    var inlineT = String(pf.style && pf.style.transform || "");
-    if (inlineT.indexOf("scaleY(-1)") !== -1) return true;
-
-    var cs = window.getComputedStyle ? window.getComputedStyle(pf) : null;
-    if (!cs) return false;
-    var t = String(cs.transform || "");
-    if (!t || t === "none") return false;
-
-    var m2d = t.match(/^matrix\(([^)]+)\)$/);
-    if (m2d) {
-      var p2 = m2d[1].split(",");
-      var d = Number(p2[3]);
-      return isFinite(d) && d < 0;
-    }
-
-    var m3d = t.match(/^matrix3d\(([^)]+)\)$/);
-    if (m3d) {
-      var p3 = m3d[1].split(",");
-      var m22 = Number(p3[5]);
-      return isFinite(m22) && m22 < 0;
-    }
-  } catch (e) {}
-  return false;
-}
-
-function vttViewerYFromDesignY(designY) {
-  var H = getFacingDesignHeight();
-  if (!(H > 0)) return Number(designY) || 0;
-  var y = Number(designY) || 0;
-  return isViewerYFlipped() ? (H - y) : y;
-}
-
 function getViewerFacingBaseRotation(cardEl) {
   if (!cardEl) return 0;
   var top = Number(cardEl.style && cardEl.style.top);
@@ -186,8 +149,7 @@ function getViewerFacingBaseRotation(cardEl) {
   var centerY = top + (h / 2);
   var designH = getFacingDesignHeight();
   if (!(designH > 0)) return 0;
-  var viewerY = vttViewerYFromDesignY(centerY);
-  return viewerY < (designH / 2) ? 180 : 0;
+  return centerY < (designH / 2) ? 180 : 0;
 }
 
 function updateCardFacingForViewer(cardEl) {
