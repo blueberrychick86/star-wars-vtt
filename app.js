@@ -124,17 +124,38 @@ function getLocalOwnerSeatKey() {
   return (getLocalSeatColor() === "red") ? "p2" : "p1";
 }
 
+function getFacingDesignHeight() {
+  if (typeof DESIGN_H === "number" && isFinite(DESIGN_H) && DESIGN_H > 0) return DESIGN_H;
+  try {
+    if (window.stage && window.stage.getBoundingClientRect && window.camera && Number(window.camera.scale)) {
+      var rect = window.stage.getBoundingClientRect();
+      var s = Number(window.camera.scale) || 1;
+      if (rect && rect.height && s > 0) return rect.height / s;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function getViewerFacingBaseRotation(cardEl) {
+  if (!cardEl) return 0;
+  var top = Number(cardEl.style && cardEl.style.top);
+  if (!isFinite(top)) top = 0;
+
+  var h = Number(cardEl.style && cardEl.style.height);
+  if (!isFinite(h) || h <= 0) {
+    h = ((cardEl.dataset && cardEl.dataset.kind) === "unit") ? CARD_H : BASE_H;
+  }
+
+  var centerY = top + (h / 2);
+  var designH = getFacingDesignHeight();
+  if (!(designH > 0)) return 0;
+  return centerY < (designH / 2) ? 180 : 0;
+}
+
 function updateCardFacingForViewer(cardEl) {
   if (!cardEl || !cardEl.style) return;
-  var owner = normalizeOwnerSeatKey(
-    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
-  );
-  var isOpp = owner !== getLocalOwnerSeatKey();
-  var baseFacing = isOpp ? 180 : 0;
+  var baseFacing = getViewerFacingBaseRotation(cardEl);
   cardEl.dataset.vttFacing = String(baseFacing);
-
-  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var total = (rot + baseFacing) % 360;
 
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
@@ -142,7 +163,7 @@ function updateCardFacingForViewer(cardEl) {
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
+  cardEl.style.transform = baseFacing ? ("rotate(" + baseFacing + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -173,20 +194,6 @@ function showToast(msg, ms){
     el.style.display = "block";
     clearTimeout(window.__vttToastTimer);
     window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
-  } catch (e) {}
-}
-
-
-function applyPlayfieldViewFlip(seatNow) {
-  try {
-    var pf = document.getElementById("playfield");
-    if (!pf || !pf.style) return;
-    pf.style.transformOrigin = "50% 50%";
-
-    var viewSeat = seatColorFromAny(seatNow || getLocalSeatColor());
-
-    if (viewSeat === "red") pf.style.setProperty("transform", "scaleY(-1)", "important");
-    else pf.style.removeProperty("transform");
   } catch (e) {}
 }
 
@@ -247,8 +254,6 @@ var TurnManager = {
     if (badge) badge.textContent = "TURN: " + active;
     var endBtn = document.getElementById("endTurnBtn");
     if (endBtn) endBtn.disabled = !this.isMyTurn();
-
-    // Keep card facing refresh on turn change, but do not change seat-driven playfield view here.
     refreshAllCardFacingVisuals();
     if (this.isMyTurn()) showToast("YOUR TURN", 1300);
   },
