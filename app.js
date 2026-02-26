@@ -124,38 +124,17 @@ function getLocalOwnerSeatKey() {
   return (getLocalSeatColor() === "red") ? "p2" : "p1";
 }
 
-function getFacingDesignHeight() {
-  if (typeof DESIGN_H === "number" && isFinite(DESIGN_H) && DESIGN_H > 0) return DESIGN_H;
-  try {
-    if (window.stage && window.stage.getBoundingClientRect && window.camera && Number(window.camera.scale)) {
-      var rect = window.stage.getBoundingClientRect();
-      var s = Number(window.camera.scale) || 1;
-      if (rect && rect.height && s > 0) return rect.height / s;
-    }
-  } catch (e) {}
-  return 0;
-}
-
-function getViewerFacingBaseRotation(cardEl) {
-  if (!cardEl) return 0;
-  var top = Number(cardEl.style && cardEl.style.top);
-  if (!isFinite(top)) top = 0;
-
-  var h = Number(cardEl.style && cardEl.style.height);
-  if (!isFinite(h) || h <= 0) {
-    h = ((cardEl.dataset && cardEl.dataset.kind) === "unit") ? CARD_H : BASE_H;
-  }
-
-  var centerY = top + (h / 2);
-  var designH = getFacingDesignHeight();
-  if (!(designH > 0)) return 0;
-  return centerY < (designH / 2) ? 180 : 0;
-}
-
 function updateCardFacingForViewer(cardEl) {
   if (!cardEl || !cardEl.style) return;
-  var baseFacing = getViewerFacingBaseRotation(cardEl);
+  var owner = normalizeOwnerSeatKey(
+    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
+  );
+  var mySeat = getLocalOwnerSeatKey();
+  var baseFacing = (owner === mySeat) ? 0 : 180;
   cardEl.dataset.vttFacing = String(baseFacing);
+
+  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
+  var total = (rot + baseFacing) % 360;
 
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
@@ -163,7 +142,7 @@ function updateCardFacingForViewer(cardEl) {
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = baseFacing ? ("rotate(" + baseFacing + "deg)") : "";
+  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -752,7 +731,7 @@ function rect(x, y, w, h) { return { x: x, y: y, w: w, h: h }; }
 var style = document.createElement("style");
 style.textContent = `
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
-  #playfield { position:absolute; inset:0; overflow:hidden; touch-action:none; transform-origin:50% 50%; }
+  #playfield { position:absolute; inset:0; overflow:hidden; touch-action:none; }
   #hud {
     position: fixed;
     left: 10px;
@@ -764,23 +743,6 @@ style.textContent = `
     pointer-events:auto;
     
   }
-// === PATCH: P2 HUD text unflip (safe global inject) =========================
-(function ensureP2HudTextFixStyle(){
-  if (document.getElementById("vttP2HudTextFixStyle")) return;
-
-  var st = document.createElement("style");
-  st.id = "vttP2HudTextFixStyle";
-
-  st.innerHTML =
-    ".vtt-seat-p2 button," +
-    ".vtt-seat-p2 .btn," +
-    ".vtt-seat-p2 .controls button{" +
-    "transform: scaleY(-1);" +
-    "}";
-
-  document.head.appendChild(st);
-})();
-// === END PATCH ==============================================================
   /* Global spacing for MenuFont */
   .menu-font,
   .inviteBtn,
@@ -1807,34 +1769,13 @@ playfield.id = "playfield";
   window.VTT_LOCAL.seat = localSeat;
 
   function applyLocalCamera() {
-   // Keep a single shared orientation for both seats so P2/Red uses
-  // the same board layout shown in reference mocks.
-  var tableEl = document.getElementById("table");
-  if (!tableEl || !tableEl.style) return; // table not built yet; avoid white-screen crash
-  var table = tableEl;
-
-  table.style.transformOrigin = "50% 50%";
-  table.style.transform = "";
-     // === PATCH: P2 playfield rotate 180 (playfield ONLY) ========================
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-
-  // normalize common aliases
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  // Add a seat class for CSS targeting (HUD fixes below)
-  document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
-
-  // Rotate ONLY the playfield (not the HUD / trays / buttons)
-  applyPlayfieldViewFlip(seatNow);
-} catch (e) {
-  console.warn("[VTT] P2 playfield rotate patch failed:", e);
-}
-// === END PATCH ==============================================================
+    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
+      ? String(window.VTT_LOCAL.seat).toLowerCase()
+      : "";
+    if (seatNow === "p2") seatNow = "red";
+    if (seatNow === "p1") seatNow = "blue";
+    if (seatNow === "yellow") seatNow = "blue";
+    document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
 
   [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
     if (!el || !el.style) return;
@@ -1844,45 +1785,6 @@ try {
 
   refreshAllCardFacingVisuals();
 }
-// === PATCH: Re-apply P2 horizontal flip after any camera refresh =================
-(function __vttWrapApplyLocalCameraForP2Flip(){
-  // NO-OP: applyLocalCamera() is the single authoritative place for P2 playfield flip.
-  return;
-  if (window.__vttP2FlipWrapped) return;
-  window.__vttP2FlipWrapped = true;
-
-  function applyP2FlipNow(){
-    try {
-      var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-        ? String(window.VTT_LOCAL.seat).toLowerCase()
-        : "";
-      if (seatNow === "p2") seatNow = "red";
-      if (seatNow === "p1") seatNow = "blue";
-      if (seatNow === "yellow") seatNow = "blue";
-
-      var pf = document.getElementById("playfield");
-      if (!pf || !pf.style) return;
-
-      if (seatNow === "red") {
-       pf.style.setProperty("transform", "scaleY(-1)", "important");
-      } else {
-        pf.style.removeProperty("transform");
-      }
-    } catch (e) {}
-  }
-
-  var _orig = window.applyLocalCamera;
-  if (typeof _orig === "function") {
-    window.applyLocalCamera = function(){
-      var r = _orig.apply(this, arguments);
-      applyP2FlipNow();
-      return r;
-    };
-  }
-
-  applyP2FlipNow();
-})();
-// === END PATCH =================================================================
 /* =========================
    PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
    - Re-runs applyLocalCamera once __gameConfig exists
@@ -2514,8 +2416,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       var stageRect = stage.getBoundingClientRect();
       var worldX = (clientX - stageRect.left) / camera.scale;
       var worldY = (clientY - stageRect.top) / camera.scale;
-      var dropH = getP2SnapWorldHeight();
-      if (dropH) worldY = dropH - worldY;
       var p = { x: worldX, y: worldY };
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
@@ -2531,10 +2431,6 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
       applyLocalCardFacing(el);
-// === PATCH: P2 flip-safe snapping + net coords (cards) =====================
-// No extra flip here: viewportToDesign() already returns shared coords.
-// (P2 visual flip is handled by playfield scaleY(-1) + drag math.)
-// === END PATCH ==============================================================
 if (kind === "base") {
   snapBaseAutoFill(el);
   if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
@@ -3146,12 +3042,6 @@ function refreshSnapRects() {
   }
 }
 
-function getP2SnapWorldHeight() {
-  // Snap targets must stay in shared design-space coordinates.
-  // View mirroring is handled by #playfield CSS transform only.
-  return 0;
-}
-
 function snapCardToNearestZone(cardEl) {
   if (!zonesMeta.length) return;
 
@@ -3294,21 +3184,6 @@ function ensureForceMarker(initialIndex) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
-// === PATCH: P2 vertical flip input fix (tokens) ============================
-  try {
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-
-    if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
-    }
-  } catch (e) {}
-  // === END PATCH =============================================================
     var left = parseFloat(forceMarker.style.left || "0");
     var top = parseFloat(forceMarker.style.top || "0");
     markerOffX = px - left;
@@ -3320,21 +3195,6 @@ function ensureForceMarker(initialIndex) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
-     // === PATCH: P2 vertical flip input fix (tokens) ============================
-  try {
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-
-    if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
-    }
-  } catch (e) {}
-  // === END PATCH =============================================================
     forceMarker.style.left = (px - markerOffX) + "px";
     forceMarker.style.top  = (py - markerOffY) + "px";
   });
@@ -3444,7 +3304,7 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var facingRot = ((Number(cardEl.dataset.vttFacing || "0") % 360) + 360) % 360;
+  var facingRot = Number(cardEl.dataset.vttFacing || "0");
   var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
@@ -3511,21 +3371,6 @@ function attachTokenDragHandlers(el) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
-// === P2 vertical flip input fix =========================================
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  if (seatNow === "red") {
-    var stageH = stageRect.height / camera.scale;
-    py = stageH - py;
-  }
-} catch (e) {}
-// ==========================================================================
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
     offX = px - left;
@@ -3539,21 +3384,6 @@ try {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
-// === P2 vertical flip input fix =========================================
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  if (seatNow === "red") {
-    var stageH = stageRect.height / camera.scale;
-    py = stageH - py;
-  }
-} catch (e) {}
-// ==========================================================================
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
   });
@@ -3561,71 +3391,10 @@ try {
   el.addEventListener("pointerup", function(e){
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
-  // === PATCH: P2 flip-safe vars must be in pointerup scope =====================
-var __seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-  ? String(window.VTT_LOCAL.seat).toLowerCase()
-  : "";
-if (__seatNow === "p2") __seatNow = "red";
-if (__seatNow === "p1") __seatNow = "blue";
-if (__seatNow === "yellow") __seatNow = "blue";
-
-var __isP2 = (__seatNow === "red");
-var __H = (typeof DESIGN_H === "number")
-  ? DESIGN_H
-  : (stage.getBoundingClientRect().height / camera.scale);
-// === END PATCH ===============================================================
      // NET: broadcast token move on release
 // NET: broadcast token move on release (center coords, design space)
 var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
 var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
-
-// === PATCH: normalize token Y for network when P2 view is flipped ============
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  if (seatNow === "red" && typeof DESIGN_H === "number") {
-    y = DESIGN_H - y;
-  }
-} catch (e) {}
-// === END PATCH ===============================================================
-
-// === PATCH: normalize token coords for network when P2 view is flipped =======
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  if (seatNow === "red" && typeof DESIGN_H === "number") {
-    __ny = DESIGN_H - __ny;
-  }
-} catch (e) {}
-// === END PATCH ===============================================================
-
-// === PATCH: normalize token Y for network when P2 view is flipped ============
-try {
-  var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-    ? String(window.VTT_LOCAL.seat).toLowerCase()
-    : "";
-  if (seatNow === "p2") seatNow = "red";
-  if (seatNow === "p1") seatNow = "blue";
-  if (seatNow === "yellow") seatNow = "blue";
-
-  if (seatNow === "red") {
-    // convert back to shared board coordinates
-    y = (typeof DESIGN_H === "number")
-      ? (DESIGN_H - y)
-      : y;
-  }
-} catch (e) {}
-// === END PATCH ===============================================================
 
 sendMove({
   t: "token_move",
@@ -3680,21 +3449,6 @@ sendMove({
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top)  / camera.scale;
-      // === PATCH: P2 vertical flip input fix (tokens) ============================
-  try {
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-
-    if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
-    }
-  } catch (e) {}
-  // === END PATCH =============================================================
     tok.style.left = (px - TOKEN_SIZE/2) + "px";
     tok.style.top  = (py - TOKEN_SIZE/2) + "px";
   }
@@ -4070,21 +3824,6 @@ function attachDragHandlers(el, cardData, kind) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
- // === PATCH: P2 vertical flip input fix (tokens) ============================
-  try {
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-
-    if (seatNow === "red") {
-      var stageH = stageRect.height / camera.scale;
-      py = stageH - py;
-    }
-  } catch (e) {}
-  // === END PATCH =============================================================
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
     offsetX = px - left;
@@ -4114,20 +3853,6 @@ function attachDragHandlers(el, cardData, kind) {
     var stageRect = stage.getBoundingClientRect();
     var px = (e.clientX - stageRect.left) / camera.scale;
     var py = (e.clientY - stageRect.top) / camera.scale;
-    // Keep drag math in the same shared space as pointerdown for P2 flipped view.
-    try {
-      var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-        ? String(window.VTT_LOCAL.seat).toLowerCase()
-        : "";
-      if (seatNow === "p2") seatNow = "red";
-      if (seatNow === "p1") seatNow = "blue";
-      if (seatNow === "yellow") seatNow = "blue";
-
-      if (seatNow === "red") {
-        var stageH = stageRect.height / camera.scale;
-        py = stageH - py;
-      }
-    } catch (e) {}
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
@@ -4137,7 +3862,6 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
     dragging = false;
-// P2 normalization removed here: pointerdown/pointermove already keep shared-space coords.
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
