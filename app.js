@@ -136,43 +136,6 @@ function getFacingDesignHeight() {
   return 0;
 }
 
-function isViewerYFlipped() {
-  try {
-    var pf = document.getElementById("playfield");
-    if (!pf) return false;
-
-    var inlineT = String(pf.style && pf.style.transform || "");
-    if (inlineT.indexOf("scaleY(-1)") !== -1) return true;
-
-    var cs = window.getComputedStyle ? window.getComputedStyle(pf) : null;
-    if (!cs) return false;
-    var t = String(cs.transform || "");
-    if (!t || t === "none") return false;
-
-    var m2d = t.match(/^matrix\(([^)]+)\)$/);
-    if (m2d) {
-      var p2 = m2d[1].split(",");
-      var d = Number(p2[3]);
-      return isFinite(d) && d < 0;
-    }
-
-    var m3d = t.match(/^matrix3d\(([^)]+)\)$/);
-    if (m3d) {
-      var p3 = m3d[1].split(",");
-      var m22 = Number(p3[5]);
-      return isFinite(m22) && m22 < 0;
-    }
-  } catch (e) {}
-  return false;
-}
-
-function vttViewerYFromDesignY(designY) {
-  var H = getFacingDesignHeight();
-  if (!(H > 0)) return Number(designY) || 0;
-  var y = Number(designY) || 0;
-  return isViewerYFlipped() ? (H - y) : y;
-}
-
 function getViewerFacingBaseRotation(cardEl) {
   if (!cardEl) return 0;
   var top = Number(cardEl.style && cardEl.style.top);
@@ -180,16 +143,13 @@ function getViewerFacingBaseRotation(cardEl) {
 
   var h = Number(cardEl.style && cardEl.style.height);
   if (!isFinite(h) || h <= 0) {
-    var k = (cardEl.dataset && cardEl.dataset.kind) || "";
-    if (k === "base") h = BASE_H;
-    else h = CARD_H; // for unit + normal cards
+    h = ((cardEl.dataset && cardEl.dataset.kind) === "unit") ? CARD_H : BASE_H;
   }
 
   var centerY = top + (h / 2);
   var designH = getFacingDesignHeight();
   if (!(designH > 0)) return 0;
-  var viewerY = vttViewerYFromDesignY(centerY);
-  return viewerY < (designH / 2) ? 180 : 0;
+  return centerY < (designH / 2) ? 180 : 0;
 }
 
 function updateCardFacingForViewer(cardEl) {
@@ -197,16 +157,13 @@ function updateCardFacingForViewer(cardEl) {
   var baseFacing = getViewerFacingBaseRotation(cardEl);
   cardEl.dataset.vttFacing = String(baseFacing);
 
-  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var total = (rot + baseFacing) % 360;
-
   if ((cardEl.dataset.kind || "") === "unit") {
     if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
     return;
   }
 
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
+  cardEl.style.transform = baseFacing ? ("rotate(" + baseFacing + "deg)") : "";
 }
 
 function __vttEnsureToastEl(){
@@ -237,22 +194,6 @@ function showToast(msg, ms){
     el.style.display = "block";
     clearTimeout(window.__vttToastTimer);
     window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
-  } catch (e) {}
-}
-
-
-function applyPlayfieldViewFlip(seatNow) {
-  try {
-    var pf = document.getElementById("playfield");
-    if (!pf || !pf.style) return;
-    pf.style.transformOrigin = "50% 50%";
-
-    var fallbackSeat = seatColorFromAny(seatNow || getLocalSeatColor());
-    var viewSeat = seatColorFromAny(window.__gameState && window.__gameState.activeSeat);
-    if (viewSeat !== "blue" && viewSeat !== "red") viewSeat = fallbackSeat;
-
-    if (viewSeat === "red") pf.style.setProperty("transform", "scaleY(-1)", "important");
-    else pf.style.removeProperty("transform");
   } catch (e) {}
 }
 
@@ -313,15 +254,6 @@ var TurnManager = {
     if (badge) badge.textContent = "TURN: " + active;
     var endBtn = document.getElementById("endTurnBtn");
     if (endBtn) endBtn.disabled = !this.isMyTurn();
-
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-
-    applyPlayfieldViewFlip(seatNow);
     refreshAllCardFacingVisuals();
     if (this.isMyTurn()) showToast("YOUR TURN", 1300);
   },
