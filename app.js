@@ -1,16 +1,12 @@
-/* ============================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Token layering + sync stable)
-
+/* ========================================================================
+   Star Wars VTT — CLEAN BASELINE 2026-02-08 (Non-destructive cleanup)
    - Keeps ALL existing features
-   - Token layering fixed (tokens stay above cards)
-   - Token z-index sync consistent for both players
-   - Keeps tray, snapping, preview, rotate/flip, invite/join flow
+   - Removes duplicate “early crash overlay vs crash overlay” conflicts
+   - Makes boot + overlay + menu audio more robust (no optional chaining)
+   - Keeps tray, tokens, snapping, preview, rotate/flip, invite/join flow
+   ======================================================================== */
 
-   ============================================================================ */
-
-
-console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
-/* P2 HUD text unflip handled by real <style> injection above */
+console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -58,7 +54,6 @@ window.applyCardMove = function(m){
 
     if (m.capSide) el.dataset.capSide = m.capSide; else delete el.dataset.capSide;
     if (m.capIndex != null) el.dataset.capIndex = String(m.capIndex); else delete el.dataset.capIndex;
-    if (typeof updateCardFacingForViewer === "function") updateCardFacingForViewer(el);
   } catch (e) {
     console.warn("applyCardMove failed:", e);
   }
@@ -93,179 +88,6 @@ window.__vttClientId = (function(){
 
 function __vttNowMs(){ try { return Date.now(); } catch(e){ return 0; } }
 
-window.__gameState = window.__gameState || { activeSeat: "blue", turn: 1, started: false };
-
-function seatColorFromAny(v) {
-  var s = String(v || "").toLowerCase();
-  if (s === "p1") return "blue";
-  if (s === "p2") return "red";
-  if (s === "blue" || s === "red") return s;
-  return "blue";
-}
-
-function getLocalSeatColor() {
-  try {
-    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) return seatColorFromAny(window.VTT_LOCAL.seat);
-  } catch (e) {}
-  try {
-    if (window.__gameConfig && window.__gameConfig.youAre) return seatColorFromAny(window.__gameConfig.youAre);
-  } catch (e2) {}
-  return "blue";
-}
-
-function normalizeOwnerSeatKey(v) {
-  var s = String(v || "").toLowerCase();
-  if (s === "p1" || s === "blue" || s === "yellow") return "p1";
-  if (s === "p2" || s === "red") return "p2";
-  return "p1";
-}
-
-function getLocalOwnerSeatKey() {
-  return (getLocalSeatColor() === "red") ? "p2" : "p1";
-}
-
-function updateCardFacingForViewer(cardEl) {
-  if (!cardEl || !cardEl.style) return;
-  var owner = normalizeOwnerSeatKey(
-    (cardEl.dataset && (cardEl.dataset.owner || cardEl.dataset.seat || cardEl.dataset.faction || cardEl.dataset.side)) || ""
-  );
-  var mySeat = getLocalOwnerSeatKey();
-  var baseFacing = (owner === mySeat) ? 0 : 180;
-  cardEl.dataset.vttFacing = String(baseFacing);
-
-  var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var total = (rot + baseFacing) % 360;
-
-  if ((cardEl.dataset.kind || "") === "unit") {
-    if (typeof applyRotationSize === "function") applyRotationSize(cardEl);
-    return;
-  }
-
-  cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = total ? ("rotate(" + total + "deg)") : "";
-}
-
-function __vttEnsureToastEl(){
-  if (window.__vttToastEl && window.__vttToastEl.isConnected) return window.__vttToastEl;
-  var el = document.createElement("div");
-  el.id = "vttToast";
-  el.style.position = "fixed";
-  el.style.left = "50%";
-  el.style.top = "14%";
-  el.style.transform = "translateX(-50%)";
-  el.style.zIndex = "999999";
-  el.style.padding = "12px 16px";
-  el.style.borderRadius = "12px";
-  el.style.background = "rgba(0,0,0,0.82)";
-  el.style.color = "#fff";
-  el.style.fontWeight = "800";
-  el.style.display = "none";
-  el.style.pointerEvents = "none";
-  document.body.appendChild(el);
-  window.__vttToastEl = el;
-  return el;
-}
-
-function showToast(msg, ms){
-  try {
-    var el = __vttEnsureToastEl();
-    el.textContent = msg;
-    el.style.display = "block";
-    clearTimeout(window.__vttToastTimer);
-    window.__vttToastTimer = setTimeout(function(){ try { el.style.display = "none"; } catch (e) {} }, ms || 1600);
-  } catch (e) {}
-}
-
-function refreshAllCardFacingVisuals() {
-  try {
-    if (!window.stage || !window.stage.querySelectorAll) return;
-    var cards = stage.querySelectorAll(".card");
-    for (var i = 0; i < cards.length; i++) updateCardFacingForViewer(cards[i]);
-  } catch (e) {}
-}
-
-var Permissions = {
-  canPerform: function(action, context){
-    if (!action) action = "move_shared_piece";
-    if (this.isReadOnlyAction(action)) return true;
-    return !!TurnManager.isMyTurn();
-  },
-  isReadOnlyAction: function(action){
-    return action === "pan" || action === "zoom" || action === "hover" || action === "open_tray" || action === "search_tray" || action === "view_card";
-  }
-};
-
-var TurnManager = {
-  isMyTurn: function(){
-    return getLocalSeatColor() === seatColorFromAny(window.__gameState.activeSeat);
-  },
-  requestEndTurn: function(){
-    if (window.__gameConfig && window.__gameConfig.role === "host") {
-      this.hostHandleEndTurn({ fromSeat: getLocalSeatColor() });
-      return;
-    }
-    var payload = { t: "REQUEST_END_TURN", fromSeat: getLocalSeatColor(), clientId: window.__vttClientId, room: window.__vttRoomId, at: __vttNowMs() };
-    console.log("TURN REQUEST_END_TURN send", payload);
-    return sendMove(payload, "request_end_turn", { fromSeat: getLocalSeatColor() });
-  },
-  hostHandleEndTurn: function(msg){
-    var fromSeat = seatColorFromAny(msg && msg.fromSeat);
-    console.log("TURN REQUEST_END_TURN recv", msg);
-    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
-    if (!window.__gameState.started) return;
-    if (fromSeat !== seatColorFromAny(window.__gameState.activeSeat)) return;
-    var next = (seatColorFromAny(window.__gameState.activeSeat) === "blue") ? "red" : "blue";
-    var nextTurn = Number(window.__gameState.turn || 1) + 1;
-    this.broadcastTurnSet(next, nextTurn);
-  },
-  broadcastTurnSet: function(activeSeat, turn){
-    window.__gameState.activeSeat = seatColorFromAny(activeSeat);
-    window.__gameState.turn = Number(turn || 1);
-    window.__gameState.started = true;
-    var payload = { t: "TURN_SET", activeSeat: window.__gameState.activeSeat, turn: window.__gameState.turn, clientId: window.__vttClientId, room: window.__vttRoomId, at: __vttNowMs() };
-    console.log("TURN TURN_SET send", payload);
-    vttSend(payload);
-    this.applyTurnUI();
-  },
-  applyTurnUI: function(){
-    var active = seatColorFromAny(window.__gameState.activeSeat).toUpperCase();
-    var badge = document.getElementById("turnBadge");
-    if (badge) badge.textContent = "TURN: " + active;
-    var endBtn = document.getElementById("endTurnBtn");
-    if (endBtn) endBtn.disabled = !this.isMyTurn();
-    refreshAllCardFacingVisuals();
-    if (this.isMyTurn()) showToast("YOUR TURN", 1300);
-  },
-  handleTurnSet: function(msg){
-    console.log("TURN TURN_SET recv", msg);
-    var wasStarted = !!window.__gameState.started;
-    window.__gameState.activeSeat = seatColorFromAny(msg && msg.activeSeat);
-    window.__gameState.turn = Number((msg && msg.turn) || 1);
-    window.__gameState.started = true;
-    if (!wasStarted && window.__gameState.turn === 1 && seatColorFromAny(window.__gameState.activeSeat) === "blue") {
-      showToast("Game start — BLUE goes first.", 1700);
-    }
-    this.applyTurnUI();
-  },
-  ensureGameStart: function(){
-    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
-    if (window.__gameState.started) return;
-    window.__gameState.started = true;
-    window.__gameState.activeSeat = "blue";
-    window.__gameState.turn = 1;
-    showToast("Game start — BLUE goes first.", 1700);
-    this.broadcastTurnSet("blue", 1);
-  }
-};
-
-function sendMove(msg, action, context){
-  if (!Permissions.canPerform(action, context)) {
-    showToast("Not your turn", 1200);
-    return false;
-  }
-  return vttSend(msg);
-}
-
 function __vttSafeParseJSON(s){
   try { return JSON.parse(s); } catch (e) { return null; }
 }
@@ -294,62 +116,10 @@ function vttSend(msg){
     return false;
   }
 }
-// ==============================
-// NET: queue ANY net message until board exists (prevents early-join crashes)
-// ==============================
-window.__vttPendingNet = window.__vttPendingNet || [];
-
-window.__vttStageReady = function(){
-  return !!(window.stage && window.stage.querySelector);
-};
-
-window.__vttFlushPendingNet = function(){
-  try {
-    if (!window.__vttStageReady()) return;
-    if (!window.__vttPendingNet || !window.__vttPendingNet.length) return;
-
-    var list = window.__vttPendingNet.slice();
-    window.__vttPendingNet.length = 0;
-
-    for (var i = 0; i < list.length; i++) {
-      try {
-        if (typeof window.__vttOnNetMessage === "function") window.__vttOnNetMessage(list[i]);
-      } catch (e) {
-        console.warn("flush net msg failed:", e, list[i]);
-      }
-    }
-  } catch (e) {}
-};
 
 // Message dispatcher (you’ll add handlers in Patch 3)
 window.__vttOnNetMessage = function(msg){
-    // If stage isn't ready yet, queue and apply after build()
-  if (!window.__vttStageReady || !window.__vttStageReady()) {
-    window.__vttPendingNet = window.__vttPendingNet || [];
-    window.__vttPendingNet.push(msg);
-    return;
-  }
-
   if (!msg || !msg.t) return;
-
-  if (msg.t === "TURN_SET" || msg.t === "turn_set") {
-    TurnManager.handleTurnSet({ activeSeat: msg.activeSeat || msg.active, turn: msg.turn });
-    return;
-  }
-
-  if (msg.t === "REQUEST_END_TURN") {
-    if (!window.__gameConfig || window.__gameConfig.role !== "host") return;
-    TurnManager.hostHandleEndTurn(msg);
-    return;
-  }
-
-  if (msg.t === "hello") {
-    if (window.__gameConfig && window.__gameConfig.role === "host" && window.__gameState.started) {
-      TurnManager.broadcastTurnSet(window.__gameState.activeSeat, window.__gameState.turn);
-    }
-    try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
-    return;
-  }
 
   if (msg.t === "card_spawn") {
     // If card already exists, ignore
@@ -364,8 +134,6 @@ window.__vttOnNetMessage = function(msg){
 
     // IMPORTANT: preserve network id
     el.dataset.cardId = msg.cardId;
-    // preserve owner seat when provided over network (backwards-compatible)
-    try { el.dataset.owner = msg.owner || msg.seat || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
 
     // Apply transform/state
     if (msg.face) el.dataset.face = msg.face;
@@ -380,7 +148,6 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capSide) el.dataset.capSide = msg.capSide;
     if (msg.capIndex != null) el.dataset.capIndex = String(msg.capIndex);
 
-    applyLocalCardFacing(el);
     stage.appendChild(el);
     refreshSnapRects();
     return;
@@ -408,7 +175,6 @@ window.__vttOnNetMessage = function(msg){
     if (msg.capIndex != null) card.dataset.capIndex = String(msg.capIndex);
     else { try { delete card.dataset.capIndex; } catch(e){} }
 
-    applyLocalCardFacing(card);
     return;
   }
 
@@ -424,8 +190,7 @@ window.__vttOnNetMessage = function(msg){
 
     t.style.left = (msg.x - TOKEN_SIZE/2) + "px";
     t.style.top  = (msg.y - TOKEN_SIZE/2) + "px";
-   t.style.zIndex = "16000"; // canonical token resting layer
-
+    t.style.zIndex = "20000";
 
     stage.appendChild(t);
     tokenEls.add(t);
@@ -731,7 +496,6 @@ function rect(x, y, w, h) { return { x: x, y: y, w: w, h: h }; }
 var style = document.createElement("style");
 style.textContent = `
   #table { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
-  #playfield { position:absolute; inset:0; overflow:hidden; touch-action:none; }
   #hud {
     position: fixed;
     left: 10px;
@@ -741,8 +505,8 @@ style.textContent = `
     gap:6px;
     flex-wrap:wrap;
     pointer-events:auto;
-    
   }
+
   /* Global spacing for MenuFont */
   .menu-font,
   .inviteBtn,
@@ -1704,197 +1468,11 @@ window.addEventListener("pointerdown", function () {
    ========================= */
 var table = document.createElement("div");
 table.id = "table";
-var playfield = document.createElement("div");
-playfield.id = "playfield";
-/* =========================
-   LOCAL SEAT + CAMERA (VISUAL ONLY)
-   - Does NOT sync
-   - Uses a single board orientation for both seats
-   ========================= */
-
-(function setupLocalSeatAndCamera() {
-  function normalizeSeatForView(seat) {
-    var s = String(seat || "").toLowerCase();
-    if (s === "p1") return "blue";
-    if (s === "p2") return "red";
-    if (s === "yellow") return "blue";
-    return s || "blue";
-  }
-
-  function getParam(name) {
-    try { return new URLSearchParams(location.search).get(name); }
-    catch (e) { return null; }
-  }
-
-  function oppositeFaction(f) {
-  f = (f || "").toLowerCase();
-  if (f === "blue") return "red";
-  if (f === "red") return "blue";
-  return null;
-}
-
-
-
-  // Room-scoped storage so seat choice persists per room
-  var roomId = getParam("room") || getParam("r") || "";
-  var seatKey = "vtt_seat__" + (roomId || "default");
-
-  // Try explicit params first (if you ever add them later)
-  var explicitSeat =
-    getParam("seat") ||
-    getParam("player") ||
-    getParam("p") ||
-    null;
-
-  // Your URLs already use hostFaction in your workflow
-  var hostFaction = getParam("hostFaction"); // typically "blue" or "red"
-  var isJoin = (getParam("join") === "1");
-
-  // Determine local seat:
-  // 1) explicit param
-  // 2) saved localStorage seat for this room
-  // 3) if join=1 -> opposite of hostFaction
-  // 4) else -> hostFaction (host)
-  var localSeat =
-    (explicitSeat && explicitSeat.toLowerCase()) ||
-    (localStorage.getItem(seatKey) || "") ||
-    (isJoin ? oppositeFaction(hostFaction) : (hostFaction || "")) ||
-    "blue";
-
-  localSeat = normalizeSeatForView(localSeat);
-  localStorage.setItem(seatKey, localSeat);
-
-  // Expose locally for debugging (no sync)
-  window.VTT_LOCAL = window.VTT_LOCAL || {};
-  window.VTT_LOCAL.seat = localSeat;
-
-  function applyLocalCamera() {
-    var seatNow = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-      ? String(window.VTT_LOCAL.seat).toLowerCase()
-      : "";
-    if (seatNow === "p2") seatNow = "red";
-    if (seatNow === "p1") seatNow = "blue";
-    if (seatNow === "yellow") seatNow = "blue";
-    var isP2 = (seatNow === "red");
-    camera.rot = isP2 ? 180 : 0;
-    document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
-
-  [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
-    if (!el || !el.style) return;
-    el.style.transformOrigin = "50% 50%";
-    el.style.transform = "";
-  });
-
-  applyCamera();
-  refreshSnapRects();
-  refreshAllCardFacingVisuals();
-}
-/* =========================
-   PATCH: FORCE LOCAL CAMERA AFTER CONFIG READY
-   - Re-runs applyLocalCamera once __gameConfig exists
-   - Polls briefly to avoid “runs too early” race
-   ========================= */
-(function __vttForceLocalBottomViewOnce(){
-  if (window.__vttForceLocalBottomViewOnceInstalled) return;
-  window.__vttForceLocalBottomViewOnceInstalled = true;
-
-  function runIfReady(){
-    try {
-      if (typeof applyLocalCamera !== "function") return false;
-      // We consider it “ready” when seat is known OR youAre exists
-      var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "";
-      var you = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre).toLowerCase() : "";
-      if (!seat && !you) return false;
-
-      applyLocalCamera(); // re-apply camera orientation
-      return true;
-    } catch (e) { return false; }
-  }
-
-  // Run immediately if possible
-  if (runIfReady()) return;
-
-  // Otherwise poll for up to ~10s
-  var tries = 0;
-  var max = 50; // 50 * 200ms = 10s
-  var iv = setInterval(function(){
-    tries++;
-    if (runIfReady() || tries >= max) clearInterval(iv);
-  }, 200);
-
-  // Also re-run after resize/orientation changes (safe + non-destructive)
-  window.addEventListener("resize", function(){ try { if (typeof applyLocalCamera === "function") applyLocalCamera(); } catch(e){} });
-  window.addEventListener("orientationchange", function(){ try { if (typeof applyLocalCamera === "function") applyLocalCamera(); } catch(e){} });
-})();
-
-  // Apply after DOM has a moment to settle
-  setTimeout(applyLocalCamera, 0);
-
-  // If your app later changes seat locally, you can call:
-  window.VTT_LOCAL.applyCamera = applyLocalCamera;
-})();
-
 app.appendChild(table);
-
-// SEARCH ANCHOR: app.appendChild(table);
-// REPLACE RANGE: replace unsafe defineProperty enforcement with safer poll-and-set
-// Non-destructive: ensure __gameConfig is a normal object and normalize factions once present
-(function enforceBlueIsP1_safe(){
-
-  // One-time restoration in case a previous defineProperty was used
-  try {
-    var c = window.__gameConfig;
-    delete window.__gameConfig;
-    window.__gameConfig = c;
-  } catch (e) { /* ignore */ }
-
-  // install once per page load
-  if (window.__vtt_enforceBlueP1_installed) return;
-  window.__vtt_enforceBlueP1_installed = true;
-
-  function normalizeCfg(cfg){
-    try {
-      if (!cfg || typeof cfg !== "object") return false;
-
-      cfg.p1Faction = "blue";
-      cfg.p2Faction = "red";
-
-      var seat = (window.VTT_LOCAL && window.VTT_LOCAL.seat)
-        ? String(window.VTT_LOCAL.seat).toLowerCase()
-        : "";
-
-      cfg.youAre = (seat === "blue" || seat === "p1") ? "p1" : "p2";
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // If config exists now, normalize immediately
-  if (normalizeCfg(window.__gameConfig)) return;
-
-  // Otherwise poll for up to ~10s
-  var attempts = 0;
-  var maxAttempts = 50; // 50 * 200ms = 10s
-  var iv = setInterval(function(){
-    attempts++;
-    if (normalizeCfg(window.__gameConfig)) {
-      clearInterval(iv);
-      return;
-    }
-    if (attempts >= maxAttempts) {
-      clearInterval(iv);
-    }
-  }, 200);
-
-})();
-
-
 
 var hud = document.createElement("div");
 hud.id = "hud";
 table.appendChild(hud);
-window.hud = hud;
 
 function mkHudBtn(txt){
   var b = document.createElement("button");
@@ -1909,18 +1487,10 @@ var endP1Btn = mkHudBtn("END P1");
 var endP2Btn = mkHudBtn("END P2");
 var resetTokensBtn = mkHudBtn("RESET");
 var factionTestBtn = mkHudBtn("FACTION TEST");
-var turnBadge = document.createElement("div");
-turnBadge.id = "turnBadge";
-turnBadge.className = "hudBtn";
-turnBadge.style.display = "inline-flex";
-turnBadge.style.alignItems = "center";
-turnBadge.textContent = "TURN: BLUE";
-hud.appendChild(turnBadge);
 
 var stage = document.createElement("div");
 stage.id = "stage";
-table.appendChild(playfield);
-playfield.appendChild(stage);
+table.appendChild(stage);
 window.stage = stage;
 
 
@@ -1956,7 +1526,6 @@ previewBackdrop.innerHTML = `
   </div>
 `;
 table.appendChild(previewBackdrop);
-window.previewBackdrop = previewBackdrop;
 
 // HARD modal trap (FIXED)
 (function trapPreviewInteractions(){
@@ -2021,17 +1590,6 @@ trayBody.id = "trayBody";
 
 var trayCarousel = document.createElement("div");
 trayCarousel.id = "trayCarousel";
-// Per-seat carousel containers (kept inside the main carousel for styling compatibility)
-var trayCarouselP1 = document.createElement("div");
-trayCarouselP1.id = "trayCarouselP1";
-trayCarouselP1.className = "trayCarouselSeat trayCarouselP1";
-
-var trayCarouselP2 = document.createElement("div");
-trayCarouselP2.id = "trayCarouselP2";
-trayCarouselP2.className = "trayCarouselSeat trayCarouselP2";
-
-trayCarousel.appendChild(trayCarouselP1);
-trayCarousel.appendChild(trayCarouselP2);
 trayBody.appendChild(trayCarousel);
 
 tray.appendChild(trayHeaderBar);
@@ -2040,7 +1598,6 @@ tray.appendChild(trayBody);
 
 trayShell.appendChild(tray);
 table.appendChild(trayShell);
-window.trayShell = trayShell;
 
 trayShell.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
 trayShell.addEventListener("pointermove", function(e){ e.stopPropagation(); });
@@ -2182,50 +1739,7 @@ function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
-
-  // PATCH: ensure tray cards always have click handler AFTER render builds them
-  setTimeout(function(){
-    var tray = document.getElementById("tray");
-    if (tray) {
-      tray.querySelectorAll("[data-card-id]").forEach(function(cardEl){
-        cardEl.onclick = function(){
-          spawnFromTray(cardEl.dataset.cardId);
-        };
-      });
-    }
-  }, 0);
 }
-
-/* =========================
-   PATCH: Tray click delegation (survives tray rebuild)
-   ========================= */
-(function __vttTrayDelegationOnce(){
-  if (window.__VTT_TRAY_DELEGATION__) return;
-  window.__VTT_TRAY_DELEGATION__ = true;
-
-  document.addEventListener("click", function(e){
-    var tray = document.getElementById("tray");
-    if (!tray) return;
-    if (!tray.contains(e.target)) return;
-
-    // Adjust selector(s) to match your tray cards
-    var cardEl = e.target.closest(".tray-card, [data-card-id], [data-card]");
-    if (!cardEl) return;
-
-    var cardId =
-      cardEl.dataset.cardId ||
-      cardEl.dataset.card ||
-      cardEl.getAttribute("data-card-id") ||
-      cardEl.getAttribute("data-card");
-
-    if (!cardId) return;
-
-    // IMPORTANT: replace spawnFromTray with your real function name
-    if (typeof spawnFromTray === "function") {
-      spawnFromTray(cardId);
-    }
-  }, true);
-})();
 
 function closeTray() {
   if (!trayState.open) return;
@@ -2267,23 +1781,12 @@ function closeTray() {
 
   trayState.open = false;
   traySearchRow.classList.remove("show");
- // Instead of destroying the seat containers, just clear them
-try { if (trayCarouselP1) trayCarouselP1.innerHTML = ""; } catch (e) {}
-try { if (trayCarouselP2) trayCarouselP2.innerHTML = ""; } catch (e) {}
-
-// Safety: if something did remove them, re-attach
-try {
-  if (trayCarousel && trayCarouselP1 && trayCarouselP2) {
-    if (!trayCarousel.contains(trayCarouselP1)) trayCarousel.appendChild(trayCarouselP1);
-    if (!trayCarousel.contains(trayCarouselP2)) trayCarousel.appendChild(trayCarouselP2);
-  }
-} catch (e) {}
+  trayCarousel.innerHTML = "";
   trayShell.classList.remove("dragging");
   trayShell.classList.remove("dragging");
 
   trayShell.style.pointerEvents = "none";
   trayShell.style.display = "none";
-  try { tray.style.pointerEvents = "auto"; } catch (e) {}
 
   try { window.scrollTo(0, 0); } catch (e) {}
   try { document.documentElement.scrollTop = 0; } catch (e) {}
@@ -2407,7 +1910,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   }
 
   function finishDrag(clientX, clientY) {
-     if (ghost) { ghost.remove(); ghost = null; }
+    if (ghost) { ghost.remove(); ghost = null; }
     trayShell.classList.remove("dragging");
 
     var trayRect = tray.getBoundingClientRect();
@@ -2416,8 +1919,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
-      if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var p = screenToWorld(clientX, clientY);
+      var p = viewportToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
@@ -2428,10 +1930,8 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       el.style.top  = (p.y - h / 2) + "px";
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
-      // preserve owner info from the tray tile (if present)
-      try { el.dataset.owner = tile.__owner || ownerSeatFromLocalColor(); } catch (e) {}
       stage.appendChild(el);
-      applyLocalCardFacing(el);
+
 if (kind === "base") {
   snapBaseAutoFill(el);
   if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
@@ -2442,14 +1942,13 @@ if (kind === "base") {
 /* =========================
    NET: broadcast spawn so other client can create the card
    ========================= */
-sendMove({
+vttSend({
   t: "card_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-  owner: (el.dataset.owner || ownerSeatFromLocalColor()),
   kind: kind,
-  cardData: (String(el.dataset.face || "up") === "up") ? (el.__cardData || card) : null,   // privacy: don't leak facedown identity
+  cardData: el.__cardData || card,   // <- important
   x: parseFloat(el.style.left || "0"),
   y: parseFloat(el.style.top  || "0"),
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
@@ -2458,32 +1957,19 @@ sendMove({
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-}, "play_from_tray", { source: "tray" });
+});
 
 onCommitToBoard();
            } // end: if (!releasedOverTray)
   }   // end: finishDrag()
 
-  tile.addEventListener("contextmenu", function(e){
+ tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
-    try {
-      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-      var own = (tile.__owner || "p1");
-      if (own !== me) return;
-    } catch (err) {}
     showPreview(card);
   });
 
   tile.addEventListener("pointerdown", function(e){
     if (e.button !== 0) return;
-    if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-        // PRIVACY: only owner can drag/use this tray tile
-    try {
-      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-      var own = (tile.__owner || "p1");
-      if (own !== me) return;
-    } catch (err) {}
-
     if (previewOpen) return;
     e.stopPropagation();
 
@@ -2549,38 +2035,16 @@ onCommitToBoard();
 }
 
 function renderTray() {
-  // Clear per-seat carousels
-  try { trayCarouselP1.innerHTML = ""; } catch (e) {}
-  try { trayCarouselP2.innerHTML = ""; } catch (e) {}
+  trayCarousel.innerHTML = "";
   if (!trayState.open) return;
 
   if (trayState.mode === "draw") {
     for (var i = 0; i < trayState.drawItems.length; i++) {
       (function(item){
         var tile = makeTrayTile(item.card);
-        // remember which seat this tile belongs to
-        tile.__owner = item.owner || (item.pileKey && (String(item.pileKey).indexOf("p2_") === 0 ? "p2" : "p1")) || "p1";
 
         tile.addEventListener("click", function(){
-                    // PRIVACY: only owner can preview this tile
-          try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            var own = (tile.__owner || "p1");
-            if (own !== me) return;
-          } catch (err) { return; }
-
           if (tile.__justDragged) { tile.__justDragged = false; return; }
-                    // PRIVATE tray tiles: only owning seat can preview
-          try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? String(window.__gameConfig.youAre) : "";
-            var own = String(tile.__owner || "p1");
-            if (me && own && me !== own) return;
-          } catch (err) {}
-
-          try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            if ((tile.__owner || "p1") !== me) return;
-          } catch (e) {}
           showPreview(item.card);
         });
 
@@ -2590,7 +2054,7 @@ function renderTray() {
           renderTray();
         });
 
-        if (tile.__owner === "p2") trayCarouselP2.appendChild(tile); else trayCarouselP1.appendChild(tile);
+        trayCarousel.appendChild(tile);
       })(trayState.drawItems[i]);
     }
   } else {
@@ -2617,23 +2081,9 @@ function renderTray() {
     for (var t = 0; t < visible.length; t++) {
       (function(card){
         var tile2 = makeTrayTile(card);
-                // mark ownership so preview/drag can enforce privacy
-        tile2.__owner = (trayState.searchOwner || "p1");
-
 
         tile2.addEventListener("click", function(){
-                    // PRIVACY: only owner can preview this tile
-          try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            var own = (trayState.searchOwner || "p1");
-            if (own !== me) return;
-          } catch (err) { return; }
-
           if (tile2.__justDragged) { tile2.__justDragged = false; return; }
-          try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            if ((tile2.__owner || "p1") !== me) return;
-          } catch (e) {}
           showPreview(card);
         });
 
@@ -2643,8 +2093,7 @@ function renderTray() {
           renderTray();
         });
 
-        var targetOwner = trayState.searchOwner || "p1";
-        if (targetOwner === "p2") trayCarouselP2.appendChild(tile2); else trayCarouselP1.appendChild(tile2);
+        trayCarousel.appendChild(tile2);
       })(visible[t]);
     }
   }
@@ -2716,22 +2165,8 @@ function bindPileZoneClicks() {
       el.replaceWith(clone);
 
       clone.addEventListener("pointerdown", function(e){
-                // PRIVACY: only the owning player can open/peek this pile
-        try {
-          var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-          if (m.owner !== me) return;
-        } catch (err) { return; }
-
         if (previewOpen) return;
         e.stopPropagation();
-                // PRIVATE piles: only owning seat can open/peek
-        try {
-          var me = (window.__gameConfig && window.__gameConfig.youAre)
-            ? String(window.__gameConfig.youAre)
-            : "";
-          if (me && m.owner && me !== m.owner) return;
-        } catch (err) {}
-
 
         if (m.id === "p1_draw" || m.id === "p2_draw") {
           if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
@@ -2874,25 +2309,14 @@ function computeZones() {
 /* =========================
    CAMERA + INPUT
    ========================= */
-var camera = { scale: 1, tx: 0, ty: 0, rot: 0 };
+var camera = { scale: 1, tx: 0, ty: 0 };
 
 function viewportSize() {
   var vv = window.visualViewport;
   return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
 function applyCamera() {
-  var cx = DESIGN_W / 2;
-  var cy = DESIGN_H / 2;
-  stage.style.transformOrigin = "0px 0px";
-  var m = new DOMMatrix();
-  m = m.translate(camera.tx, camera.ty);
-  m = m.translate(cx, cy);
-  m = m.rotate(camera.rot || 0);
-  m = m.translate(-cx, -cy);
-  m = m.scale(camera.scale);
-  stage.style.transform = m.toString();
-  window.__viewMat = m;
-  window.__viewInv = m.inverse();
+  stage.style.transform = "translate(" + camera.tx + "px, " + camera.ty + "px) scale(" + camera.scale + ")";
 }
 
 function fitToScreen() {
@@ -2919,7 +2343,6 @@ function fitToScreen() {
   camera.ty = centerTy;
 
   applyCamera();
-  recenterBoardToViewportCenter();
   refreshSnapRects();
 }
 
@@ -2928,26 +2351,17 @@ fitBtn.addEventListener("click", function(e){ e.preventDefault(); fitToScreen();
 var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
-function screenToWorld(clientX, clientY){
-  if (!window.__viewInv) applyCamera();
-  var p = new DOMPoint(clientX, clientY);
-  var w = p.matrixTransform(window.__viewInv);
-  return { x: w.x, y: w.y };
-}
-function worldToScreen(x, y){
-  if (!window.__viewMat) applyCamera();
-  var p = new DOMPoint(x, y);
-  var s = p.matrixTransform(window.__viewMat);
-  return { x: s.x, y: s.y };
+function viewportToDesign(vx, vy){
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
-  var worldAnchor = screenToWorld(vx, vy);
+  var world = viewportToDesign(vx, vy);
+
   camera.scale = clamped;
-  applyCamera();
-  var newScreen = worldToScreen(worldAnchor.x, worldAnchor.y);
-  camera.tx += (vx - newScreen.x);
-  camera.ty += (vy - newScreen.y);
+  camera.tx = vx - world.x * camera.scale;
+  camera.ty = vy - world.y * camera.scale;
+
   applyCamera();
   refreshSnapRects();
 }
@@ -3060,18 +2474,7 @@ function refreshSnapRects() {
     var id = el.dataset.zoneId;
     if (!SNAP_ZONE_IDS.has(id)) continue;
     var b = el.getBoundingClientRect();
-    var cx = b.left + b.width / 2;
-    var cy = b.top + b.height / 2;
-    var c = screenToWorld(cx, cy);
-    var rx = screenToWorld(cx + b.width / 2, cy);
-    var ry = screenToWorld(cx, cy + b.height / 2);
-    zonesMeta.push({
-      id: id,
-      cx: c.x,
-      cy: c.y,
-      halfW: Math.abs(rx.x - c.x),
-      halfH: Math.abs(ry.y - c.y)
-    });
+    zonesMeta.push({ id: id, left: b.left, top: b.top, width: b.width, height: b.height });
   }
 }
 
@@ -3081,12 +2484,9 @@ function snapCardToNearestZone(cardEl) {
   var kind = cardEl.dataset.kind || "unit";
   var allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
 
-  var w = parseFloat(cardEl.style.width);
-  var h = parseFloat(cardEl.style.height);
-  var x = parseFloat(cardEl.style.left || "0");
-  var y = parseFloat(cardEl.style.top || "0");
-  var cardCx = x + w / 2;
-  var cardCy = y + h / 2;
+  var cardRect = cardEl.getBoundingClientRect();
+  var cx = cardRect.left + cardRect.width / 2;
+  var cy = cardRect.top + cardRect.height / 2;
 
   var best = null;
   var bestDist = Infinity;
@@ -3094,27 +2494,35 @@ function snapCardToNearestZone(cardEl) {
   for (var i = 0; i < zonesMeta.length; i++) {
     var z = zonesMeta[i];
     if (!allowed.has(z.id)) continue;
-    var d = Math.hypot(cardCx - z.cx, cardCy - z.cy);
+    var zx = z.left + z.width / 2;
+    var zy = z.top + z.height / 2;
+    var d = Math.hypot(cx - zx, cy - zy);
     if (d < bestDist) { bestDist = d; best = z; }
   }
   if (!best) return;
 
-  var cardDiag = Math.hypot(w, h);
-  var zoneDiag = Math.hypot(best.halfW * 2, best.halfH * 2);
+  var cardDiag = Math.hypot(cardRect.width, cardRect.height);
+  var zoneDiag = Math.hypot(best.width, best.height);
   var threshold = Math.max(cardDiag, zoneDiag) * 0.55;
   if (bestDist > threshold) return;
 
-  cardEl.style.left = (best.cx - w / 2) + "px";
-  cardEl.style.top  = (best.cy - h / 2) + "px";
+  var stageRect = stage.getBoundingClientRect();
+  var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  var w = parseFloat(cardEl.style.width);
+  var h = parseFloat(cardEl.style.height);
+
+  cardEl.style.left = (targetCenterX - w / 2) + "px";
+  cardEl.style.top  = (targetCenterY - h / 2) + "px";
 }
 
 function snapBaseToNearestBaseStack(baseEl) {
   if (!zonesMeta.length) return;
 
-  var x = parseFloat(baseEl.style.left || "0");
-  var y = parseFloat(baseEl.style.top || "0");
-  var baseCx = x + BASE_W / 2;
-  var baseCy = y + BASE_H / 2;
+  var baseRect = baseEl.getBoundingClientRect();
+  var cx = baseRect.left + baseRect.width / 2;
+  var cy = baseRect.top + baseRect.height / 2;
 
   var best = null;
   var bestDist = Infinity;
@@ -3122,18 +2530,24 @@ function snapBaseToNearestBaseStack(baseEl) {
   for (var i = 0; i < zonesMeta.length; i++) {
     var z = zonesMeta[i];
     if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
-    var d = Math.hypot(baseCx - z.cx, baseCy - z.cy);
+    var zx = z.left + z.width / 2;
+    var zy = z.top + z.height / 2;
+    var d = Math.hypot(cx - zx, cy - zy);
     if (d < bestDist) { bestDist = d; best = z; }
   }
   if (!best) return;
 
-  var zoneDiag = Math.hypot(best.halfW * 2, best.halfH * 2);
-  var baseDiag = Math.hypot(BASE_W, BASE_H);
+  var zoneDiag = Math.hypot(best.width, best.height);
+  var baseDiag = Math.hypot(baseRect.width, baseRect.height);
   var threshold = Math.max(zoneDiag, baseDiag) * 0.70;
   if (bestDist > threshold) return;
 
-  baseEl.style.left = (best.cx - BASE_W / 2) + "px";
-  baseEl.style.top  = (best.cy - BASE_H / 2) + "px";
+  var stageRect = stage.getBoundingClientRect();
+  var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
+  var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
+
+  baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
+  baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
 }
 
 /* =========================
@@ -3203,9 +2617,10 @@ function ensureForceMarker(initialIndex) {
     forceMarker.setPointerCapture(e.pointerId);
     draggingMarker = true;
 
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
     var left = parseFloat(forceMarker.style.left || "0");
     var top = parseFloat(forceMarker.style.top || "0");
     markerOffX = px - left;
@@ -3214,9 +2629,9 @@ function ensureForceMarker(initialIndex) {
 
   forceMarker.addEventListener("pointermove", function(e){
     if (!draggingMarker) return;
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
     forceMarker.style.left = (px - markerOffX) + "px";
     forceMarker.style.top  = (py - markerOffY) + "px";
   });
@@ -3281,16 +2696,26 @@ function snapBaseAutoFill(baseEl){
   var capP2 = zonesCache.p2_captured_bases;
   var capP1 = zonesCache.p1_captured_bases;
 
-  var left = parseFloat(baseEl.style.left || "0");
-  var top = parseFloat(baseEl.style.top || "0");
-  var cx = left + BASE_W / 2;
-  var cy = top + BASE_H / 2;
+  var b = baseEl.getBoundingClientRect();
+  var cx = b.left + b.width/2;
+  var cy = b.top + b.height/2;
 
-  function inRect(r){ return (cx >= r.x && cx <= (r.x + r.w) && cy >= r.y && cy <= (r.y + r.h)); }
+  function inRect(r){ return (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom); }
+
+  var stageRect = stage.getBoundingClientRect();
+
+  function rectFor(capRect){
+    var l = stageRect.left + capRect.x * camera.scale;
+    var t = stageRect.top  + capRect.y * camera.scale;
+    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
+  }
+
+  var p2R = rectFor(capP2);
+  var p1R = rectFor(capP1);
 
   var side = null;
-  if (inRect(capP2)) side = "p2";
-  else if (inRect(capP1)) side = "p1";
+  if (inRect(p2R)) side = "p2";
+  else if (inRect(p1R)) side = "p1";
 
   if (!side){
     clearCapturedAssignment(baseEl);
@@ -3316,12 +2741,10 @@ function snapBaseAutoFill(baseEl){
    ========================= */
 function applyRotationSize(cardEl) {
   var rot = ((Number(cardEl.dataset.rot || "0") % 360) + 360) % 360;
-  var facingRot = Number(cardEl.dataset.vttFacing || "0");
-  var totalRot = (rot + facingRot) % 360;
   cardEl.style.width = CARD_W + "px";
   cardEl.style.height = CARD_H + "px";
   cardEl.style.transformOrigin = "50% 50%";
-  cardEl.style.transform = "rotate(" + totalRot + "deg)";
+  cardEl.style.transform = "rotate(" + rot + "deg)";
   var face = cardEl.querySelector(".cardFace");
   if (face) face.style.transform = "none";
 }
@@ -3374,15 +2797,15 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointerdown", function(e){
     if (previewOpen) return;
-    if (!Permissions.canPerform("move_shared_piece", { pieceType: "token" })) { showToast("Not your turn", 1200); return; }
     if (e.button !== 0) return;
     e.stopPropagation();
     el.setPointerCapture(e.pointerId);
     dragging = true;
 
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
     offX = px - left;
@@ -3393,9 +2816,10 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointermove", function(e){
     if (!dragging) return;
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
   });
@@ -3403,43 +2827,39 @@ function attachTokenDragHandlers(el) {
   el.addEventListener("pointerup", function(e){
     dragging = false;
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
-     // NET: broadcast token move on release
-// NET: broadcast token move on release (center coords, design space)
+   // NET: broadcast token move on release
 var x = parseFloat(el.style.left || "0") + (TOKEN_SIZE / 2);
 var y = parseFloat(el.style.top  || "0") + (TOKEN_SIZE / 2);
 
-sendMove({
+vttSend({
   t: "token_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   tokenId: el.dataset.tokenId,
   x: x,
   y: y,
- z: 16000,
-
+  z: 20000,
   at: __vttNowMs()
-}, "move_shared_piece", { pieceType: "token" });
+});
 
-     el.style.zIndex = "16000"; // canonical token resting layer
-
+     el.style.zIndex = "20000";
   });
 
-el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "16000"; });
+  el.addEventListener("pointercancel", function(){ dragging = false; el.style.zIndex = "20000"; });
 }
 
 function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
-  if (!Permissions.canPerform("move_shared_piece", { pieceType: "token" })) { showToast("Not your turn", 1200); return; }
   if (tokenPools[owner][type] <= 0) return;
 
   tokenPools[owner][type] -= 1;
 
-  var pt0 = screenToWorld(clientX, clientY);
-  var px0 = pt0.x;
-  var py0 = pt0.y;
+  var stageRect0 = stage.getBoundingClientRect();
+  var px0 = (clientX - stageRect0.left) / camera.scale;
+  var py0 = (clientY - stageRect0.top)  / camera.scale;
 
   var tok = createTokenCube(owner, type, px0, py0);
    // NET: broadcast token spawn
-sendMove({
+vttSend({
   t: "token_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
@@ -3450,17 +2870,16 @@ sendMove({
   y: py0,
   z: 16000,
   at: __vttNowMs()
-}, "move_shared_piece", { pieceType: "token" });
+});
 
-  tok.style.zIndex = "70000"; // drag layer while spawning
-
+  tok.style.zIndex = "60000";
 
   try { tok.setPointerCapture(pointerId); } catch (e) {}
 
   function move(e) {
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top)  / camera.scale;
     tok.style.left = (px - TOKEN_SIZE/2) + "px";
     tok.style.top  = (py - TOKEN_SIZE/2) + "px";
   }
@@ -3558,7 +2977,7 @@ function returnTokensForOwner(owner, typesToReturn) {
   });
 
   // 👇 THIS IS WHERE THE NET SEND GOES
-  sendMove({
+  vttSend({
     t: "token_return",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
@@ -3566,22 +2985,15 @@ function returnTokensForOwner(owner, typesToReturn) {
     counts: returnedCounts,
     tokenIds: returnedIds,
     at: __vttNowMs()
-  }, "alter_shared_pile", { owner: owner });
+  });
 }
 
 function endTurn(owner) {
-  if (!Permissions.canPerform("alter_shared_pile", { owner: owner })) {
-    showToast("Not your turn", 1200);
-    return;
-  }
   returnTokensForOwner(owner, ["attack","resource"]);
-  TurnManager.requestEndTurn();
 }
 
 function resetAllTokens() {
-  window.__gameState.activeSeat = "blue";
-  window.__gameState.turn = 1;
-Array.from(tokenEls).forEach(function(t){
+  Array.from(tokenEls).forEach(function(t){
     if (t.isConnected) t.remove();
     tokenEls.delete(t);
   });
@@ -3595,23 +3007,16 @@ Array.from(tokenEls).forEach(function(t){
   tokenPools.p2.resource = TOKENS_RESOURCE_PER_PLAYER;
 
   // NET: broadcast reset
-  sendMove({
+  vttSend({
     t: "token_reset",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
     at: __vttNowMs()
-  }, "alter_shared_pile", { reset: true });
+  });
 }
 
-endP1Btn.style.display = "none";
-endP2Btn.style.display = "none";
-var endTurnBtn = mkHudBtn("END TURN");
-endTurnBtn.id = "endTurnBtn";
-endTurnBtn.addEventListener("click", function(e){
-  e.preventDefault();
-  var owner = (getLocalSeatColor() === "red") ? "p2" : "p1";
-  endTurn(owner);
-});
+endP1Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p1"); });
+endP2Btn.addEventListener("click", function(e){ e.preventDefault(); endTurn("p2"); });
 resetTokensBtn.addEventListener("click", function(e){ e.preventDefault(); resetAllTokens(); });
 
 /* =========================
@@ -3657,10 +3062,7 @@ function build() {
   bindPileZoneClicks();
   fitToScreen();
   if (typeof window.__vttFlushPendingMoves === "function") window.__vttFlushPendingMoves();
-  if (typeof window.__vttFlushPendingNet === "function") window.__vttFlushPendingNet();
-  TurnManager.ensureGameStart();
-  TurnManager.applyTurnUI();
-
+ 
 }
 
 function initBoard() { build(); }
@@ -3703,10 +3105,6 @@ function applyFactionBorderClass(el, cardData){
 /* =========================
    CARD FACTORY + DRAG
    ========================= */
-function applyLocalCardFacing(el) {
-  updateCardFacingForViewer(el);
-}
-
 function makeCardEl(cardData, kind) {
   var el = document.createElement("div");
   el.className = "card";
@@ -3716,8 +3114,6 @@ function makeCardEl(cardData, kind) {
    // Keep original card data for network spawn
   el.__cardData = cardData;
  el.dataset.face = "up";
-  // assign a stable owner seat for this card element (default heuristic)
-  try { el.dataset.owner = cardData.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
 
   var face = document.createElement("div");
   face.className = "cardFace";
@@ -3745,7 +3141,6 @@ function makeCardEl(cardData, kind) {
   });
 
   attachDragHandlers(el, cardData, kind);
-  applyLocalCardFacing(el);
   return el;
 }
 
@@ -3789,7 +3184,6 @@ function attachDragHandlers(el, cardData, kind) {
 
   el.addEventListener("pointerdown", function(e){
     if (previewOpen) return;
-    if (!Permissions.canPerform("move_shared_piece", { pieceType: "card" })) { showToast("Not your turn", 1200); return; }
     if (e.button !== 0) return;
 
     clearFlipTimer();
@@ -3804,7 +3198,7 @@ function attachDragHandlers(el, cardData, kind) {
   toggleRotate(el);
 
   // NET: sync rotation immediately (no extra drag needed)
-  sendMove({
+  vttSend({
     t: "card_move",
     clientId: window.__vttClientId,
     room: window.__vttRoomId,
@@ -3817,7 +3211,7 @@ function attachDragHandlers(el, cardData, kind) {
     capSide: el.dataset.capSide || null,
     capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
     at: __vttNowMs()
-  }, "move_shared_piece", { pieceType: "card" });
+  });
 
   el.style.zIndex = (kind === "base") ? "12000" : "15000";
 
@@ -3833,9 +3227,10 @@ function attachDragHandlers(el, cardData, kind) {
       baseFreedAssignment = false;
     }
 
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
+
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
     offsetX = px - left;
@@ -3862,9 +3257,9 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (longPressFired) return;
 
-    var pt = screenToWorld(e.clientX, e.clientY);
-    var px = pt.x;
-    var py = pt.y;
+    var stageRect = stage.getBoundingClientRect();
+    var px = (e.clientX - stageRect.left) / camera.scale;
+    var py = (e.clientY - stageRect.top) / camera.scale;
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
@@ -3874,10 +3269,11 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     try { el.releasePointerCapture(e.pointerId); } catch (err) {}
     dragging = false;
+
     if (suppressNextPointerUp) {
       suppressNextPointerUp = false;
       el.style.zIndex = (kind === "base") ? "12000" : "15000";
-  return;
+      return;
     }
 
     if (longPressFired) {
@@ -3890,21 +3286,20 @@ function attachDragHandlers(el, cardData, kind) {
       flipTimer = setTimeout(function(){
         toggleFlip(el);
          // NET: sync flip immediately (no extra drag needed)
-        
-sendMove({
+vttSend({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-x: parseFloat(el.style.left || "0"),
-y: parseFloat(el.style.top  || "0"),
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-}, "move_shared_piece", { pieceType: "card" });
+});
 
         if (kind === "base") {
           if (el.dataset.capSide) {
@@ -3932,20 +3327,21 @@ y: parseFloat(el.style.top  || "0"),
 }
 
 // NET: broadcast final position/state after move
-sendMove({
+vttSend({
   t: "card_move",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-   x: parseFloat(el.style.left || "0"),
-  y: parseFloat(el.style.top  || "0"), // (already normalized for P2 by the patch above)
+  x: parseFloat(el.style.left || "0"),
+  y: parseFloat(el.style.top  || "0"),
   z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
   rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
   face: el.dataset.face || "up",
   capSide: el.dataset.capSide || null,
   capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
   at: __vttNowMs()
-}, "move_shared_piece", { pieceType: "card" });
+});
+
 });
 
 
@@ -4098,12 +3494,11 @@ factionTestBtn.addEventListener("click", function(e){
     stage.appendChild(el);
            // NET: spawn this card for the other client
 // NET: spawn this card for the other client (FIXED)
-sendMove({
+vttSend({
   t: "card_spawn",
   clientId: window.__vttClientId,
   room: window.__vttRoomId,
   cardId: el.dataset.cardId,
-  owner: ownerSeatFromLocalColor(),
   kind: "unit",
   cardData: el.__cardData || cards[i],
   x: parseFloat(el.style.left || "0"),
@@ -4114,7 +3509,7 @@ sendMove({
   capSide: null,
   capIndex: null,
   at: __vttNowMs()
-}, "move_shared_piece", { pieceType: "card" });
+});
 } // end for cards loop
 
 }); // end factionTestBtn click handler
@@ -4251,8 +3646,7 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
       mandoNeutral: !!cfg.mandoNeutral,
       p1Faction: cfg.hostFaction,
       p2Faction: guestFaction,
-      youAre: (guestFaction === "blue") ? "p1" : "p2"
-
+      youAre: "p2"
     };
 
     window.__menuSelection = window.__menuSelection || {};
@@ -4270,7 +3664,6 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
     try { if (cfg.room) connectToRoom(cfg.room); } catch (e) { console.warn("Guest connectToRoom failed:", e); }
 
     try { initBoard(); } catch (err) { console.error("initBoard() failed:", err); }
-    try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
     console.log("Joined as guest (P2):", window.__gameConfig);
   }
 
@@ -4591,48 +3984,7 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
 
       var applied = applyMenuSelection(window.__menuSelection || {});
       menu.style.display = "none";
-
-      // INSERT AFTER: var applied = applyMenuSelection(window.__menuSelection || {});
-      // 
-      
-      // Non-destructive host config initialization (only when no config exists)
-      try {
-        if (!window.__gameConfig) {
-         // Prefer menu faction (host choice) over any pre-set seat default
-// Prefer the freshly-applied selection (applied.faction) if available
-var menuFaction = (applied && applied.faction)
-  ? String(applied.faction).toLowerCase()
-  : ((window.__menuSelection && window.__menuSelection.faction)
-      ? String(window.__menuSelection.faction).toLowerCase()
-      : "");
-
-
-var seat = menuFaction || ((window.VTT_LOCAL && window.VTT_LOCAL.seat) ? String(window.VTT_LOCAL.seat).toLowerCase() : "");
-
-// Keep VTT_LOCAL in sync so camera/bottom-view logic follows the chosen faction
-try {
-  window.VTT_LOCAL = window.VTT_LOCAL || {};
-  if (seat) window.VTT_LOCAL.seat = seat;
-} catch (e) { /* ignore */ }
-
-var hostFaction = seat || "blue";
-
-          window.__gameConfig = {
-            role: "host",
-            p1Faction: "blue",
-            p2Faction: "red",
-            youAre: (seat === "blue" || seat === "p1") ? "p1" : "p2",
-            hostFaction: hostFaction,
-            hostName: (window.__menuSelection && window.__menuSelection.hostName) ? window.__menuSelection.hostName : (typeof getHostName === 'function' ? getHostName() : "Player"),
-            mode: (window.__menuSelection && window.__menuSelection.mode) ? window.__menuSelection.mode : "original trilogy",
-            mandoNeutral: !!(window.__menuSelection && window.__menuSelection.mandoNeutral)
-          };
-          console.log("Host config initialized:", window.__gameConfig);
-        }
-      } catch (e) { console.warn("Host config init failed:", e); }
-
       try { initBoard(); } catch (err2) { console.error("initBoard() failed:", err2); }
-      try { if (window.VTT_LOCAL && typeof window.VTT_LOCAL.applyCamera === "function") window.VTT_LOCAL.applyCamera(); } catch (e) {}
       console.log("Menu applied:", applied);
     });
   });
@@ -4683,32 +4035,4 @@ function bootTry(label, fn) {
     } catch (e2) {}
     return undefined;
   }
-}
-
-// Helper: centralize moving a card (DOM element or card data) into a seat's tray
-function moveCardToTray(cardElOrData, seat) {
-  var seatKey = (seat === "p2") ? "p2" : "p1";
-
-  // If passed a board card element, convert to tray draw item (store card data)
-  try {
-    if (cardElOrData && cardElOrData.classList && cardElOrData.classList.contains && cardElOrData.classList.contains("card")) {
-      var data = cardElOrData.__cardData || null;
-      if (data) {
-        trayState.drawItems.push({ owner: seatKey, pileKey: seatKey + "_draw", card: data });
-        try { if (cardElOrData.isConnected) cardElOrData.remove(); } catch (e) {}
-        renderTray();
-        return true;
-      }
-    }
-  } catch (e) {}
-
-  // If passed an existing tray tile element, just reparent it to the right seat container
-  try {
-    if (cardElOrData && cardElOrData.nodeType === 1) {
-      try { cardElOrData.dataset.owner = seatKey; } catch (e) {}
-      if (seatKey === "p2") trayCarouselP2.appendChild(cardElOrData); else trayCarouselP1.appendChild(cardElOrData);
-      return true;
-    }
-  } catch (e) {}
-  return false;
 }
