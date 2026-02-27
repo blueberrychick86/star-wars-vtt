@@ -1775,6 +1775,8 @@ playfield.id = "playfield";
     if (seatNow === "p2") seatNow = "red";
     if (seatNow === "p1") seatNow = "blue";
     if (seatNow === "yellow") seatNow = "blue";
+    var isP2 = (seatNow === "red");
+    camera.rot = isP2 ? 180 : 0;
     document.documentElement.classList.toggle("vtt-seat-p2", seatNow === "red");
 
   [window.hud, window.trayShell, window.previewBackdrop].forEach(function(el){
@@ -1783,6 +1785,8 @@ playfield.id = "playfield";
     el.style.transform = "";
   });
 
+  applyCamera();
+  refreshSnapRects();
   refreshAllCardFacingVisuals();
 }
 /* =========================
@@ -2413,10 +2417,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
     if (!releasedOverTray) {
       if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var stageRect = stage.getBoundingClientRect();
-      var worldX = (clientX - stageRect.left) / camera.scale;
-      var worldY = (clientY - stageRect.top) / camera.scale;
-      var p = { x: worldX, y: worldY };
+      var p = screenToWorld(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
@@ -2873,14 +2874,25 @@ function computeZones() {
 /* =========================
    CAMERA + INPUT
    ========================= */
-var camera = { scale: 1, tx: 0, ty: 0 };
+var camera = { scale: 1, tx: 0, ty: 0, rot: 0 };
 
 function viewportSize() {
   var vv = window.visualViewport;
   return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
 function applyCamera() {
-  stage.style.transform = "translate(" + camera.tx + "px, " + camera.ty + "px) scale(" + camera.scale + ")";
+  var cx = DESIGN_W / 2;
+  var cy = DESIGN_H / 2;
+  stage.style.transformOrigin = "0px 0px";
+  var m = new DOMMatrix();
+  m = m.translate(camera.tx, camera.ty);
+  m = m.translate(cx, cy);
+  m = m.rotate(camera.rot || 0);
+  m = m.translate(-cx, -cy);
+  m = m.scale(camera.scale);
+  stage.style.transform = m.toString();
+  window.__viewMat = m;
+  window.__viewInv = m.inverse();
 }
 
 function fitToScreen() {
@@ -2915,17 +2927,26 @@ fitBtn.addEventListener("click", function(e){ e.preventDefault(); fitToScreen();
 var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
-function viewportToDesign(vx, vy){
-  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+function screenToWorld(clientX, clientY){
+  if (!window.__viewInv) applyCamera();
+  var p = new DOMPoint(clientX, clientY);
+  var w = p.matrixTransform(window.__viewInv);
+  return { x: w.x, y: w.y };
+}
+function worldToScreen(x, y){
+  if (!window.__viewMat) applyCamera();
+  var p = new DOMPoint(x, y);
+  var s = p.matrixTransform(window.__viewMat);
+  return { x: s.x, y: s.y };
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
-  var world = viewportToDesign(vx, vy);
-
+  var worldAnchor = screenToWorld(vx, vy);
   camera.scale = clamped;
-  camera.tx = vx - world.x * camera.scale;
-  camera.ty = vy - world.y * camera.scale;
-
+  applyCamera();
+  var newScreen = worldToScreen(worldAnchor.x, worldAnchor.y);
+  camera.tx += (vx - newScreen.x);
+  camera.ty += (vy - newScreen.y);
   applyCamera();
   refreshSnapRects();
 }
@@ -3038,7 +3059,18 @@ function refreshSnapRects() {
     var id = el.dataset.zoneId;
     if (!SNAP_ZONE_IDS.has(id)) continue;
     var b = el.getBoundingClientRect();
-    zonesMeta.push({ id: id, left: b.left, top: b.top, width: b.width, height: b.height });
+    var cx = b.left + b.width / 2;
+    var cy = b.top + b.height / 2;
+    var c = screenToWorld(cx, cy);
+    var rx = screenToWorld(cx + b.width / 2, cy);
+    var ry = screenToWorld(cx, cy + b.height / 2);
+    zonesMeta.push({
+      id: id,
+      cx: c.x,
+      cy: c.y,
+      halfW: Math.abs(rx.x - c.x),
+      halfH: Math.abs(ry.y - c.y)
+    });
   }
 }
 
@@ -3048,9 +3080,12 @@ function snapCardToNearestZone(cardEl) {
   var kind = cardEl.dataset.kind || "unit";
   var allowed = (kind === "base") ? BASE_SNAP_ZONE_IDS : UNIT_SNAP_ZONE_IDS;
 
-  var cardRect = cardEl.getBoundingClientRect();
-  var cx = cardRect.left + cardRect.width / 2;
-  var cy = cardRect.top + cardRect.height / 2;
+  var w = parseFloat(cardEl.style.width);
+  var h = parseFloat(cardEl.style.height);
+  var x = parseFloat(cardEl.style.left || "0");
+  var y = parseFloat(cardEl.style.top || "0");
+  var cardCx = x + w / 2;
+  var cardCy = y + h / 2;
 
   var best = null;
   var bestDist = Infinity;
@@ -3058,35 +3093,27 @@ function snapCardToNearestZone(cardEl) {
   for (var i = 0; i < zonesMeta.length; i++) {
     var z = zonesMeta[i];
     if (!allowed.has(z.id)) continue;
-    var zx = z.left + z.width / 2;
-    var zy = z.top + z.height / 2;
-    var d = Math.hypot(cx - zx, cy - zy);
+    var d = Math.hypot(cardCx - z.cx, cardCy - z.cy);
     if (d < bestDist) { bestDist = d; best = z; }
   }
   if (!best) return;
 
-  var cardDiag = Math.hypot(cardRect.width, cardRect.height);
-  var zoneDiag = Math.hypot(best.width, best.height);
+  var cardDiag = Math.hypot(w, h);
+  var zoneDiag = Math.hypot(best.halfW * 2, best.halfH * 2);
   var threshold = Math.max(cardDiag, zoneDiag) * 0.55;
   if (bestDist > threshold) return;
 
-  var stageRect = stage.getBoundingClientRect();
-  var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  var w = parseFloat(cardEl.style.width);
-  var h = parseFloat(cardEl.style.height);
-
-  cardEl.style.left = (targetCenterX - w / 2) + "px";
-  cardEl.style.top  = (targetCenterY - h / 2) + "px";
+  cardEl.style.left = (best.cx - w / 2) + "px";
+  cardEl.style.top  = (best.cy - h / 2) + "px";
 }
 
 function snapBaseToNearestBaseStack(baseEl) {
   if (!zonesMeta.length) return;
 
-  var baseRect = baseEl.getBoundingClientRect();
-  var cx = baseRect.left + baseRect.width / 2;
-  var cy = baseRect.top + baseRect.height / 2;
+  var x = parseFloat(baseEl.style.left || "0");
+  var y = parseFloat(baseEl.style.top || "0");
+  var baseCx = x + BASE_W / 2;
+  var baseCy = y + BASE_H / 2;
 
   var best = null;
   var bestDist = Infinity;
@@ -3094,24 +3121,18 @@ function snapBaseToNearestBaseStack(baseEl) {
   for (var i = 0; i < zonesMeta.length; i++) {
     var z = zonesMeta[i];
     if (!BASE_SNAP_ZONE_IDS.has(z.id)) continue;
-    var zx = z.left + z.width / 2;
-    var zy = z.top + z.height / 2;
-    var d = Math.hypot(cx - zx, cy - zy);
+    var d = Math.hypot(baseCx - z.cx, baseCy - z.cy);
     if (d < bestDist) { bestDist = d; best = z; }
   }
   if (!best) return;
 
-  var zoneDiag = Math.hypot(best.width, best.height);
-  var baseDiag = Math.hypot(baseRect.width, baseRect.height);
+  var zoneDiag = Math.hypot(best.halfW * 2, best.halfH * 2);
+  var baseDiag = Math.hypot(BASE_W, BASE_H);
   var threshold = Math.max(zoneDiag, baseDiag) * 0.70;
   if (bestDist > threshold) return;
 
-  var stageRect = stage.getBoundingClientRect();
-  var targetCenterX = (best.left + best.width / 2 - stageRect.left) / camera.scale;
-  var targetCenterY = (best.top + best.height / 2 - stageRect.top) / camera.scale;
-
-  baseEl.style.left = (targetCenterX - BASE_W / 2) + "px";
-  baseEl.style.top  = (targetCenterY - BASE_H / 2) + "px";
+  baseEl.style.left = (best.cx - BASE_W / 2) + "px";
+  baseEl.style.top  = (best.cy - BASE_H / 2) + "px";
 }
 
 /* =========================
@@ -3181,9 +3202,9 @@ function ensureForceMarker(initialIndex) {
     forceMarker.setPointerCapture(e.pointerId);
     draggingMarker = true;
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     var left = parseFloat(forceMarker.style.left || "0");
     var top = parseFloat(forceMarker.style.top || "0");
     markerOffX = px - left;
@@ -3192,9 +3213,9 @@ function ensureForceMarker(initialIndex) {
 
   forceMarker.addEventListener("pointermove", function(e){
     if (!draggingMarker) return;
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     forceMarker.style.left = (px - markerOffX) + "px";
     forceMarker.style.top  = (py - markerOffY) + "px";
   });
@@ -3259,26 +3280,16 @@ function snapBaseAutoFill(baseEl){
   var capP2 = zonesCache.p2_captured_bases;
   var capP1 = zonesCache.p1_captured_bases;
 
-  var b = baseEl.getBoundingClientRect();
-  var cx = b.left + b.width/2;
-  var cy = b.top + b.height/2;
+  var left = parseFloat(baseEl.style.left || "0");
+  var top = parseFloat(baseEl.style.top || "0");
+  var cx = left + BASE_W / 2;
+  var cy = top + BASE_H / 2;
 
-  function inRect(r){ return (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom); }
-
-  var stageRect = stage.getBoundingClientRect();
-
-  function rectFor(capRect){
-    var l = stageRect.left + capRect.x * camera.scale;
-    var t = stageRect.top  + capRect.y * camera.scale;
-    return { left:l, top:t, right:l + capRect.w * camera.scale, bottom:t + capRect.h * camera.scale };
-  }
-
-  var p2R = rectFor(capP2);
-  var p1R = rectFor(capP1);
+  function inRect(r){ return (cx >= r.x && cx <= (r.x + r.w) && cy >= r.y && cy <= (r.y + r.h)); }
 
   var side = null;
-  if (inRect(p2R)) side = "p2";
-  else if (inRect(p1R)) side = "p1";
+  if (inRect(capP2)) side = "p2";
+  else if (inRect(capP1)) side = "p1";
 
   if (!side){
     clearCapturedAssignment(baseEl);
@@ -3368,9 +3379,9 @@ function attachTokenDragHandlers(el) {
     el.setPointerCapture(e.pointerId);
     dragging = true;
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
     offX = px - left;
@@ -3381,9 +3392,9 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointermove", function(e){
     if (!dragging) return;
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
   });
@@ -3421,9 +3432,9 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 
   tokenPools[owner][type] -= 1;
 
-  var stageRect0 = stage.getBoundingClientRect();
-  var px0 = (clientX - stageRect0.left) / camera.scale;
-  var py0 = (clientY - stageRect0.top)  / camera.scale;
+  var pt0 = screenToWorld(clientX, clientY);
+  var px0 = pt0.x;
+  var py0 = pt0.y;
 
   var tok = createTokenCube(owner, type, px0, py0);
    // NET: broadcast token spawn
@@ -3446,9 +3457,9 @@ sendMove({
   try { tok.setPointerCapture(pointerId); } catch (e) {}
 
   function move(e) {
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top)  / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     tok.style.left = (px - TOKEN_SIZE/2) + "px";
     tok.style.top  = (py - TOKEN_SIZE/2) + "px";
   }
@@ -3821,9 +3832,9 @@ function attachDragHandlers(el, cardData, kind) {
       baseFreedAssignment = false;
     }
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
     offsetX = px - left;
@@ -3850,9 +3861,9 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (longPressFired) return;
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var pt = screenToWorld(e.clientX, e.clientY);
+    var px = pt.x;
+    var py = pt.y;
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
