@@ -2309,14 +2309,47 @@ function computeZones() {
 /* =========================
    CAMERA + INPUT
    ========================= */
-var camera = { scale: 1, tx: 0, ty: 0 };
+// === PATCH: POV camera (seat rotation + correct input mapping) ==============
+var camera = { scale: 1, tx: 0, ty: 0, rotDeg: 0 };
+
+// Determine local seat from existing menu/invite flow.
+// Guest sets __gameConfig.youAre="p2" already. Host will be ensured in Patch D.
+function __vttGetLocalSeat(){
+  try {
+    if (window.__gameConfig && window.__gameConfig.youAre) {
+      return String(window.__gameConfig.youAre).toLowerCase();
+    }
+  } catch (e) {}
+  return "p1";
+}
+
+function __vttSeatRotDeg(){
+  return (__vttGetLocalSeat() === "p2") ? 180 : 0;
+}
+
+function __vttRotatePoint(x, y, deg, cx, cy){
+  var rad = deg * Math.PI / 180;
+  var cos = Math.cos(rad), sin = Math.sin(rad);
+  var dx = x - cx, dy = y - cy;
+  return { x: (dx * cos - dy * sin) + cx, y: (dx * sin + dy * cos) + cy };
+}
+// === END PATCH ==============================================================
 
 function viewportSize() {
   var vv = window.visualViewport;
   return { w: vv ? vv.width : window.innerWidth, h: vv ? vv.height : window.innerHeight };
 }
 function applyCamera() {
-  stage.style.transform = "translate(" + camera.tx + "px, " + camera.ty + "px) scale(" + camera.scale + ")";
+  // Always derive POV from seat at render time (survives older experiments)
+  camera.rotDeg = __vttSeatRotDeg();
+
+  // Rotate around center so 180° doesn't shove the board off-screen
+  try { stage.style.transformOrigin = "center center"; } catch (e) {}
+
+  stage.style.transform =
+    "translate(" + camera.tx + "px, " + camera.ty + "px) " +
+    "scale(" + camera.scale + ") " +
+    "rotate(" + camera.rotDeg + "deg)";
 }
 
 function fitToScreen() {
@@ -2352,15 +2385,38 @@ var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
-  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+  // Undo translate + scale
+  var x = (vx - camera.tx) / camera.scale;
+  var y = (vy - camera.ty) / camera.scale;
+
+  // Undo POV rotation around board center (screen -> design)
+  if (camera.rotDeg) {
+    var cx = DESIGN_W / 2, cy = DESIGN_H / 2;
+    var p = __vttRotatePoint(x, y, -camera.rotDeg, cx, cy);
+    x = p.x; y = p.y;
+  }
+
+  return { x: x, y: y };
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
+
+  // Point under cursor in DESIGN coordinates
   var world = viewportToDesign(vx, vy);
 
+  // Apply scale
   camera.scale = clamped;
-  camera.tx = vx - world.x * camera.scale;
-  camera.ty = vy - world.y * camera.scale;
+
+  // Because we render with rotate(), tx/ty must be computed using the rotated point.
+  var rx = world.x, ry = world.y;
+  if (camera.rotDeg) {
+    var cx = DESIGN_W / 2, cy = DESIGN_H / 2;
+    var rp = __vttRotatePoint(world.x, world.y, camera.rotDeg, cx, cy);
+    rx = rp.x; ry = rp.y;
+  }
+
+  camera.tx = vx - rx * camera.scale;
+  camera.ty = vy - ry * camera.scale;
 
   applyCamera();
   refreshSnapRects();
@@ -3985,6 +4041,25 @@ return { join:true, host:host, mode:mode, mandoNeutral:!!mandoNeutral, hostFacti
       var applied = applyMenuSelection(window.__menuSelection || {});
       menu.style.display = "none";
       try { initBoard(); } catch (err2) { console.error("initBoard() failed:", err2); }
+      // === PATCH: ensure host has __gameConfig so POV knows seat ===============
+      try {
+        if (!window.__gameConfig) {
+          var hostFaction = (window.__appliedSelection && window.__appliedSelection.faction)
+            ? String(window.__appliedSelection.faction).toLowerCase()
+            : "blue";
+
+          window.__gameConfig = {
+            role: "host",
+            hostName: (window.__menuSelection && window.__menuSelection.hostName) ? window.__menuSelection.hostName : "Player",
+            mode: (window.__appliedSelection && window.__appliedSelection.mode) ? window.__appliedSelection.mode : "original trilogy",
+            mandoNeutral: !!(window.__appliedSelection && window.__appliedSelection.mandoNeutral),
+            p1Faction: hostFaction,
+            p2Faction: (hostFaction === "blue") ? "red" : "blue",
+            youAre: "p1"
+          };
+        }
+      } catch (e) {}
+      // === END PATCH ==========================================================
       console.log("Menu applied:", applied);
     });
   });
