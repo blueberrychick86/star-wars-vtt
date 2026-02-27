@@ -2919,6 +2919,7 @@ function fitToScreen() {
   camera.ty = centerTy;
 
   applyCamera();
+  recenterBoardToViewportCenter();
   refreshSnapRects();
 }
 
