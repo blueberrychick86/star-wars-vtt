@@ -2883,15 +2883,14 @@ function viewportSize() {
 function applyCamera() {
   var cx = DESIGN_W / 2;
   var cy = DESIGN_H / 2;
-  stage.style.transformOrigin = cx + "px " + cy + "px";
-  stage.style.transform = "translate(" + camera.tx + "px, " + camera.ty + "px) scale(" + camera.scale + ") rotate(" + camera.rot + "deg)";
-
+  stage.style.transformOrigin = "0px 0px";
   var m = new DOMMatrix();
   m = m.translate(camera.tx, camera.ty);
   m = m.translate(cx, cy);
-  m = m.scale(camera.scale);
-  m = m.rotate(camera.rot);
+  m = m.rotate(camera.rot || 0);
   m = m.translate(-cx, -cy);
+  m = m.scale(camera.scale);
+  stage.style.transform = m.toString();
   window.__viewMat = m;
   window.__viewInv = m.inverse();
 }
