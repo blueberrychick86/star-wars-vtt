@@ -1,12 +1,11 @@
 /* ========================================================================
-   Star Wars Deckbuilding VTT — Fresh Rebuild (2-player online + correct POV)
-   - Uses your existing Cloudflare WS room worker:
-       wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=<ROOM>
-   - Seat-locked POV: each player sees THEIR side at the bottom
-   - Fixes P2 facing by rotating CAMERA (board), not rotating card logic
-   - Freeform tabletop mechanics: drag cards/tokens, draw/discard, end turn,
-     force marker, tokens attach to cards
-   - Desktop + mobile (iPhone 12 Pro friendly)
+   Star Wars Deckbuilding VTT — Fresh Rebuild v2
+   FIXES:
+   - Layout matches provided board image (848x788) with measured zone positions
+   - P2 POV correct: local player's cards + neutral are upright, opponent upside down
+   - Invite defaults to opposite seat automatically via URL param: &seat=p1|p2
+   - 2-player online via your existing Cloudflare WS room worker
+   - Desktop + mobile/iPhone friendly (pointer events, iOS gesture prevention)
    ======================================================================== */
 
 (() => {
@@ -23,46 +22,74 @@
   const elCancel = document.getElementById("cancelBtn");
   const menuBtns = Array.from(document.querySelectorAll("#startMenu .menu-btn"));
 
-  // Seat buttons are literal text: "Blue" and "Red"
+  // Seat buttons (text must match your HTML)
   const btnBlue = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "blue");
   const btnRed  = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "red");
 
-  // Era buttons (we store selection, but mechanics are freeform)
+  // Era buttons (stored, not rules-enforced yet)
   const btnOT    = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "original trilogy");
   const btnCW    = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "clone wars");
   const btnMixed = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "mixed");
   const btnRand  = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "random");
 
-  // Make menu visible once JS boots (your HTML waits for this)
+  // Show menu once JS boots (your HTML waits for this)
   document.body.classList.add("menuReady");
 
   // ---------------------------
-  // Constants / Layout (world coords)
+  // Constants / Layout
+  // MATCHES YOUR ORIGINAL LAYOUT IMAGE SIZE EXACTLY
   // ---------------------------
-  const DESIGN_W = 900;
-  const DESIGN_H = 700;
+  const DESIGN_W = 848;
+  const DESIGN_H = 788;
 
-  // Zones approximate your screenshot layout (you can tweak later)
+  // These coordinates are taken from the rectangles in your provided layout image.
+  // (You can tweak later visually; mechanics will remain solid.)
   const ZONES = {
-    centerRow: { x: 250, y: 290, w: 400, h: 140, label: "CENTER ROW" },
-    forceTrack: { x: 650, y: 250, w: 40, h: 200, label: "FORCE" },
+    // Galaxy/market center (10 slots) — based on the two rows found at y=328 and y=398
+    centerRow: { x: 232, y: 315, w: 336, h: 170, label: "CENTER ROW" },
 
-    p1Deck:    { x: 795, y: 520, w: 70, h: 110, label: "P1 DECK" },
-    p1Discard: { x: 795, y: 390, w: 70, h: 110, label: "P1 DISC" },
-    p2Deck:    { x: 795, y: 160, w: 70, h: 110, label: "P2 DECK" },
-    p2Discard: { x: 795, y:  30, w: 70, h: 110, label: "P2 DISC" },
+    // Bases (top and bottom single)
+    p2Base: { x: 370, y: 39,  w: 61, h: 44, label: "P2 BASE" },
+    p1Base: { x: 370, y: 705, w: 61, h: 43, label: "P1 BASE" },
 
-    p1Hand: { x:  40, y: 500, w: 180, h: 140, label: "P1 HAND" },
-    p2Hand: { x:  40, y:  70, w: 180, h: 140, label: "P2 HAND" },
+    // Left side: two-slot stacks (top and bottom)
+    p2LeftStacks: { x: 76,  y: 261, w: 98,  h: 62, label: "P2 STACKS" },
+    p1LeftStacks: { x: 76,  y: 474, w: 98,  h: 61, label: "P1 STACKS" },
 
-    p1Base: { x: 405, y: 610, w: 90, h: 70, label: "P1 BASE" },
-    p2Base: { x: 405, y:  20, w: 90, h: 70, label: "P2 BASE" },
+    // Token bins (colored squares) — measured
+    p2Tokens: { x: 82,  y: 224, w: 88,  h: 34, label: "P2 TOKENS" },
+    p1Tokens: { x: 82,  y: 534, w: 88,  h: 34, label: "P1 TOKENS" },
 
-    // Token bins
-    p1Tokens: { x: 65, y: 455, w: 120, h: 35, label: "P1 TOKENS" },
-    p2Tokens: { x: 65, y: 215, w: 120, h: 35, label: "P2 TOKENS" },
+    // Single side slots flanking center row
+    leftSingle:  { x: 187, y: 363, w: 45, h: 61, label: "LEFT SLOT" },
+    rightSingle: { x: 569, y: 363, w: 45, h: 61, label: "RIGHT SLOT" },
+
+    // Right side: two small slots above and below (top and bottom pairs)
+    p2RightSmallA: { x: 587, y: 252, w: 44, h: 62, label: "P2 R-A" },
+    p2RightSmallB: { x: 640, y: 252, w: 44, h: 62, label: "P2 R-B" },
+    p1RightSmallA: { x: 587, y: 474, w: 44, h: 61, label: "P1 R-A" },
+    p1RightSmallB: { x: 640, y: 474, w: 44, h: 61, label: "P1 R-B" },
+
+    // Force track area (vertical strip near the marker)
+    forceTrack: { x: 630, y: 325, w: 70, h: 200, label: "FORCE" },
+
+    // Tall stacks on far right (upper and lower)
+    rightTallTop:    { x: 716, y: 186, w: 62, h: 164, label: "TALL TOP" },
+    rightTallBottom: { x: 716, y: 438, w: 62, h: 163, label: "TALL BOT" },
+
+    // Hands (not shown as explicit rectangles in the image; we anchor them near token bins)
+    // These are “functional zones” for draw placement.
+    p2Hand: { x: 40, y: 150, w: 200, h: 120, label: "P2 HAND" },
+    p1Hand: { x: 40, y: 560, w: 200, h: 120, label: "P1 HAND" },
+
+    // Deck/Discard functional zones (we’ll use the tall stacks for piles)
+    p2Deck:    { x: 716, y: 186, w: 62, h: 78, label: "P2 DECK" },
+    p2Discard: { x: 716, y: 272, w: 62, h: 78, label: "P2 DISC" },
+    p1Deck:    { x: 716, y: 438, w: 62, h: 78, label: "P1 DECK" },
+    p1Discard: { x: 716, y: 523, w: 62, h: 78, label: "P1 DISC" },
   };
 
+  // Your existing WS worker (from your old file)
   const WS_BASE = "wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=";
 
   // ---------------------------
@@ -79,10 +106,7 @@
   const uid = () => randHex(8) + "_" + now().toString(16);
 
   function safeJSON(s) { try { return JSON.parse(s); } catch { return null; } }
-
-  function getParam(name) {
-    try { return new URL(location.href).searchParams.get(name); } catch { return null; }
-  }
+  function getParam(name) { try { return new URL(location.href).searchParams.get(name); } catch { return null; } }
   function setParam(name, value) {
     const u = new URL(location.href);
     u.searchParams.set(name, value);
@@ -91,11 +115,8 @@
 
   function copyToClipboard(text) {
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-      }
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
     } catch {}
-    // fallback
     const ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
@@ -109,17 +130,16 @@
     return Promise.resolve();
   }
 
-  // iOS / Mobile safety: prevent pinch-to-zoom & double-tap zoom while interacting
-  // (We can’t add viewport meta from JS reliably, so we block gesture behavior.)
+  // iOS pinch/double-tap zoom prevention while interacting
   document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
   document.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
   document.addEventListener("gestureend", (e) => e.preventDefault(), { passive: false });
 
   // ---------------------------
-  // Synced game state (authoritative = "host" client)
+  // Synced game state (host authoritative snapshot)
   // ---------------------------
   const state = {
-    v: 1,
+    v: 2,
     room: "",
     createdAt: now(),
     era: "Original Trilogy",
@@ -133,8 +153,6 @@
       p2: { name: "Red",  clientId: null, connected: false },
     },
 
-    // Tabletop objects
-    // objects[id] = { id,type,x,y,w,h,rot,faceUp,owner,label,z,tokenType,attachedTo }
     objects: {},
 
     stacks: {
@@ -144,10 +162,9 @@
       p2Discard: { order: [] },
     },
 
-    force: { pos: 0 } // 0..10 (0 = far red end, 10 = far blue end)
+    force: { pos: 0 } // 0..10
   };
 
-  // Local-only runtime
   const local = {
     clientId: (() => {
       try {
@@ -159,14 +176,14 @@
         return "c_" + uid();
       }
     })(),
-    seatWanted: null,   // "p1" or "p2"
-    seat: null,         // finalized seat for POV
+
+    seatWanted: null,
+    seat: null,
     isHost: false,
 
     ws: null,
     netReady: false,
     lastHostSnapshotAt: 0,
-    lastSentAt: 0,
     suppressSendUntil: 0,
 
     dragging: null, // {id, dx, dy, pointerId}
@@ -176,20 +193,15 @@
   };
 
   // ---------------------------
-  // UI / CSS injection
+  // CSS injection
   // ---------------------------
   const style = document.createElement("style");
   style.textContent = `
     :root{
       --bg:#0b0b0d;
-      --panel:#111319;
-      --stroke:rgba(255,255,255,.22);
       --stroke2:rgba(255,255,255,.14);
       --text:rgba(255,255,255,.92);
       --muted:rgba(255,255,255,.65);
-      --good:#3aa0ff;
-      --bad:#ff3a3a;
-      --gold:#d9b85a;
     }
     html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
     #app{height:100vh;width:100vw;overflow:hidden;position:relative;touch-action:none;}
@@ -206,11 +218,10 @@
       appearance:none;border:1px solid var(--stroke2);
       background:rgba(30,34,44,.65);
       color:var(--text);border-radius:10px;padding:7px 10px;
-      font-weight:700;font-size:13px;
+      font-weight:800;font-size:13px;
     }
     .btn:active{transform:translateY(1px)}
     .btn.primary{border-color:rgba(58,160,255,.55)}
-    .btn.danger{border-color:rgba(255,58,58,.45)}
     .btn.ghost{background:transparent}
 
     .statusDot{width:9px;height:9px;border-radius:99px;display:inline-block;margin-right:6px;background:#666}
@@ -220,17 +231,15 @@
     .stageWrap{position:absolute;inset:0;overflow:hidden;touch-action:none;}
     .stage{
       position:absolute;left:0;top:0;width:${DESIGN_W}px;height:${DESIGN_H}px;
-      transform-origin:center center;
-      will-change: transform;
+      transform-origin:center center;will-change: transform;
     }
 
     .zone{
-      position:absolute;border:1px solid var(--stroke2);border-radius:10px;
-      background:rgba(255,255,255,.02);
-      box-shadow:0 0 0 1px rgba(0,0,0,.4) inset;
+      position:absolute;border:1px solid rgba(255,255,255,.18);border-radius:10px;
+      background:rgba(255,255,255,.01);
     }
     .zoneLabel{
-      position:absolute;left:8px;top:6px;font-size:11px;color:rgba(255,255,255,.5);
+      position:absolute;left:8px;top:6px;font-size:11px;color:rgba(255,255,255,.40);
       letter-spacing:.08em;user-select:none;pointer-events:none;
     }
 
@@ -241,8 +250,8 @@
     .bin.gold{background:#d9b85a}
 
     .obj{
-      position:absolute;border:1px solid rgba(255,255,255,.28);border-radius:10px;
-      background:rgba(255,255,255,.04);
+      position:absolute;border:1px solid rgba(255,255,255,.26);border-radius:10px;
+      background:rgba(255,255,255,.035);
       box-shadow:0 10px 25px rgba(0,0,0,.35);
       user-select:none;touch-action:none;
       display:flex;align-items:center;justify-content:center;text-align:center;
@@ -260,7 +269,6 @@
     .obj.token.red{background:rgba(255,58,58,.35)}
     .obj.token.blue{background:rgba(58,160,255,.35)}
     .obj.token.gold{background:rgba(217,184,90,.30)}
-
     .obj.marker{width:24px;height:24px;border-radius:999px;background:rgba(255,255,255,.08)}
 
     .toast{
@@ -271,35 +279,6 @@
       max-width:min(92vw,560px);text-align:center;
     }
     .toast.on{opacity:1}
-
-    /* Start menu is your HTML; this makes it look clean on mobile too */
-    #startMenu{
-      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100;
-      background:rgba(0,0,0,.68);padding:18px;
-    }
-    #startMenu .start-menu-window{
-      width:min(540px,92vw);
-      background:rgba(12,14,18,.92);
-      border:1px solid var(--stroke2);border-radius:18px;
-      padding:16px 16px 14px;
-      box-shadow:0 20px 60px rgba(0,0,0,.55);
-    }
-    #startMenu .menu-title{margin:0 0 10px;font-size:26px;line-height:1.05;letter-spacing:.04em}
-    #startMenu .menu-section{margin:10px 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    #startMenu .menu-btn{
-      border:1px solid var(--stroke2);background:rgba(30,34,44,.65);color:var(--text);
-      border-radius:12px;padding:10px 12px;font-weight:800;font-size:14px;
-    }
-    #startMenu .menu-btn.play{border-color:rgba(58,160,255,.55)}
-    #startMenu .menu-btn.cancel{border-color:rgba(255,58,58,.45)}
-    #startMenu .name-row{display:flex;gap:10px;align-items:center;width:100%}
-    #startMenu .name-label{color:var(--muted);min-width:88px}
-    #startMenu .name-input{
-      flex:1;border:1px solid var(--stroke2);border-radius:12px;
-      background:rgba(0,0,0,.25);color:var(--text);
-      padding:10px 12px;font-size:14px;outline:none;
-    }
-    #startMenu .toggle-row{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}
 
     .inviteBox{
       border:1px solid var(--stroke2);
@@ -347,9 +326,6 @@
   elApp.appendChild(hud);
   elApp.appendChild(toast);
 
-  // ---------------------------
-  // Toast
-  // ---------------------------
   let toastTimer = null;
   function showToast(msg, ms = 2200) {
     toast.textContent = msg;
@@ -359,7 +335,7 @@
   }
 
   // ---------------------------
-  // Zones render
+  // Render zones
   // ---------------------------
   const zoneDivs = {};
   function addZoneDiv(key, z) {
@@ -390,8 +366,8 @@
       <div class="bin gold" data-spawn="gold" title="Spawn gold token"></div>
     `;
   }
-  decorateTokenZone("p1Tokens");
   decorateTokenZone("p2Tokens");
+  decorateTokenZone("p1Tokens");
 
   // ---------------------------
   // Camera / POV
@@ -399,9 +375,7 @@
   function viewportSize() { return { w: window.innerWidth, h: window.innerHeight }; }
 
   function applyCamera() {
-    // POV is camera rotation only:
-    // - local seat p1 => rot 0
-    // - local seat p2 => rot 180
+    // P1 = 0°, P2 = 180° so their side is at the bottom
     const rotDeg = (local.seat === "p2") ? 180 : 0;
     local.cam.rotDeg = rotDeg;
 
@@ -418,7 +392,6 @@
   }
   window.addEventListener("resize", applyCamera, { passive: true });
 
-  // Screen -> world inverse mapping (handles rot 180 correctly)
   function screenToWorld(clientX, clientY) {
     const s = local.cam.scale || 1;
     const tx = local.cam.tx || 0;
@@ -428,7 +401,6 @@
     let x = (clientX - tx) / s;
     let y = (clientY - ty) / s;
 
-    // undo rotation about center
     const cx = DESIGN_W / 2, cy = DESIGN_H / 2;
     const dx = x - cx, dy = y - cy;
     const cos = Math.cos(-rot), sin = Math.sin(-rot);
@@ -438,7 +410,7 @@
   }
 
   // ---------------------------
-  // Object model helpers
+  // Objects
   // ---------------------------
   function bringToFront(id) {
     const o = state.objects[id];
@@ -451,10 +423,8 @@
   function createCard(label, x, y, owner = null, stackId = null, faceUp = true) {
     const id = uid();
     state.objects[id] = {
-      id,
-      type: "card",
-      x, y,
-      w: 70, h: 100,
+      id, type: "card",
+      x, y, w: 44, h: 61,   // match the card-slot rectangles in your layout image
       rot: 0,
       faceUp: !!faceUp,
       owner,
@@ -470,11 +440,9 @@
   function createToken(tokenType, x, y, owner = null) {
     const id = uid();
     state.objects[id] = {
-      id,
-      type: "token",
+      id, type: "token",
       tokenType,
-      x, y,
-      w: 26, h: 26,
+      x, y, w: 26, h: 26,
       rot: 0,
       faceUp: true,
       owner,
@@ -491,7 +459,7 @@
     state.objects.forceMarker = {
       id: "forceMarker",
       type: "marker",
-      x: ZONES.forceTrack.x + 8,
+      x: ZONES.forceTrack.x + (ZONES.forceTrack.w / 2) - 12,
       y: ZONES.forceTrack.y + ZONES.forceTrack.h - 28,
       w: 24, h: 24,
       rot: 0,
@@ -506,8 +474,8 @@
 
   function forcePosToY(pos) {
     const z = ZONES.forceTrack;
-    const minY = z.y + 8;
-    const maxY = z.y + z.h - 32;
+    const minY = z.y + 10;
+    const maxY = z.y + z.h - 34;
     const t = clamp(pos / 10, 0, 1);
     return maxY + (minY - maxY) * t;
   }
@@ -515,11 +483,11 @@
   function updateForceMarkerFromPos() {
     createForceMarkerIfMissing();
     const m = state.objects.forceMarker;
-    m.x = ZONES.forceTrack.x + 8;
+    m.x = ZONES.forceTrack.x + (ZONES.forceTrack.w / 2) - 12;
     m.y = forcePosToY(state.force.pos);
   }
 
-  // Attach token if released over a card
+  // Token attach: snap to top-right of card
   function attachTokenIfOverCard(tokenId) {
     const t = state.objects[tokenId];
     if (!t || t.type !== "token") return;
@@ -535,8 +503,8 @@
     }
     if (best) {
       t.attachedTo = best.id;
-      t.x = best.x + best.w - t.w - 4;
-      t.y = best.y + 4;
+      t.x = best.x + best.w - t.w - 3;
+      t.y = best.y + 3;
       t.z = (best.z || 1) + 1;
     } else {
       t.attachedTo = null;
@@ -551,6 +519,7 @@
   function ensureObjEl(o) {
     let el = objEls.get(o.id);
     if (el) return el;
+
     el = document.createElement("div");
     el.className = "obj";
     el.dataset.oid = o.id;
@@ -580,15 +549,34 @@
     else { netDot.classList.add("warn"); netLabel.textContent = "Offline"; }
   }
 
+  // KEY FIX: per-seat visual rotation so P2 isn't upside down
+  // - Camera rotates for P2 (board POV)
+  // - Then we rotate cards so local+neutral are upright, opponent upside down
+  function extraVisualRotationForCard(o) {
+    if (!local.seat) return 0;
+
+    const viewer = local.seat;           // "p1" or "p2"
+    const owner = o.owner || null;       // "p1"|"p2"|null (neutral)
+    const camRot = (viewer === "p2") ? 180 : 0;
+
+    // We want:
+    //  - viewer-owned + neutral => upright on screen
+    //  - opponent-owned => upside down on screen
+    //
+    // With camera rot:
+    //  - for P1 (camRot=0): upright => extra 0; opponent => extra 180
+    //  - for P2 (camRot=180): upright => extra 180; opponent => extra 0
+    const isOpponent = (owner && owner !== viewer);
+    if (camRot === 0) return isOpponent ? 180 : 0;
+    return isOpponent ? 0 : 180; // camRot 180 case
+  }
+
   function render() {
-    // remove deleted elements
     for (const [id, el] of objEls.entries()) {
       if (!state.objects[id]) { el.remove(); objEls.delete(id); }
     }
 
-    // ensure force marker position consistent
     updateForceMarkerFromPos();
-
     renderHUD();
 
     const objects = Object.values(state.objects).sort((a, b) => (a.z || 0) - (b.z || 0));
@@ -604,9 +592,9 @@
       el.style.height = o.h + "px";
       el.style.zIndex = String(o.z || 1);
 
-      // IMPORTANT: We do NOT special-case owner seat rotation.
-      // Camera rotation handles POV, so P2 sees opponent upside down naturally.
-      el.style.transform = `rotate(${o.rot || 0}deg)`;
+      let rot = (o.rot || 0);
+      if (o.type === "card") rot += extraVisualRotationForCard(o);
+      el.style.transform = `rotate(${rot}deg)`;
 
       if (o.type === "card") {
         el.classList.toggle("faceDown", !o.faceUp);
@@ -623,7 +611,7 @@
   }
 
   // ---------------------------
-  // Core tabletop setup (host creates initial tabletop)
+  // Table seed (host)
   // ---------------------------
   function seedTabletop() {
     state.objects = {};
@@ -636,48 +624,47 @@
     createForceMarkerIfMissing();
     updateForceMarkerFromPos();
 
-    // Create center row placeholders (10)
-    const row = ZONES.centerRow;
-    const cols = 5, rows = 2;
-    const gap = 10, cardW = 70, cardH = 100;
+    // CENTER ROW: use the exact slot rectangles we detected in the layout image
+    // Row 1: x=246,299,352,405,458,511 at y=328
+    // Row 2: same x at y=398
+    const row1y = 328, row2y = 398;
+    const xs = [246, 299, 352, 405, 458, 511];
 
     let idx = 1;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const x = row.x + 20 + c * (cardW + gap);
-        const y = row.y + 20 + r * (cardH + gap);
-        createCard("Row " + idx, x, y, null, null, true);
-        idx++;
-      }
-    }
+    for (const x of xs) createCard("Row " + (idx++), x, row1y, null);
+    for (const x of xs) createCard("Row " + (idx++), x, row2y, null);
 
-    // Hands (visual)
-    for (let i = 0; i < 5; i++) {
-      createCard("P1 Hand " + (i + 1), ZONES.p1Hand.x + 10 + i * 32, ZONES.p1Hand.y + 30, "p1");
-      createCard("P2 Hand " + (i + 1), ZONES.p2Hand.x + 10 + i * 32, ZONES.p2Hand.y + 30, "p2");
-    }
+    // Side single slots (left / right)
+    createCard("L Slot", 187, 363, null);
+    createCard("R Slot", 569, 363, null);
 
-    // Deck stacks (10 each) face-down
+    // Deck piles: create 10 face-down cards each, stacked at p1Deck/p2Deck
     for (let i = 0; i < 10; i++) {
-      const id1 = createCard("P1 Deck", ZONES.p1Deck.x + 6, ZONES.p1Deck.y + 6, "p1", "p1Deck", false);
-      state.stacks.p1Deck.order.push(id1);
+      const p2 = createCard("P2 Deck", ZONES.p2Deck.x + 8, ZONES.p2Deck.y + 8, "p2", "p2Deck", false);
+      state.stacks.p2Deck.order.push(p2);
 
-      const id2 = createCard("P2 Deck", ZONES.p2Deck.x + 6, ZONES.p2Deck.y + 6, "p2", "p2Deck", false);
-      state.stacks.p2Deck.order.push(id2);
+      const p1 = createCard("P1 Deck", ZONES.p1Deck.x + 8, ZONES.p1Deck.y + 8, "p1", "p1Deck", false);
+      state.stacks.p1Deck.order.push(p1);
     }
 
-    // Bases
-    createCard("P1 Base", ZONES.p1Base.x + 10, ZONES.p1Base.y - 15, "p1");
-    createCard("P2 Base", ZONES.p2Base.x + 10, ZONES.p2Base.y - 15, "p2");
+    // Base placeholders (top/bottom)
+    createCard("P2 Base", ZONES.p2Base.x + 8, ZONES.p2Base.y + 8, "p2");
+    createCard("P1 Base", ZONES.p1Base.x + 8, ZONES.p1Base.y + 8, "p1");
 
-    // Turn
+    // Hands: 5 each, placed into functional zones
+    for (let i = 0; i < 5; i++) {
+      createCard("P2 Hand " + (i + 1), ZONES.p2Hand.x + 10 + i * 28, ZONES.p2Hand.y + 25, "p2");
+      createCard("P1 Hand " + (i + 1), ZONES.p1Hand.x + 10 + i * 28, ZONES.p1Hand.y + 25, "p1");
+    }
+
+    // Turn always starts with Blue
     state.turn.active = "p1";
     state.turn.n = 1;
     state.turn.startedAt = now();
   }
 
   // ---------------------------
-  // Object interactions
+  // Actions
   // ---------------------------
   function toggleFlip(id) {
     const o = state.objects[id];
@@ -695,23 +682,22 @@
     render();
   }
 
-  function discardTopmostSelected() {
+  function discardSelected() {
     const id = local.lastTouchedId;
     if (!id || !state.objects[id]) return showToast("Tap a card first.");
     const o = state.objects[id];
     if (o.type !== "card") return showToast("Tap a card first.");
 
-    const seat = (o.owner === "p2") ? "p2" : "p1"; // default to p1 if owner unknown
-    const dz = (seat === "p1") ? ZONES.p1Discard : ZONES.p2Discard;
-    o.x = dz.x + 8 + Math.random() * 8;
-    o.y = dz.y + 8 + Math.random() * 8;
+    const seat = (o.owner === "p2") ? "p2" : "p1";
+    const dz = (seat === "p2") ? ZONES.p2Discard : ZONES.p1Discard;
+    o.x = dz.x + 8 + Math.random() * 6;
+    o.y = dz.y + 8 + Math.random() * 6;
     o.faceUp = true;
-    o.stackId = (seat === "p1") ? "p1Discard" : "p2Discard";
+    o.stackId = (seat === "p2") ? "p2Discard" : "p1Discard";
     bringToFront(o.id);
 
-    // push into discard order (best-effort)
-    if (seat === "p1") state.stacks.p1Discard.order.push(o.id);
-    else state.stacks.p2Discard.order.push(o.id);
+    if (seat === "p2") state.stacks.p2Discard.order.push(o.id);
+    else state.stacks.p1Discard.order.push(o.id);
 
     queueNetSend();
     render();
@@ -725,8 +711,8 @@
     if (!c) return;
 
     const hz = (seat === "p2") ? ZONES.p2Hand : ZONES.p1Hand;
-    c.x = hz.x + 12 + Math.random() * (hz.w - 90);
-    c.y = hz.y + 30 + Math.random() * (hz.h - 120);
+    c.x = hz.x + 10 + Math.random() * (hz.w - 70);
+    c.y = hz.y + 20 + Math.random() * (hz.h - 70);
     c.stackId = null;
     c.faceUp = true;
     c.owner = seat;
@@ -744,7 +730,9 @@
     render();
   }
 
+  // ---------------------------
   // Pointer drag
+  // ---------------------------
   function onObjPointerDown(e) {
     const el = e.currentTarget;
     const oid = el.dataset.oid;
@@ -756,7 +744,7 @@
 
     local.lastTouchedId = oid;
 
-    // Mobile double-tap flip (quick tap twice)
+    // Double-tap flip on mobile
     if (!onObjPointerDown._tap) onObjPointerDown._tap = {};
     const tap = onObjPointerDown._tap;
     const tNow = now();
@@ -769,11 +757,9 @@
 
     bringToFront(oid);
 
-    // dragging offset in world coords
     const p = screenToWorld(e.clientX, e.clientY);
     local.dragging = { id: oid, dx: p.x - o.x, dy: p.y - o.y, pointerId: e.pointerId };
 
-    // detach token while dragging
     if (o.type === "token") o.attachedTo = null;
 
     window.addEventListener("pointermove", onPointerMove, { passive: false });
@@ -833,15 +819,14 @@
     render();
   }, { passive: false });
 
-  // Force marker drag (click anywhere in force track to set)
+  // Force track tap
   zoneDivs.forceTrack.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     const p = screenToWorld(e.clientX, e.clientY);
     const z = ZONES.forceTrack;
-    const minY = z.y + 8;
-    const maxY = z.y + z.h - 32;
+    const minY = z.y + 10;
+    const maxY = z.y + z.h - 34;
     const y = clamp(p.y, minY, maxY);
-    // invert mapping
     const t = (maxY - y) / (maxY - minY);
     state.force.pos = Math.round(clamp(t * 10, 0, 10));
     updateForceMarkerFromPos();
@@ -868,33 +853,25 @@
   });
 
   document.getElementById("btnDraw").addEventListener("click", () => {
-    if (!local.seat) return showToast("Pick Blue or Red first.");
+    if (!local.seat) return showToast("Seat not assigned yet.");
     if (state.turn.active !== local.seat) return showToast("Not your turn.");
     drawOne(local.seat);
   });
 
-  document.getElementById("btnDiscard").addEventListener("click", () => discardTopmostSelected());
+  document.getElementById("btnDiscard").addEventListener("click", () => discardSelected());
 
   document.getElementById("btnEndTurn").addEventListener("click", () => {
-    if (!local.seat) return showToast("Pick Blue or Red first.");
+    if (!local.seat) return showToast("Seat not assigned yet.");
     if (state.turn.active !== local.seat) return showToast("Not your turn.");
     endTurn();
   });
 
   document.getElementById("btnHelp").addEventListener("click", () => {
-    showToast("Drag objects. Double-tap a card to flip. Tokens snap to cards when released on top. Force track: tap inside to move marker.");
+    showToast("Drag objects. Double-tap a card to flip. Opponent cards are upside down. Tokens snap onto cards when released on top. Tap FORCE track to move marker.");
   });
 
   // ---------------------------
-  // Networking (Cloudflare WS room worker)
-  // We assume the worker is a broadcast relay:
-  // - it forwards JSON messages to all clients in the room
-  //
-  // Messages we use:
-  //  - hello: {t:"hello", room, clientId, name, seatWanted, at}
-  //  - claim: {t:"claim", room, clientId, seat, name, at} (host assigns seats best-effort)
-  //  - snap:  {t:"snap", room, clientId, fromHost:true, state, at} (authoritative host snapshot)
-  //  - ping:  {t:"ping", room, clientId, at}
+  // Networking (Cloudflare WS room worker broadcast relay)
   // ---------------------------
   function wsURL(roomId) { return WS_BASE + encodeURIComponent(roomId); }
 
@@ -911,11 +888,11 @@
     const ws = new WebSocket(wsURL(roomId));
     local.ws = ws;
     local.netReady = false;
-    renderHUD();
+    render();
 
     ws.addEventListener("open", () => {
       local.netReady = true;
-      renderHUD();
+      render();
 
       send({
         t: "hello",
@@ -926,9 +903,7 @@
         at: now()
       });
 
-      // Host pushes initial snapshot shortly after connect
       if (local.isHost) {
-        // seed tabletop once on host
         seedTabletop();
         queueNetSend(true);
       }
@@ -939,86 +914,68 @@
     ws.addEventListener("message", (ev) => {
       const obj = safeJSON(ev.data);
       if (!obj || obj.room !== state.room) return;
-
-      // Ignore our own echoes if present
       if (obj.clientId && obj.clientId === local.clientId) return;
 
       if (obj.t === "hello") {
-        // Host tries to assign seats based on who is free
         if (local.isHost) handleHelloAsHost(obj);
         return;
       }
 
       if (obj.t === "claim") {
-        // Apply seat assignment
         if (obj.seat === "p1" || obj.seat === "p2") {
           state.players[obj.seat].clientId = obj.clientId || null;
           state.players[obj.seat].name = obj.name || state.players[obj.seat].name;
           state.players[obj.seat].connected = true;
 
-          // If this claim is for us, set our seat and camera
           if (obj.clientId === local.clientId) {
             local.seat = obj.seat;
             applyCamera();
             render();
           }
         }
-        renderHUD();
-        return;
-      }
-
-      if (obj.t === "snap" && obj.state && obj.fromHost) {
-        // Accept host-authoritative snapshot
-        Object.assign(state, obj.state);
-        local.suppressSendUntil = now() + 200;
-        if (!local.seat) {
-          // If we haven't been assigned, infer seat if our clientId matches
-          if (state.players.p1.clientId === local.clientId) local.seat = "p1";
-          if (state.players.p2.clientId === local.clientId) local.seat = "p2";
-        }
-        applyCamera();
         render();
         return;
       }
 
-      if (obj.t === "ping") return;
+      if (obj.t === "snap" && obj.state && obj.fromHost) {
+        Object.assign(state, obj.state);
+        local.suppressSendUntil = now() + 200;
+
+        if (!local.seat) {
+          if (state.players.p1.clientId === local.clientId) local.seat = "p1";
+          if (state.players.p2.clientId === local.clientId) local.seat = "p2";
+        }
+
+        applyCamera();
+        render();
+        return;
+      }
     });
 
     ws.addEventListener("close", () => {
       local.netReady = false;
-      renderHUD();
+      render();
       showToast("Disconnected.");
     });
 
     ws.addEventListener("error", () => {
       local.netReady = false;
-      renderHUD();
+      render();
     });
   }
 
-  function getPlayerName() {
-    const v = (elName && elName.value ? elName.value : "").trim();
-    return v || "Player";
-  }
-
   function handleHelloAsHost(msg) {
-    // Host assigns seat based on availability and preference
     const desired = (msg.seatWanted === "p1" || msg.seatWanted === "p2") ? msg.seatWanted : null;
 
-    // mark connected (best effort)
-    if (desired) {
-      // if desired seat free, grant it
-      if (!state.players[desired].clientId) {
-        state.players[desired].clientId = msg.clientId || null;
-        state.players[desired].name = msg.name || state.players[desired].name;
-        state.players[desired].connected = true;
-        send({ t: "claim", room: state.room, clientId: msg.clientId, seat: desired, name: msg.name, at: now() });
-        queueNetSend(true);
-        return;
-      }
+    if (desired && !state.players[desired].clientId) {
+      state.players[desired].clientId = msg.clientId || null;
+      state.players[desired].name = msg.name || state.players[desired].name;
+      state.players[desired].connected = true;
+      send({ t: "claim", room: state.room, clientId: msg.clientId, seat: desired, name: msg.name, at: now() });
+      queueNetSend(true);
+      return;
     }
 
-    // otherwise grant first free seat
     const free = !state.players.p1.clientId ? "p1" : (!state.players.p2.clientId ? "p2" : null);
     if (free) {
       state.players[free].clientId = msg.clientId || null;
@@ -1029,17 +986,15 @@
     }
   }
 
-  // Host snapshot sender
   function queueNetSend(force = false) {
     if (!local.netReady || !local.ws || local.ws.readyState !== 1) return;
-    if (!local.isHost) return; // only host sends authoritative snapshots
-
+    if (!local.isHost) return; // host authoritative only
     if (now() < local.suppressSendUntil) return;
+
     if (!queueNetSend._raf || force) {
       if (queueNetSend._raf) cancelAnimationFrame(queueNetSend._raf);
       queueNetSend._raf = requestAnimationFrame(() => {
         queueNetSend._raf = 0;
-        // Snapshot throttling (still feels real-time)
         const tNow = now();
         if (!force && (tNow - local.lastHostSnapshotAt) < 60) return;
         local.lastHostSnapshotAt = tNow;
@@ -1057,8 +1012,13 @@
   }
 
   // ---------------------------
-  // Start Menu flow
+  // Start menu selection & invite logic
   // ---------------------------
+  function getPlayerName() {
+    const v = (elName && elName.value ? elName.value : "").trim();
+    return v || "Player";
+  }
+
   function markSelected(btn, on) {
     if (!btn) return;
     btn.style.borderColor = on ? "rgba(58,160,255,.75)" : "rgba(255,255,255,.14)";
@@ -1085,38 +1045,74 @@
   if (btnMixed) btnMixed.addEventListener("click", () => selectEra("Mixed"));
   if (btnRand)  btnRand.addEventListener("click", () => selectEra("Random"));
 
-  if (elMando) {
-    elMando.addEventListener("change", () => {
-      state.mandoNeutral = !!elMando.checked;
-    });
-  }
+  if (elMando) elMando.addEventListener("change", () => { state.mandoNeutral = !!elMando.checked; });
 
-  // If URL includes ?room=xxxx, we are joining
   const roomFromURL = (getParam("room") || "").trim();
+  const seatFromURL = (getParam("seat") || "").trim().toLowerCase(); // "p1"|"p2"
+
   if (roomFromURL) {
-    // Joining player: menu stays visible until seat picked, then host will claim
+    // Joining player: auto-default seat from invite
     state.room = roomFromURL;
-    // Default seatWanted if none: p2
-    if (!local.seatWanted) selectSeat("p2");
-    // Auto connect right away (host will claim)
+
+    if (seatFromURL === "p1" || seatFromURL === "p2") selectSeat(seatFromURL);
+    else selectSeat("p2"); // fallback, but invite should always include seat
+
     connect(roomFromURL);
   } else {
-    // Hosting (no room yet)
-    // Default selections
-    if (!local.seatWanted) selectSeat("p1");
+    // Hosting defaults
+    selectSeat("p1");
     selectEra("Original Trilogy");
   }
 
-  // Host Game button
+  function showInviteUI(room, inviteSeatForJoiner) {
+    const existing = elStartMenu.querySelector(".inviteBox");
+    if (existing) existing.remove();
+
+    const win = elStartMenu.querySelector(".start-menu-window");
+    if (!win) return;
+
+    const inviteURL = (() => {
+      const u = new URL(location.href);
+      u.searchParams.set("room", room);
+      u.searchParams.set("seat", inviteSeatForJoiner); // AUTO-OPPOSITE SEAT
+      return u.toString();
+    })();
+
+    const invite = document.createElement("div");
+    invite.className = "inviteBox";
+    invite.innerHTML = `
+      <div><b>Room:</b> ${room}</div>
+      <div style="margin-top:6px"><b>Invite Link:</b> <span style="word-break:break-all">${inviteURL}</span></div>
+      <div class="inviteActions">
+        <button class="btn primary" id="copyInviteBtn">Copy Invite Link</button>
+        <button class="btn" id="enterGameBtn">Enter Game</button>
+      </div>
+      <div style="margin-top:8px">Invite defaults joiner to <b>${inviteSeatForJoiner.toUpperCase()}</b> automatically.</div>
+    `;
+    win.appendChild(invite);
+
+    invite.querySelector("#copyInviteBtn")?.addEventListener("click", async () => {
+      await copyToClipboard(inviteURL);
+      showToast("Invite link copied.");
+    });
+
+    invite.querySelector("#enterGameBtn")?.addEventListener("click", () => {
+      elStartMenu.style.display = "none";
+      setParam("room", room);
+      applyCamera();
+      render();
+    });
+  }
+
   elPlay.addEventListener("click", () => {
     const room = roomFromURL || randHex(6).toUpperCase();
     state.room = room;
     state.mandoNeutral = !!(elMando && elMando.checked);
 
-    // Host is this client if no room param exists
     local.isHost = !roomFromURL;
+
     if (local.isHost) {
-      // Host assigns itself immediately to seatWanted (if free)
+      // Host seat is whatever they selected (p1 Blue or p2 Red)
       const seat = (local.seatWanted === "p2") ? "p2" : "p1";
       local.seat = seat;
 
@@ -1124,21 +1120,18 @@
       state.players[seat].name = getPlayerName();
       state.players[seat].connected = true;
 
-      // Start turn always p1 (Blue) regardless of who hosts.
+      // Turn always starts with Blue (p1)
       state.turn.active = "p1";
       state.turn.n = 1;
       state.turn.startedAt = now();
 
-      // Connect WS and seed tabletop
       connect(room);
 
-      // Show invite link UI inside the menu (don’t hide immediately)
-      showInviteUI(room);
+      // Invite defaults the OTHER seat
+      const inviteSeat = (seat === "p1") ? "p2" : "p1";
+      showInviteUI(room, inviteSeat);
     } else {
-      // Join flow: connect to existing room
       connect(room);
-      // We can hide menu once connected + seat assigned
-      // but we’ll let user close manually.
       showToast("Joining room " + room + "…");
     }
 
@@ -1146,59 +1139,14 @@
     render();
   });
 
-  // Cancel button just hides menu (doesn't disconnect)
   elCancel.addEventListener("click", () => {
     elStartMenu.style.display = "none";
     applyCamera();
     render();
   });
 
-  function showInviteUI(room) {
-    // Inject invite block below host button area
-    const existing = elStartMenu.querySelector(".inviteBox");
-    if (existing) existing.remove();
-
-    const win = elStartMenu.querySelector(".start-menu-window");
-    if (!win) return;
-
-    const invite = document.createElement("div");
-    invite.className = "inviteBox";
-    const inviteURL = (() => {
-      const u = new URL(location.href);
-      u.searchParams.set("room", room);
-      return u.toString();
-    })();
-
-    invite.innerHTML = `
-      <div><b>Room:</b> ${room}</div>
-      <div style="margin-top:6px"><b>Invite Link:</b> <span style="word-break:break-all">${inviteURL}</span></div>
-      <div class="inviteActions">
-        <button class="menu-btn play" id="copyInviteBtn">Copy Invite Link</button>
-        <button class="menu-btn" id="enterGameBtn">Enter Game</button>
-      </div>
-      <div style="margin-top:8px">Host stays authoritative: only host pushes sync snapshots.</div>
-    `;
-    win.appendChild(invite);
-
-    const copyBtn = invite.querySelector("#copyInviteBtn");
-    const enterBtn = invite.querySelector("#enterGameBtn");
-
-    if (copyBtn) copyBtn.addEventListener("click", async () => {
-      await copyToClipboard(inviteURL);
-      showToast("Invite link copied.");
-    });
-
-    if (enterBtn) enterBtn.addEventListener("click", () => {
-      elStartMenu.style.display = "none";
-      // persist room in URL
-      setParam("room", room);
-      applyCamera();
-      render();
-    });
-  }
-
   // ---------------------------
-  // Boot: initial render/camera
+  // Boot
   // ---------------------------
   applyCamera();
   render();
