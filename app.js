@@ -1,18 +1,20 @@
 /* ========================================================================
-   Star Wars Deckbuilding VTT — Fresh Rebuild v2
-   FIXES:
-   - Layout matches provided board image (848x788) with measured zone positions
-   - P2 POV correct: local player's cards + neutral are upright, opponent upside down
-   - Invite defaults to opposite seat automatically via URL param: &seat=p1|p2
+   Star Wars Deckbuilding VTT — Rebuild v3 (Exact Board + Correct POV)
+   - Board layout matches provided image exactly (DESIGN 848x788)
+   - 2×6 battlefield slots (12 total)
+   - Force track = 7 discrete snap slots (index 0..6, center = 3)
+   - P2 POV: camera rotates 180, cards corrected so local+neutral upright,
+     opponent upside down (across-table feel)
+   - Invite defaults joiner to opposite seat via URL param seat=p1|p2
    - 2-player online via your existing Cloudflare WS room worker
-   - Desktop + mobile/iPhone friendly (pointer events, iOS gesture prevention)
+   - Desktop + mobile / iPhone friendly (pointer events + iOS gesture prevention)
    ======================================================================== */
 
 (() => {
   "use strict";
 
   // ---------------------------
-  // Required HTML element IDs (from your index.html)
+  // HTML refs (from your index.html)
   // ---------------------------
   const elStartMenu = document.getElementById("startMenu");
   const elApp = document.getElementById("app");
@@ -22,78 +24,125 @@
   const elCancel = document.getElementById("cancelBtn");
   const menuBtns = Array.from(document.querySelectorAll("#startMenu .menu-btn"));
 
-  // Seat buttons (text must match your HTML)
   const btnBlue = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "blue");
   const btnRed  = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "red");
 
-  // Era buttons (stored, not rules-enforced yet)
   const btnOT    = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "original trilogy");
   const btnCW    = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "clone wars");
   const btnMixed = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "mixed");
   const btnRand  = menuBtns.find(b => (b.textContent || "").trim().toLowerCase() === "random");
 
-  // Show menu once JS boots (your HTML waits for this)
   document.body.classList.add("menuReady");
 
   // ---------------------------
-  // Constants / Layout
-  // MATCHES YOUR ORIGINAL LAYOUT IMAGE SIZE EXACTLY
+  // DESIGN size = your board image size
   // ---------------------------
   const DESIGN_W = 848;
   const DESIGN_H = 788;
 
-  // These coordinates are taken from the rectangles in your provided layout image.
-  // (You can tweak later visually; mechanics will remain solid.)
-  const ZONES = {
-    // Galaxy/market center (10 slots) — based on the two rows found at y=328 and y=398
-    centerRow: { x: 232, y: 315, w: 336, h: 170, label: "CENTER ROW" },
-
-    // Bases (top and bottom single)
+  // ---------------------------
+  // Exact rectangles extracted from your board image
+  // (x,y,w,h) in board/world coords
+  // ---------------------------
+  const RECT = {
+    // Bases (isolated)
     p2Base: { x: 370, y: 39,  w: 61, h: 44, label: "P2 BASE" },
     p1Base: { x: 370, y: 705, w: 61, h: 43, label: "P1 BASE" },
 
-    // Left side: two-slot stacks (top and bottom)
-    p2LeftStacks: { x: 76,  y: 261, w: 98,  h: 62, label: "P2 STACKS" },
-    p1LeftStacks: { x: 76,  y: 474, w: 98,  h: 61, label: "P1 STACKS" },
+    // Token squares (top & bottom)
+    p2TokenR: { x:  86, y: 232, w: 23, h: 22 },
+    p2TokenB: { x: 114, y: 232, w: 22, h: 22 },
+    p2TokenY: { x: 141, y: 232, w: 23, h: 22 },
 
-    // Token bins (colored squares) — measured
-    p2Tokens: { x: 82,  y: 224, w: 88,  h: 34, label: "P2 TOKENS" },
-    p1Tokens: { x: 82,  y: 534, w: 88,  h: 34, label: "P1 TOKENS" },
+    p1TokenR: { x:  86, y: 542, w: 23, h: 23 },
+    p1TokenB: { x: 114, y: 542, w: 22, h: 23 },
+    p1TokenY: { x: 141, y: 542, w: 23, h: 23 },
 
-    // Single side slots flanking center row
-    leftSingle:  { x: 187, y: 363, w: 45, h: 61, label: "LEFT SLOT" },
-    rightSingle: { x: 569, y: 363, w: 45, h: 61, label: "RIGHT SLOT" },
+    // Left piles (deck + discard) top and bottom
+    p2Deck:    { x:  76, y: 261, w: 44, h: 62, label: "P2 DECK" },
+    p2Discard: { x: 129, y: 266, w: 44, h: 57, label: "P2 DISC" },
 
-    // Right side: two small slots above and below (top and bottom pairs)
-    p2RightSmallA: { x: 587, y: 252, w: 44, h: 62, label: "P2 R-A" },
-    p2RightSmallB: { x: 640, y: 252, w: 44, h: 62, label: "P2 R-B" },
-    p1RightSmallA: { x: 587, y: 474, w: 44, h: 61, label: "P1 R-A" },
-    p1RightSmallB: { x: 640, y: 474, w: 44, h: 61, label: "P1 R-B" },
+    p1Deck:    { x:  76, y: 474, w: 44, h: 61, label: "P1 DECK" },
+    p1Discard: { x: 129, y: 474, w: 44, h: 61, label: "P1 DISC" },
 
-    // Force track area (vertical strip near the marker)
-    forceTrack: { x: 630, y: 325, w: 70, h: 200, label: "FORCE" },
+    // Battlefield (2 rows × 6 cols)
+    // Row 1 y=328, Row 2 y=398
+    bf1_1: { x: 246, y: 328, w: 44, h: 61 },
+    bf1_2: { x: 299, y: 328, w: 44, h: 61 },
+    bf1_3: { x: 352, y: 328, w: 44, h: 61 },
+    bf1_4: { x: 405, y: 328, w: 44, h: 61 },
+    bf1_5: { x: 458, y: 328, w: 44, h: 61 },
+    bf1_6: { x: 511, y: 328, w: 44, h: 61 },
 
-    // Tall stacks on far right (upper and lower)
-    rightTallTop:    { x: 716, y: 186, w: 62, h: 164, label: "TALL TOP" },
-    rightTallBottom: { x: 716, y: 438, w: 62, h: 163, label: "TALL BOT" },
+    bf2_1: { x: 246, y: 398, w: 44, h: 62 },
+    bf2_2: { x: 299, y: 398, w: 44, h: 61 },
+    bf2_3: { x: 352, y: 398, w: 44, h: 61 },
+    bf2_4: { x: 405, y: 398, w: 44, h: 61 },
+    bf2_5: { x: 458, y: 398, w: 44, h: 61 },
+    bf2_6: { x: 511, y: 398, w: 44, h: 62 },
 
-    // Hands (not shown as explicit rectangles in the image; we anchor them near token bins)
-    // These are “functional zones” for draw placement.
-    p2Hand: { x: 40, y: 150, w: 200, h: 120, label: "P2 HAND" },
-    p1Hand: { x: 40, y: 560, w: 200, h: 120, label: "P1 HAND" },
+    // Flank piles beside battlefield (your “tall vertical slots” in description)
+    flankLeft:  { x: 188, y: 363, w: 44, h: 61, label: "FLANK L" },
+    flankRight: { x: 569, y: 363, w: 45, h: 61, label: "FLANK R" },
 
-    // Deck/Discard functional zones (we’ll use the tall stacks for piles)
-    p2Deck:    { x: 716, y: 186, w: 62, h: 78, label: "P2 DECK" },
-    p2Discard: { x: 716, y: 272, w: 62, h: 78, label: "P2 DISC" },
-    p1Deck:    { x: 716, y: 438, w: 62, h: 78, label: "P1 DECK" },
-    p1Discard: { x: 716, y: 523, w: 62, h: 78, label: "P1 DISC" },
+    // Right-side single slot beside force (present in image)
+    rightOfForce: { x: 658, y: 363, w: 44, h: 61, label: "R SLOT" },
+
+    // Right player auxiliary zones (top pair & bottom pair)
+    p2AuxA: { x: 588, y: 252, w: 43, h: 62, label: "P2 AUX A" },
+    p2AuxB: { x: 640, y: 252, w: 44, h: 62, label: "P2 AUX B" },
+
+    p1AuxA: { x: 587, y: 474, w: 44, h: 61, label: "P1 AUX A" },
+    p1AuxB: { x: 640, y: 474, w: 44, h: 61, label: "P1 AUX B" },
+
+    // Force track ladder (7 discrete snap slots live inside this strip)
+    forceStrip: { x: 622, y: 328, w: 27, h: 132, label: "FORCE" },
+
+    // Far-right tall stacks (in image; keeping as shared piles for now)
+    tallTop:    { x: 716, y: 186, w: 62, h: 164, label: "TALL TOP" },
+    tallBottom: { x: 716, y: 438, w: 62, h: 163, label: "TALL BOT" },
   };
 
-  // Your existing WS worker (from your old file)
+  // Derived “zones” used for placement/snap. (Rectangles above are ground truth.)
+  const ZONES = {
+    p2Base: RECT.p2Base,
+    p1Base: RECT.p1Base,
+
+    p2Deck: RECT.p2Deck,
+    p2Discard: RECT.p2Discard,
+    p1Deck: RECT.p1Deck,
+    p1Discard: RECT.p1Discard,
+
+    flankLeft: RECT.flankLeft,
+    flankRight: RECT.flankRight,
+
+    p2AuxA: RECT.p2AuxA,
+    p2AuxB: RECT.p2AuxB,
+    p1AuxA: RECT.p1AuxA,
+    p1AuxB: RECT.p1AuxB,
+
+    rightOfForce: RECT.rightOfForce,
+    forceStrip: RECT.forceStrip,
+
+    tallTop: RECT.tallTop,
+    tallBottom: RECT.tallBottom,
+  };
+
+  const BF_SLOTS = [
+    RECT.bf1_1, RECT.bf1_2, RECT.bf1_3, RECT.bf1_4, RECT.bf1_5, RECT.bf1_6,
+    RECT.bf2_1, RECT.bf2_2, RECT.bf2_3, RECT.bf2_4, RECT.bf2_5, RECT.bf2_6,
+  ];
+
+  const TOKEN_BINS = {
+    p2: { r: RECT.p2TokenR, b: RECT.p2TokenB, y: RECT.p2TokenY },
+    p1: { r: RECT.p1TokenR, b: RECT.p1TokenB, y: RECT.p1TokenY },
+  };
+
+  // WS (from your old file)
   const WS_BASE = "wss://sw-vtt-rooms-worker.blueberrychick86.workers.dev/ws?room=";
 
   // ---------------------------
-  // Utilities
+  // Helpers
   // ---------------------------
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const now = () => Date.now();
@@ -104,8 +153,8 @@
     return s;
   };
   const uid = () => randHex(8) + "_" + now().toString(16);
+  const safeJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
-  function safeJSON(s) { try { return JSON.parse(s); } catch { return null; } }
   function getParam(name) { try { return new URL(location.href).searchParams.get(name); } catch { return null; } }
   function setParam(name, value) {
     const u = new URL(location.href);
@@ -130,22 +179,21 @@
     return Promise.resolve();
   }
 
-  // iOS pinch/double-tap zoom prevention while interacting
+  // iOS gesture prevention
   document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
   document.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
   document.addEventListener("gestureend", (e) => e.preventDefault(), { passive: false });
 
   // ---------------------------
-  // Synced game state (host authoritative snapshot)
+  // Game state (host authoritative)
   // ---------------------------
   const state = {
-    v: 2,
+    v: 3,
     room: "",
     createdAt: now(),
     era: "Original Trilogy",
     mandoNeutral: false,
 
-    // Blue always starts
     turn: { active: "p1", n: 1, startedAt: now() },
 
     players: {
@@ -162,7 +210,8 @@
       p2Discard: { order: [] },
     },
 
-    force: { pos: 0 } // 0..10
+    // Force ladder: 7 discrete positions, center = 3
+    force: { idx: 3 }
   };
 
   const local = {
@@ -186,19 +235,20 @@
     lastHostSnapshotAt: 0,
     suppressSendUntil: 0,
 
-    dragging: null, // {id, dx, dy, pointerId}
+    dragging: null,
     lastTouchedId: null,
 
     cam: { scale: 1, rotDeg: 0, tx: 0, ty: 0 },
   };
 
   // ---------------------------
-  // CSS injection
+  // CSS
   // ---------------------------
   const style = document.createElement("style");
   style.textContent = `
     :root{
       --bg:#0b0b0d;
+      --stroke:rgba(255,255,255,.22);
       --stroke2:rgba(255,255,255,.14);
       --text:rgba(255,255,255,.92);
       --muted:rgba(255,255,255,.65);
@@ -237,17 +287,8 @@
     .zone{
       position:absolute;border:1px solid rgba(255,255,255,.18);border-radius:10px;
       background:rgba(255,255,255,.01);
+      pointer-events:none;
     }
-    .zoneLabel{
-      position:absolute;left:8px;top:6px;font-size:11px;color:rgba(255,255,255,.40);
-      letter-spacing:.08em;user-select:none;pointer-events:none;
-    }
-
-    .tokenBin{display:flex;gap:6px;align-items:center;justify-content:flex-start;padding:6px 8px;}
-    .bin{width:18px;height:18px;border-radius:5px;border:1px solid rgba(255,255,255,.22);box-shadow:0 2px 8px rgba(0,0,0,.35);}
-    .bin.red{background:#ff3a3a}
-    .bin.blue{background:#3aa0ff}
-    .bin.gold{background:#d9b85a}
 
     .obj{
       position:absolute;border:1px solid rgba(255,255,255,.26);border-radius:10px;
@@ -258,18 +299,25 @@
       padding:6px;
     }
     .obj.card{border-radius:12px}
-    .obj.card .t{font-size:12px;line-height:1.15;color:rgba(255,255,255,.88)}
+    .obj.card .t{font-size:11px;line-height:1.15;color:rgba(255,255,255,.88)}
     .obj.card.faceDown{background:rgba(30,34,44,.9)}
     .obj.card.faceDown .t{color:rgba(255,255,255,.35)}
 
     .obj.token{
-      width:26px;height:26px;border-radius:8px;padding:0;
+      width:22px;height:22px;border-radius:6px;padding:0;
       display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;
     }
-    .obj.token.red{background:rgba(255,58,58,.35)}
-    .obj.token.blue{background:rgba(58,160,255,.35)}
-    .obj.token.gold{background:rgba(217,184,90,.30)}
-    .obj.marker{width:24px;height:24px;border-radius:999px;background:rgba(255,255,255,.08)}
+    .obj.token.red{background:rgba(255,58,58,.45)}
+    .obj.token.blue{background:rgba(58,160,255,.45)}
+    .obj.token.gold{background:rgba(217,184,90,.42)}
+
+    .obj.force{
+      width:20px;height:20px;border-radius:999px;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.35);
+      box-shadow:0 8px 20px rgba(0,0,0,.35);
+      padding:0;
+    }
 
     .toast{
       position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
@@ -296,7 +344,7 @@
   document.head.appendChild(style);
 
   // ---------------------------
-  // Build game DOM
+  // DOM
   // ---------------------------
   const stageWrap = document.createElement("div");
   stageWrap.className = "stageWrap";
@@ -334,48 +382,30 @@
     toastTimer = setTimeout(() => toast.classList.remove("on"), ms);
   }
 
-  // ---------------------------
-  // Render zones
-  // ---------------------------
-  const zoneDivs = {};
-  function addZoneDiv(key, z) {
+  // Debug zones (visual outlines)
+  function addZoneOutline(r) {
     const d = document.createElement("div");
     d.className = "zone";
-    d.dataset.zone = key;
-    d.style.left = z.x + "px";
-    d.style.top = z.y + "px";
-    d.style.width = z.w + "px";
-    d.style.height = z.h + "px";
-    const lab = document.createElement("div");
-    lab.className = "zoneLabel";
-    lab.textContent = z.label || key;
-    d.appendChild(lab);
+    d.style.left = r.x + "px";
+    d.style.top = r.y + "px";
+    d.style.width = r.w + "px";
+    d.style.height = r.h + "px";
     stage.appendChild(d);
-    return d;
   }
-  Object.keys(ZONES).forEach(k => zoneDivs[k] = addZoneDiv(k, ZONES[k]));
 
-  function decorateTokenZone(zoneKey) {
-    const z = zoneDivs[zoneKey];
-    z.classList.add("tokenBin");
-    const lab = z.querySelector(".zoneLabel");
-    if (lab) lab.style.display = "none";
-    z.innerHTML = `
-      <div class="bin red" data-spawn="red" title="Spawn red token"></div>
-      <div class="bin blue" data-spawn="blue" title="Spawn blue token"></div>
-      <div class="bin gold" data-spawn="gold" title="Spawn gold token"></div>
-    `;
-  }
-  decorateTokenZone("p2Tokens");
-  decorateTokenZone("p1Tokens");
+  // outlines for fixed rectangles
+  Object.values(ZONES).forEach(addZoneOutline);
+  BF_SLOTS.forEach(addZoneOutline);
+  // token squares outlines
+  Object.values(TOKEN_BINS.p1).forEach(addZoneOutline);
+  Object.values(TOKEN_BINS.p2).forEach(addZoneOutline);
 
   // ---------------------------
-  // Camera / POV
+  // Camera (seat POV)
   // ---------------------------
   function viewportSize() { return { w: window.innerWidth, h: window.innerHeight }; }
 
   function applyCamera() {
-    // P1 = 0°, P2 = 180° so their side is at the bottom
     const rotDeg = (local.seat === "p2") ? 180 : 0;
     local.cam.rotDeg = rotDeg;
 
@@ -424,15 +454,15 @@
     const id = uid();
     state.objects[id] = {
       id, type: "card",
-      x, y, w: 44, h: 61,   // match the card-slot rectangles in your layout image
+      x, y,
+      w: 44, h: 61,
       rot: 0,
       faceUp: !!faceUp,
-      owner,
+      owner,            // "p1"|"p2"|null
       label: label || "Card",
       z: 10,
-      tokenType: null,
       attachedTo: null,
-      stackId: stackId || null,
+      stackId: stackId || null
     };
     return id;
   }
@@ -441,15 +471,15 @@
     const id = uid();
     state.objects[id] = {
       id, type: "token",
-      tokenType,
-      x, y, w: 26, h: 26,
+      tokenType, owner,
+      x, y,
+      w: 22, h: 22,
       rot: 0,
       faceUp: true,
-      owner,
       label: tokenType.toUpperCase(),
       z: 20,
       attachedTo: null,
-      stackId: null,
+      stackId: null
     };
     return id;
   }
@@ -458,39 +488,55 @@
     if (state.objects.forceMarker) return;
     state.objects.forceMarker = {
       id: "forceMarker",
-      type: "marker",
-      x: ZONES.forceTrack.x + (ZONES.forceTrack.w / 2) - 12,
-      y: ZONES.forceTrack.y + ZONES.forceTrack.h - 28,
-      w: 24, h: 24,
+      type: "force",
+      x: 0, y: 0,
+      w: 20, h: 20,
       rot: 0,
       faceUp: true,
       owner: null,
       label: "",
-      z: 30,
-      attachedTo: null,
-      stackId: null,
+      z: 40
     };
   }
 
-  function forcePosToY(pos) {
-    const z = ZONES.forceTrack;
-    const minY = z.y + 10;
-    const maxY = z.y + z.h - 34;
-    const t = clamp(pos / 10, 0, 1);
-    return maxY + (minY - maxY) * t;
+  // Force snap points (7 slots) inside forceStrip.
+  // We place 7 evenly spaced centers from top to bottom.
+  function forceSlotCenters() {
+    const r = RECT.forceStrip;
+    const n = 7;
+    const centers = [];
+    const topPad = 10;
+    const botPad = 10;
+    const usable = (r.h - topPad - botPad);
+    for (let i = 0; i < n; i++) {
+      const t = (n === 1) ? 0.5 : (i / (n - 1));
+      const cy = r.y + topPad + usable * t;
+      const cx = r.x + r.w / 2;
+      centers.push({ i, cx, cy });
+    }
+    return centers;
   }
 
-  function updateForceMarkerFromPos() {
+  function setForceIndex(idx) {
+    state.force.idx = clamp(idx|0, 0, 6);
+    updateForceMarkerFromIndex();
+    queueNetSend();
+    render();
+  }
+
+  function updateForceMarkerFromIndex() {
     createForceMarkerIfMissing();
     const m = state.objects.forceMarker;
-    m.x = ZONES.forceTrack.x + (ZONES.forceTrack.w / 2) - 12;
-    m.y = forcePosToY(state.force.pos);
+    const pts = forceSlotCenters();
+    const p = pts[clamp(state.force.idx|0, 0, 6)];
+    m.x = p.cx - m.w / 2;
+    m.y = p.cy - m.h / 2;
   }
 
-  // Token attach: snap to top-right of card
   function attachTokenIfOverCard(tokenId) {
     const t = state.objects[tokenId];
     if (!t || t.type !== "token") return;
+
     const cx = t.x + t.w / 2;
     const cy = t.y + t.h / 2;
 
@@ -501,10 +547,11 @@
         if (!best || (o.z || 0) > (best.z || 0)) best = o;
       }
     }
+
     if (best) {
       t.attachedTo = best.id;
-      t.x = best.x + best.w - t.w - 3;
-      t.y = best.y + 3;
+      t.x = best.x + best.w - t.w - 2;
+      t.y = best.y + 2;
       t.z = (best.z || 1) + 1;
     } else {
       t.attachedTo = null;
@@ -523,11 +570,13 @@
     el = document.createElement("div");
     el.className = "obj";
     el.dataset.oid = o.id;
+
     el.addEventListener("pointerdown", onObjPointerDown, { passive: false });
     el.addEventListener("dblclick", (e) => {
       e.preventDefault();
       if (o.type === "card") toggleFlip(o.id);
     });
+
     stage.appendChild(el);
     objEls.set(o.id, el);
     return el;
@@ -549,42 +598,37 @@
     else { netDot.classList.add("warn"); netLabel.textContent = "Offline"; }
   }
 
-  // KEY FIX: per-seat visual rotation so P2 isn't upside down
-  // - Camera rotates for P2 (board POV)
-  // - Then we rotate cards so local+neutral are upright, opponent upside down
+  // Card visual correction:
+  // - viewer seat sees their own + neutral upright
+  // - opponent upside down
   function extraVisualRotationForCard(o) {
     if (!local.seat) return 0;
-
-    const viewer = local.seat;           // "p1" or "p2"
-    const owner = o.owner || null;       // "p1"|"p2"|null (neutral)
+    const viewer = local.seat;     // p1|p2
+    const owner = o.owner || null; // p1|p2|null
     const camRot = (viewer === "p2") ? 180 : 0;
-
-    // We want:
-    //  - viewer-owned + neutral => upright on screen
-    //  - opponent-owned => upside down on screen
-    //
-    // With camera rot:
-    //  - for P1 (camRot=0): upright => extra 0; opponent => extra 180
-    //  - for P2 (camRot=180): upright => extra 180; opponent => extra 0
     const isOpponent = (owner && owner !== viewer);
+
     if (camRot === 0) return isOpponent ? 180 : 0;
-    return isOpponent ? 0 : 180; // camRot 180 case
+    return isOpponent ? 0 : 180;
   }
 
   function render() {
+    // remove deleted
     for (const [id, el] of objEls.entries()) {
       if (!state.objects[id]) { el.remove(); objEls.delete(id); }
     }
 
-    updateForceMarkerFromPos();
+    updateForceMarkerFromIndex();
     renderHUD();
 
     const objects = Object.values(state.objects).sort((a, b) => (a.z || 0) - (b.z || 0));
+
     for (const o of objects) {
       const el = ensureObjEl(o);
+
       el.classList.toggle("card", o.type === "card");
       el.classList.toggle("token", o.type === "token");
-      el.classList.toggle("marker", o.type === "marker");
+      el.classList.toggle("force", o.type === "force");
 
       el.style.left = o.x + "px";
       el.style.top = o.y + "px";
@@ -604,14 +648,14 @@
         el.classList.toggle("blue", o.tokenType === "blue");
         el.classList.toggle("gold", o.tokenType === "gold");
         el.innerHTML = `<div class="t">${o.label || ""}</div>`;
-      } else if (o.type === "marker") {
+      } else if (o.type === "force") {
         el.innerHTML = "";
       }
     }
   }
 
   // ---------------------------
-  // Table seed (host)
+  // Seed board (host)
   // ---------------------------
   function seedTabletop() {
     state.objects = {};
@@ -620,44 +664,45 @@
     state.stacks.p2Deck.order = [];
     state.stacks.p2Discard.order = [];
 
-    state.force.pos = 0;
+    state.force.idx = 3;
     createForceMarkerIfMissing();
-    updateForceMarkerFromPos();
+    updateForceMarkerFromIndex();
 
-    // CENTER ROW: use the exact slot rectangles we detected in the layout image
-    // Row 1: x=246,299,352,405,458,511 at y=328
-    // Row 2: same x at y=398
-    const row1y = 328, row2y = 398;
-    const xs = [246, 299, 352, 405, 458, 511];
+    // Battlefield 12 slots (neutral)
+    for (let i = 0; i < BF_SLOTS.length; i++) {
+      const r = BF_SLOTS[i];
+      createCard("Row " + (i + 1), r.x, r.y, null, null, true);
+    }
 
-    let idx = 1;
-    for (const x of xs) createCard("Row " + (idx++), x, row1y, null);
-    for (const x of xs) createCard("Row " + (idx++), x, row2y, null);
+    // Bases (owner-specific)
+    createCard("P2 Base", RECT.p2Base.x, RECT.p2Base.y, "p2", null, true);
+    createCard("P1 Base", RECT.p1Base.x, RECT.p1Base.y, "p1", null, true);
 
-    // Side single slots (left / right)
-    createCard("L Slot", 187, 363, null);
-    createCard("R Slot", 569, 363, null);
-
-    // Deck piles: create 10 face-down cards each, stacked at p1Deck/p2Deck
+    // Left deck stacks: create 10 cards in each deck pile (face-down)
     for (let i = 0; i < 10; i++) {
-      const p2 = createCard("P2 Deck", ZONES.p2Deck.x + 8, ZONES.p2Deck.y + 8, "p2", "p2Deck", false);
-      state.stacks.p2Deck.order.push(p2);
+      const idP2 = createCard("P2 Deck", RECT.p2Deck.x, RECT.p2Deck.y, "p2", "p2Deck", false);
+      state.stacks.p2Deck.order.push(idP2);
 
-      const p1 = createCard("P1 Deck", ZONES.p1Deck.x + 8, ZONES.p1Deck.y + 8, "p1", "p1Deck", false);
-      state.stacks.p1Deck.order.push(p1);
+      const idP1 = createCard("P1 Deck", RECT.p1Deck.x, RECT.p1Deck.y, "p1", "p1Deck", false);
+      state.stacks.p1Deck.order.push(idP1);
     }
 
-    // Base placeholders (top/bottom)
-    createCard("P2 Base", ZONES.p2Base.x + 8, ZONES.p2Base.y + 8, "p2");
-    createCard("P1 Base", ZONES.p1Base.x + 8, ZONES.p1Base.y + 8, "p1");
+    // Flanks + right-of-force slot (neutral placeholders)
+    createCard("Flank L", RECT.flankLeft.x, RECT.flankLeft.y, null, null, true);
+    createCard("Flank R", RECT.flankRight.x, RECT.flankRight.y, null, null, true);
+    createCard("R Slot",  RECT.rightOfForce.x, RECT.rightOfForce.y, null, null, true);
 
-    // Hands: 5 each, placed into functional zones
-    for (let i = 0; i < 5; i++) {
-      createCard("P2 Hand " + (i + 1), ZONES.p2Hand.x + 10 + i * 28, ZONES.p2Hand.y + 25, "p2");
-      createCard("P1 Hand " + (i + 1), ZONES.p1Hand.x + 10 + i * 28, ZONES.p1Hand.y + 25, "p1");
-    }
+    // Aux zones (owner-specific placeholders)
+    createCard("P2 Aux A", RECT.p2AuxA.x, RECT.p2AuxA.y, "p2", null, true);
+    createCard("P2 Aux B", RECT.p2AuxB.x, RECT.p2AuxB.y, "p2", null, true);
+    createCard("P1 Aux A", RECT.p1AuxA.x, RECT.p1AuxA.y, "p1", null, true);
+    createCard("P1 Aux B", RECT.p1AuxB.x, RECT.p1AuxB.y, "p1", null, true);
 
-    // Turn always starts with Blue
+    // Tall stacks (neutral placeholders)
+    createCard("Tall Top", RECT.tallTop.x + 8, RECT.tallTop.y + 8, null, null, false);
+    createCard("Tall Bot", RECT.tallBottom.x + 8, RECT.tallBottom.y + 8, null, null, false);
+
+    // Blue always starts
     state.turn.active = "p1";
     state.turn.n = 1;
     state.turn.startedAt = now();
@@ -689,9 +734,10 @@
     if (o.type !== "card") return showToast("Tap a card first.");
 
     const seat = (o.owner === "p2") ? "p2" : "p1";
-    const dz = (seat === "p2") ? ZONES.p2Discard : ZONES.p1Discard;
-    o.x = dz.x + 8 + Math.random() * 6;
-    o.y = dz.y + 8 + Math.random() * 6;
+    const dz = (seat === "p2") ? RECT.p2Discard : RECT.p1Discard;
+
+    o.x = dz.x + 2 + Math.random() * 4;
+    o.y = dz.y + 2 + Math.random() * 4;
     o.faceUp = true;
     o.stackId = (seat === "p2") ? "p2Discard" : "p1Discard";
     bringToFront(o.id);
@@ -710,9 +756,14 @@
     const c = state.objects[topId];
     if (!c) return;
 
-    const hz = (seat === "p2") ? ZONES.p2Hand : ZONES.p1Hand;
-    c.x = hz.x + 10 + Math.random() * (hz.w - 70);
-    c.y = hz.y + 20 + Math.random() * (hz.h - 70);
+    // Place “hand” near token bins for that seat (no guessing visual slots)
+    const bin = (seat === "p2") ? TOKEN_BINS.p2 : TOKEN_BINS.p1;
+    const baseX = bin.r.x + 10;
+    const baseY = (seat === "p2") ? (bin.r.y + 50) : (bin.r.y - 85);
+
+    c.x = clamp(baseX + Math.random() * 80, 10, DESIGN_W - 80);
+    c.y = clamp(baseY + Math.random() * 30, 10, DESIGN_H - 80);
+
     c.stackId = null;
     c.faceUp = true;
     c.owner = seat;
@@ -744,7 +795,7 @@
 
     local.lastTouchedId = oid;
 
-    // Double-tap flip on mobile
+    // Mobile double-tap flip
     if (!onObjPointerDown._tap) onObjPointerDown._tap = {};
     const tap = onObjPointerDown._tap;
     const tNow = now();
@@ -776,8 +827,8 @@
     if (!o) return;
 
     const p = screenToWorld(e.clientX, e.clientY);
-    o.x = clamp(p.x - d.dx, -50, DESIGN_W - 10);
-    o.y = clamp(p.y - d.dy, -50, DESIGN_H - 10);
+    o.x = clamp(p.x - d.dx, -60, DESIGN_W - 10);
+    o.y = clamp(p.y - d.dy, -60, DESIGN_H - 10);
 
     queueNetSend();
     render();
@@ -800,38 +851,48 @@
     render();
   }
 
-  // Token bin spawn
+  // Spawn tokens when clicking the colored squares (exact hit areas)
+  function pointInRect(p, r) {
+    return (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+  }
+
   stage.addEventListener("pointerdown", (e) => {
-    const t = e.target;
-    if (!(t instanceof HTMLElement)) return;
-    const spawn = t.dataset.spawn;
-    if (!spawn) return;
-    e.preventDefault();
-
-    const zoneEl = t.closest(".zone");
-    let owner = null;
-    if (zoneEl && zoneEl.dataset.zone === "p1Tokens") owner = "p1";
-    if (zoneEl && zoneEl.dataset.zone === "p2Tokens") owner = "p2";
-
     const p = screenToWorld(e.clientX, e.clientY);
-    createToken(spawn, p.x - 13, p.y - 13, owner);
-    queueNetSend();
-    render();
-  }, { passive: false });
 
-  // Force track tap
-  zoneDivs.forceTrack.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    const p = screenToWorld(e.clientX, e.clientY);
-    const z = ZONES.forceTrack;
-    const minY = z.y + 10;
-    const maxY = z.y + z.h - 34;
-    const y = clamp(p.y, minY, maxY);
-    const t = (maxY - y) / (maxY - minY);
-    state.force.pos = Math.round(clamp(t * 10, 0, 10));
-    updateForceMarkerFromPos();
-    queueNetSend();
-    render();
+    // Force strip click: snap to nearest of 7
+    if (pointInRect(p, RECT.forceStrip)) {
+      e.preventDefault();
+      const pts = forceSlotCenters();
+      let best = pts[0];
+      let bestD = Infinity;
+      for (const t of pts) {
+        const d = Math.abs(p.y - t.cy);
+        if (d < bestD) { bestD = d; best = t; }
+      }
+      setForceIndex(best.i);
+      return;
+    }
+
+    // Token squares
+    const hit = (seatKey, colorKey, tokenType) => {
+      const r = TOKEN_BINS[seatKey][colorKey];
+      if (pointInRect(p, r)) {
+        e.preventDefault();
+        createToken(tokenType, r.x + 1, r.y + 1, seatKey);
+        queueNetSend();
+        render();
+        return true;
+      }
+      return false;
+    };
+
+    if (hit("p2", "r", "red")) return;
+    if (hit("p2", "b", "blue")) return;
+    if (hit("p2", "y", "gold")) return;
+    if (hit("p1", "r", "red")) return;
+    if (hit("p1", "b", "blue")) return;
+    if (hit("p1", "y", "gold")) return;
+
   }, { passive: false });
 
   // ---------------------------
@@ -840,7 +901,7 @@
   document.getElementById("btnFlip").addEventListener("click", () => {
     const id = local.lastTouchedId;
     if (!id || !state.objects[id] || state.objects[id].type !== "card") {
-      showToast("Double-tap a card to flip (or tap a card then press Flip).");
+      showToast("Double-tap a card to flip (or tap then press Flip).");
       return;
     }
     toggleFlip(id);
@@ -848,7 +909,7 @@
 
   document.getElementById("btnRotate").addEventListener("click", () => {
     const id = local.lastTouchedId;
-    if (!id || !state.objects[id]) return showToast("Tap a card/token first.");
+    if (!id || !state.objects[id]) return showToast("Tap a piece first.");
     rotate90(id);
   });
 
@@ -867,11 +928,11 @@
   });
 
   document.getElementById("btnHelp").addEventListener("click", () => {
-    showToast("Drag objects. Double-tap a card to flip. Opponent cards are upside down. Tokens snap onto cards when released on top. Tap FORCE track to move marker.");
+    showToast("Drag pieces. Double-tap to flip. Force track snaps to 7 slots. Tokens: tap colored squares to spawn, drop onto cards to attach.");
   });
 
   // ---------------------------
-  // Networking (Cloudflare WS room worker broadcast relay)
+  // Networking
   // ---------------------------
   function wsURL(roomId) { return WS_BASE + encodeURIComponent(roomId); }
 
@@ -988,7 +1049,7 @@
 
   function queueNetSend(force = false) {
     if (!local.netReady || !local.ws || local.ws.readyState !== 1) return;
-    if (!local.isHost) return; // host authoritative only
+    if (!local.isHost) return;
     if (now() < local.suppressSendUntil) return;
 
     if (!queueNetSend._raf || force) {
@@ -1012,7 +1073,7 @@
   }
 
   // ---------------------------
-  // Start menu selection & invite logic
+  // Menu logic + auto-opposite invite seat
   // ---------------------------
   function getPlayerName() {
     const v = (elName && elName.value ? elName.value : "").trim();
@@ -1039,27 +1100,20 @@
 
   if (btnBlue) btnBlue.addEventListener("click", () => selectSeat("p1"));
   if (btnRed)  btnRed.addEventListener("click", () => selectSeat("p2"));
-
   if (btnOT)    btnOT.addEventListener("click", () => selectEra("Original Trilogy"));
   if (btnCW)    btnCW.addEventListener("click", () => selectEra("Clone Wars"));
   if (btnMixed) btnMixed.addEventListener("click", () => selectEra("Mixed"));
   if (btnRand)  btnRand.addEventListener("click", () => selectEra("Random"));
-
   if (elMando) elMando.addEventListener("change", () => { state.mandoNeutral = !!elMando.checked; });
 
   const roomFromURL = (getParam("room") || "").trim();
-  const seatFromURL = (getParam("seat") || "").trim().toLowerCase(); // "p1"|"p2"
+  const seatFromURL = (getParam("seat") || "").trim().toLowerCase();
 
   if (roomFromURL) {
-    // Joining player: auto-default seat from invite
-    state.room = roomFromURL;
-
     if (seatFromURL === "p1" || seatFromURL === "p2") selectSeat(seatFromURL);
-    else selectSeat("p2"); // fallback, but invite should always include seat
-
+    else selectSeat("p2");
     connect(roomFromURL);
   } else {
-    // Hosting defaults
     selectSeat("p1");
     selectEra("Original Trilogy");
   }
@@ -1074,7 +1128,7 @@
     const inviteURL = (() => {
       const u = new URL(location.href);
       u.searchParams.set("room", room);
-      u.searchParams.set("seat", inviteSeatForJoiner); // AUTO-OPPOSITE SEAT
+      u.searchParams.set("seat", inviteSeatForJoiner);
       return u.toString();
     })();
 
@@ -1087,7 +1141,7 @@
         <button class="btn primary" id="copyInviteBtn">Copy Invite Link</button>
         <button class="btn" id="enterGameBtn">Enter Game</button>
       </div>
-      <div style="margin-top:8px">Invite defaults joiner to <b>${inviteSeatForJoiner.toUpperCase()}</b> automatically.</div>
+      <div style="margin-top:8px">Joiner auto-defaults to <b>${inviteSeatForJoiner.toUpperCase()}</b>.</div>
     `;
     win.appendChild(invite);
 
@@ -1112,7 +1166,6 @@
     local.isHost = !roomFromURL;
 
     if (local.isHost) {
-      // Host seat is whatever they selected (p1 Blue or p2 Red)
       const seat = (local.seatWanted === "p2") ? "p2" : "p1";
       local.seat = seat;
 
@@ -1120,14 +1173,12 @@
       state.players[seat].name = getPlayerName();
       state.players[seat].connected = true;
 
-      // Turn always starts with Blue (p1)
       state.turn.active = "p1";
       state.turn.n = 1;
       state.turn.startedAt = now();
 
       connect(room);
 
-      // Invite defaults the OTHER seat
       const inviteSeat = (seat === "p1") ? "p2" : "p1";
       showInviteUI(room, inviteSeat);
     } else {
