@@ -1786,7 +1786,6 @@ playfield.id = "playfield";
   });
 
   applyCamera();
-  recenterBoardToViewportCenter();
   refreshSnapRects();
   refreshAllCardFacingVisuals();
 }
@@ -2884,48 +2883,16 @@ function viewportSize() {
 function applyCamera() {
   var cx = DESIGN_W / 2;
   var cy = DESIGN_H / 2;
-  stage.style.transformOrigin = cx + "px " + cy + "px";
-  stage.style.transform = "translate(" + camera.tx + "px, " + camera.ty + "px) scale(" + camera.scale + ") rotate(" + camera.rot + "deg)";
-
+  stage.style.transformOrigin = "0px 0px";
   var m = new DOMMatrix();
   m = m.translate(camera.tx, camera.ty);
   m = m.translate(cx, cy);
-  m = m.scale(camera.scale);
-  m = m.rotate(camera.rot);
+  m = m.rotate(camera.rot || 0);
   m = m.translate(-cx, -cy);
+  m = m.scale(camera.scale);
+  stage.style.transform = m.toString();
   window.__viewMat = m;
   window.__viewInv = m.inverse();
-}
-
-function recenterBoardToViewportCenter(){
-  try {
-    if (!window.stage) return;
-    var vs = viewportSize ? viewportSize() : { w: window.innerWidth, h: window.innerHeight };
-    var cx = (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2;
-    var cy = (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2;
-
-    if (typeof applyCamera === "function") applyCamera();
-
-    var p = null;
-    if (typeof worldToScreen === "function") {
-      p = worldToScreen(cx, cy);
-    } else if (window.__viewMat && typeof DOMPoint !== "undefined") {
-      var s = new DOMPoint(cx, cy).matrixTransform(window.__viewMat);
-      p = { x: s.x, y: s.y };
-    } else {
-      return;
-    }
-
-    if (window.camera) {
-      camera.tx += (vs.w / 2 - p.x);
-      camera.ty += (vs.h / 2 - p.y);
-    }
-
-    if (typeof applyCamera === "function") applyCamera();
-    if (typeof refreshSnapRects === "function") refreshSnapRects();
-  } catch (e) {
-    console.warn("recenterBoardToViewportCenter failed", e);
-  }
 }
 
 function fitToScreen() {
