@@ -3503,9 +3503,10 @@ function spawnTokenFromBin(owner, type, clientX, clientY, pointerId) {
 
   tokenPools[owner][type] -= 1;
 
-  var stageRect0 = stage.getBoundingClientRect();
-  var px0 = (clientX - stageRect0.left) / camera.scale;
-  var py0 = (clientY - stageRect0.top)  / camera.scale;
+  // P1/P2 correct pointer -> design coords
+var p0 = __vttClientToDesignBoard(clientX, clientY);
+var px0 = p0.x;
+var py0 = p0.y;
 
   var tok = createTokenCube(owner, type, px0, py0);
    // NET: broadcast token spawn
@@ -3528,11 +3529,9 @@ sendMove({
   try { tok.setPointerCapture(pointerId); } catch (e) {}
 
   function move(e) {
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top)  / camera.scale;
-    tok.style.left = (px - TOKEN_SIZE/2) + "px";
-    tok.style.top  = (py - TOKEN_SIZE/2) + "px";
+    var p = __vttClientToDesignBoard(e.clientX, e.clientY);
+tok.style.left = (p.x - TOKEN_SIZE/2) + "px";
+tok.style.top  = (p.y - TOKEN_SIZE/2) + "px";
   }
 
   function up(e) {
@@ -3897,9 +3896,10 @@ function attachDragHandlers(el, cardData, kind) {
       baseFreedAssignment = false;
     }
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    // P1/P2 correct pointer -> design coords
+var p = __vttClientToDesignBoard(e.clientX, e.clientY);
+var px = p.x;
+var py = p.y;
 
     var left = parseFloat(el.style.left || "0");
     var top = parseFloat(el.style.top || "0");
@@ -3927,9 +3927,10 @@ function attachDragHandlers(el, cardData, kind) {
 
     if (longPressFired) return;
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    // P1/P2 correct pointer -> design coords
+var p = __vttClientToDesignBoard(e.clientX, e.clientY);
+var px = p.x;
+var py = p.y;
 
     el.style.left = (px - offsetX) + "px";
     el.style.top  = (py - offsetY) + "px";
