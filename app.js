@@ -1864,38 +1864,6 @@ function makeTrayTile(card) {
   return tile;
 }
 
-// === PATCH: tray safe spawn near owner base stack (when drop point maps off-board) ===
-var __vttTraySpawnJitter = { p1: 0, p2: 0 };
-
-function __vttHandSpawnForOwner(owner, kind){
-  // Fallback if zonesCache/base stack missing
-  var cx = DESIGN_W * 0.5;
-  var cy = (owner === "p2") ? (DESIGN_H * 0.22) : (DESIGN_H * 0.78);
-
-  try {
-    if (zonesCache) {
-      var base = (owner === "p2") ? zonesCache.p2_base_stack : zonesCache.p1_base_stack;
-      if (base) {
-        cx = base.x + base.w/2;
-        var pad = 14;
-        var h = (kind === "base") ? BASE_H : CARD_H;
-        // p1 is bottom in world -> spawn ABOVE their base stack
-        // p2 is top in world    -> spawn BELOW their base stack
-        cy = (owner === "p2")
-          ? (base.y + base.h + (h/2) + pad)
-          : (base.y - (h/2) - pad);
-      }
-    }
-  } catch(e) {}
-
-  __vttTraySpawnJitter[owner] = (__vttTraySpawnJitter[owner] + 1) % 6;
-  var j = __vttTraySpawnJitter[owner];
-  var spread = 18;
-
-  return { x: cx + (j - 2.5) * spread, y: cy };
-}
-// === END PATCH ================================================================
-
 // === PATCH: tray drop coords must be table-relative (fix off-board spawns) ===
 function __vttClientToDesign(clientX, clientY){
   try {
@@ -1911,7 +1879,7 @@ function __vttClientToDesign(clientX, clientY){
 }
 // === END PATCH =============================================================
 
-function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
+function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   var holdTimer = null;
   var holdArmed = false;
   var dragging = false;
@@ -1966,6 +1934,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
+      var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var p = viewportToDesign(clientX, clientY);
 
