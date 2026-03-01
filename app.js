@@ -1878,7 +1878,41 @@ function __vttClientToDesign(clientX, clientY){
   return viewportToDesign(clientX, clientY);
 }
 // === END PATCH =============================================================
+// === PATCH START: safe spawn point when tray drop maps off-board =============
+function __vttHandSpawnForOwner(owner, kind){
+  try {
+    owner = (owner === "p2") ? "p2" : "p1";
+    kind = (kind === "base") ? "base" : "unit";
 
+    // Prefer current built zones
+    var z = (window.zonesCache && typeof window.zonesCache === "object")
+      ? window.zonesCache
+      : (typeof computeZones === "function" ? computeZones() : null);
+
+    // Fallback to board center if zones aren't ready
+    if (!z) {
+      return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
+               y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
+    }
+
+    // For bases: use the owner's base stack center
+    // For units: use the owner's discard pile center (safe + always visible)
+    var r = null;
+    if (kind === "base") r = z[owner + "_base_stack"];
+    if (!r) r = z[owner + "_discard"] || z[owner + "_draw"] || z["p1_discard"];
+
+    if (!r) {
+      return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
+               y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
+    }
+
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  } catch (e) {
+    return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
+             y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
+  }
+}
+// === PATCH END: safe spawn point ============================================
 function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
   meta = meta || {};
   var holdTimer = null;
