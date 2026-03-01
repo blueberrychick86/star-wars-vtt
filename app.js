@@ -1879,7 +1879,8 @@ function __vttClientToDesign(clientX, clientY){
 }
 // === END PATCH =============================================================
 
-function makeTrayTileDraggable(tile, card, onCommitToBoard) {
+function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
+  meta = meta || {};
   var holdTimer = null;
   var holdArmed = false;
   var dragging = false;
@@ -1940,7 +1941,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
       // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
-        var owner = (meta && meta.owner) ? meta.owner : "p1";
+        var owner = meta.owner ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");
         if (owner !== "p1" && owner !== "p2") owner = "p1";
         p = __vttHandSpawnForOwner(owner, kind);
       }
@@ -2361,7 +2362,6 @@ function __vttGetLocalSeat(){
   } catch (e1) {}
 
   return "p1";
-}
 }
 
 function __vttSeatRotDeg(){
