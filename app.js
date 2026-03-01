@@ -1955,8 +1955,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
        if (!releasedOverTray) {
-      var p = __vttClientToDesign(clientX, clientY);
-      var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
+var p = viewportToDesign(clientX, clientY);      var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
 
       // If tray drop maps off-board, override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
