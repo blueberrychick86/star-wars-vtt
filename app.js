@@ -1,11 +1,3 @@
-/* ========================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-27(Non-destructive cleanup)
-   - Keeps ALL existing features
-   - Removes duplicate “early crash overlay vs crash overlay” conflicts
-   - Makes boot + overlay + menu audio more robust (no optional chaining)
-   - Keeps tray, tokens, snapping, preview, rotate/flip, invite/join flow
-   ======================================================================== */
-
 console.log("APP.JS BUILD: 2026-03-01 A");/* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -1863,14 +1855,12 @@ function makeTrayTile(card) {
   return tile;
 }
 
-// === PATCH: tray drop coords must be viewport-based (clientX/clientY) =========
+/// === PATCH: tray drop coords must be viewport-based (clientX/clientY) =========
 function __vttClientToDesign(clientX, clientY){
-  try {
-    // viewportToDesign expects viewport coordinates (event.clientX / event.clientY)
-    return viewportToDesign(clientX, clientY);
-  } catch (e) {}
-  // fallback
-  return viewportToDesign(clientX, clientY);
+  // IMPORTANT: viewportToDesign expects viewport coordinates (event.clientX / event.clientY)
+  try { return viewportToDesign(clientX, clientY); } catch (e) {}
+  return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
+           y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
 }
 // === END PATCH ===============================================================
 // === PATCH START: safe spawn point when tray drop maps off-board =============
@@ -1964,19 +1954,22 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
       clientX >= trayRect.left && clientX <= trayRect.right &&
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
-    if (!releasedOverTray) {
+       if (!releasedOverTray) {
       var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
-     
 
-      // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
+      // If tray drop maps off-board, override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
-var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");        if (owner !== "p1" && owner !== "p2") owner = "p1";
-var spawner = (typeof window.__vttHandSpawnForOwner === "function")
-  ? window.__vttHandSpawnForOwner
-  : (typeof __vttHandSpawnForOwner === "function" ? __vttHandSpawnForOwner : null);
+        var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");
+        if (owner !== "p1" && owner !== "p2") owner = "p1";
 
-p = spawner ? spawner(owner, kind) : { x: DESIGN_W / 2, y: DESIGN_H / 2 };      }
+        var spawner = (typeof window.__vttHandSpawnForOwner === "function")
+          ? window.__vttHandSpawnForOwner
+          : (typeof __vttHandSpawnForOwner === "function" ? __vttHandSpawnForOwner : null);
+
+        p = spawner ? spawner(owner, kind) : { x: (DESIGN_W||0)/2, y: (DESIGN_H||0)/2 };
+      }
+
       var el = makeCardEl(card, kind);
 
       var w = (kind === "base") ? BASE_W : CARD_W;
@@ -1988,36 +1981,36 @@ p = spawner ? spawner(owner, kind) : { x: DESIGN_W / 2, y: DESIGN_H / 2 };      
 
       stage.appendChild(el);
 
-if (kind === "base") {
-  snapBaseAutoFill(el);
-  if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
-} else {
-  snapCardToNearestZone(el);
-}
+      if (kind === "base") {
+        snapBaseAutoFill(el);
+        if (!el.dataset.capSide) snapBaseToNearestBaseStack(el);
+      } else {
+        snapCardToNearestZone(el);
+      }
 
-/* =========================
-   NET: broadcast spawn so other client can create the card
-   ========================= */
-vttSend({
-  t: "card_spawn",
-  clientId: window.__vttClientId,
-  room: window.__vttRoomId,
-  cardId: el.dataset.cardId,
-  kind: kind,
-  cardData: el.__cardData || card,   // <- important
-  x: parseFloat(el.style.left || "0"),
-  y: parseFloat(el.style.top  || "0"),
-  z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
-  rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
-  face: el.dataset.face || "up",
-  capSide: el.dataset.capSide || null,
-  capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
-  at: __vttNowMs()
-});
+      /* =========================
+         NET: broadcast spawn so other client can create the card
+         ========================= */
+      vttSend({
+        t: "card_spawn",
+        clientId: window.__vttClientId,
+        room: window.__vttRoomId,
+        cardId: el.dataset.cardId,
+        kind: kind,
+        cardData: el.__cardData || card,
+        x: parseFloat(el.style.left || "0"),
+        y: parseFloat(el.style.top  || "0"),
+        z: parseInt(el.style.zIndex || ((kind === "base") ? "12000" : "15000"), 10),
+        rot: (kind === "unit") ? Number(el.dataset.rot || "0") : null,
+        face: el.dataset.face || "up",
+        capSide: el.dataset.capSide || null,
+        capIndex: (el.dataset.capIndex != null) ? Number(el.dataset.capIndex) : null,
+        at: __vttNowMs()
+      });
 
-onCommitToBoard();
-           } // end: if (!releasedOverTray)
-  }   // end: finishDrag()
+       } // END if (!releasedOverTray)
+    onCommitToBoard();
+          
 
  tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
