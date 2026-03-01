@@ -1864,38 +1864,6 @@ function makeTrayTile(card) {
   return tile;
 }
 
-// === PATCH: tray safe spawn near owner base stack (when drop point maps off-board) ===
-var __vttTraySpawnJitter = { p1: 0, p2: 0 };
-
-function __vttHandSpawnForOwner(owner, kind){
-  // Fallback if zonesCache/base stack missing
-  var cx = DESIGN_W * 0.5;
-  var cy = (owner === "p2") ? (DESIGN_H * 0.22) : (DESIGN_H * 0.78);
-
-  try {
-    if (zonesCache) {
-      var base = (owner === "p2") ? zonesCache.p2_base_stack : zonesCache.p1_base_stack;
-      if (base) {
-        cx = base.x + base.w/2;
-        var pad = 14;
-        var h = (kind === "base") ? BASE_H : CARD_H;
-        // p1 is bottom in world -> spawn ABOVE their base stack
-        // p2 is top in world    -> spawn BELOW their base stack
-        cy = (owner === "p2")
-          ? (base.y + base.h + (h/2) + pad)
-          : (base.y - (h/2) - pad);
-      }
-    }
-  } catch(e) {}
-
-  __vttTraySpawnJitter[owner] = (__vttTraySpawnJitter[owner] + 1) % 6;
-  var j = __vttTraySpawnJitter[owner];
-  var spread = 18;
-
-  return { x: cx + (j - 2.5) * spread, y: cy };
-}
-// === END PATCH ================================================================
-
 // === PATCH: tray drop coords must be table-relative (fix off-board spawns) ===
 function __vttClientToDesign(clientX, clientY){
   try {
@@ -1966,12 +1934,13 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
+      var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var p = viewportToDesign(clientX, clientY);
 
-      // If drop mapped off-board, fallback to owner hand spawn
+      // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
-        var owner = tile.__trayOwner || "p1";
+        var owner = (meta && meta.owner) ? meta.owner : "p1";
         if (owner !== "p1" && owner !== "p2") owner = "p1";
         p = __vttHandSpawnForOwner(owner, kind);
       }
@@ -2107,7 +2076,7 @@ function renderTray() {
           trayState.drawItems = trayState.drawItems.filter(function(x){ return x.card.id !== item.card.id; });
           setDrawCount(item.owner, trayState.drawItems.filter(function(x){ return x.owner === item.owner; }).length);
           renderTray();
-        });
+        }, { owner: item.owner });
 
         trayCarousel.appendChild(tile);
       })(trayState.drawItems[i]);
@@ -2147,7 +2116,7 @@ function renderTray() {
           trayState.searchRemovedIds.add(card.id);
           piles[pileKey] = (piles[pileKey] || []).filter(function(c){ return c.id !== card.id; });
           renderTray();
-        });
+        }, { owner: trayState.searchOwner });
 
         trayCarousel.appendChild(tile2);
       })(visible[t]);
