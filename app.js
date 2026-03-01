@@ -1864,6 +1864,21 @@ function makeTrayTile(card) {
   return tile;
 }
 
+// === PATCH: tray drop coords must be table-relative (fix off-board spawns) ===
+function __vttClientToDesign(clientX, clientY){
+  try {
+    if (typeof table !== "undefined" && table && table.getBoundingClientRect) {
+      var r = table.getBoundingClientRect();
+      var vx = clientX - r.left;
+      var vy = clientY - r.top;
+      return viewportToDesign(vx, vy);
+    }
+  } catch (e) {}
+  // fallback to old behavior if anything goes wrong
+  return viewportToDesign(clientX, clientY);
+}
+// === END PATCH =============================================================
+
 function makeTrayTileDraggable(tile, card, onCommitToBoard) {
   var holdTimer = null;
   var holdArmed = false;
@@ -1919,7 +1934,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
       clientY >= trayRect.top  && clientY <= trayRect.bottom;
 
     if (!releasedOverTray) {
-      var p = viewportToDesign(clientX, clientY);
+      var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
