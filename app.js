@@ -3015,7 +3015,6 @@ function __vttClientToDesignBoard(clientX, clientY){
   return { x:x, y:y };
 }
 // === END PATCH ==============================================================
-}
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
   var world = viewportToDesign(vx, vy);
