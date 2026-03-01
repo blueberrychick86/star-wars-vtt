@@ -1971,12 +1971,11 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
     if (!releasedOverTray) {
       var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
-      var p = viewportToDesign(clientX, clientY);
+     
 
       // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
-        var owner = meta.owner ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");
-        if (owner !== "p1" && owner !== "p2") owner = "p1";
+var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");        if (owner !== "p1" && owner !== "p2") owner = "p1";
         p = __vttHandSpawnForOwner(owner, kind);
       }
       var el = makeCardEl(card, kind);
