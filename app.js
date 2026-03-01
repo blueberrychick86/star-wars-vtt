@@ -27,6 +27,24 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
   document.head.appendChild(st);
 })();
 // === END PATCH ==============================================================
+// === PATCH: P2 HUD/TRAY must NOT be flipped (override earlier scaleY) =======
+(function vttFixP2HudUpsideDown(){
+  if (document.getElementById("vttP2HudNoFlipStyle")) return;
+
+  var st = document.createElement("style");
+  st.id = "vttP2HudNoFlipStyle";
+  st.innerHTML =
+    ".vtt-seat-p2 #hud, " +
+    ".vtt-seat-p2 #trayShell, " +
+    ".vtt-seat-p2 #previewBackdrop, " +
+    ".vtt-seat-p2 #startMenu, " +
+    ".vtt-seat-p2 #inviteMenu { transform: none !important; }" +
+    ".vtt-seat-p2 button, " +
+    ".vtt-seat-p2 .btn, " +
+    ".vtt-seat-p2 .controls button { transform: none !important; }";
+  document.head.appendChild(st);
+})();
+// === END PATCH ==============================================================
 /* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
@@ -2416,8 +2434,7 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
 
     if (!releasedOverTray) {
       if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
-      var p = viewportToDesign(clientX, clientY);
-      var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
+var p = __vttClientToDesignBoard(clientX, clientY);      var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
       var el = makeCardEl(card, kind);
 
       var w = (kind === "base") ? BASE_W : CARD_W;
@@ -2917,6 +2934,27 @@ var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
   return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+   
+  // === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
+function __vttIsP2View(){
+  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
+  catch (e) { return false; }
+}
+
+// Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
+// compensating for camera scale AND P2 180° playfield rotation.
+function __vttClientToDesignBoard(clientX, clientY){
+  var r = stage.getBoundingClientRect();
+  var x = (clientX - r.left) / camera.scale;
+  var y = (clientY - r.top)  / camera.scale;
+
+  if (__vttIsP2View()){
+    x = (DESIGN_W - x);
+    y = (DESIGN_H - y);
+  }
+  return { x:x, y:y };
+}
+// === END PATCH ============================================================== 
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
@@ -3367,9 +3405,9 @@ function attachTokenDragHandlers(el) {
     el.setPointerCapture(e.pointerId);
     dragging = true;
 
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var p0 = __vttClientToDesignBoard(e.clientX, e.clientY);
+var px = p0.x;
+var py = p0.y;
 
     var left = parseFloat(el.style.left || "0");
     var top  = parseFloat(el.style.top || "0");
@@ -3381,9 +3419,9 @@ function attachTokenDragHandlers(el) {
 
   el.addEventListener("pointermove", function(e){
     if (!dragging) return;
-    var stageRect = stage.getBoundingClientRect();
-    var px = (e.clientX - stageRect.left) / camera.scale;
-    var py = (e.clientY - stageRect.top) / camera.scale;
+    var p1 = __vttClientToDesignBoard(e.clientX, e.clientY);
+var px = p1.x;
+var py = p1.y;
 
     el.style.left = (px - offX) + "px";
     el.style.top  = (py - offY) + "px";
