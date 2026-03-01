@@ -1863,20 +1863,16 @@ function makeTrayTile(card) {
   return tile;
 }
 
-// === PATCH: tray drop coords must be table-relative (fix off-board spawns) ===
+// === PATCH: tray drop coords must be viewport-based (clientX/clientY) =========
 function __vttClientToDesign(clientX, clientY){
   try {
-    if (typeof table !== "undefined" && table && table.getBoundingClientRect) {
-      var r = table.getBoundingClientRect();
-      var vx = clientX - r.left;
-      var vy = clientY - r.top;
-      return viewportToDesign(vx, vy);
-    }
+    // viewportToDesign expects viewport coordinates (event.clientX / event.clientY)
+    return viewportToDesign(clientX, clientY);
   } catch (e) {}
-  // fallback to old behavior if anything goes wrong
+  // fallback
   return viewportToDesign(clientX, clientY);
 }
-// === END PATCH =============================================================
+// === END PATCH ===============================================================
 // === PATCH START: safe spawn point when tray drop maps off-board =============
 function __vttHandSpawnForOwner(owner, kind){
   try {
@@ -1893,7 +1889,8 @@ function __vttHandSpawnForOwner(owner, kind){
       return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
                y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
     }
-
+// Ensure global access (prevents "__vttHandSpawnForOwner is not defined")
+window.__vttHandSpawnForOwner = window.__vttHandSpawnForOwner || __vttHandSpawnForOwner;
     // For bases: use the owner's base stack center
     // For units: use the owner's discard pile center (safe + always visible)
     var r = null;
@@ -1975,8 +1972,11 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
       // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
 var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");        if (owner !== "p1" && owner !== "p2") owner = "p1";
-        p = __vttHandSpawnForOwner(owner, kind);
-      }
+var spawner = (typeof window.__vttHandSpawnForOwner === "function")
+  ? window.__vttHandSpawnForOwner
+  : (typeof __vttHandSpawnForOwner === "function" ? __vttHandSpawnForOwner : null);
+
+p = spawner ? spawner(owner, kind) : { x: DESIGN_W / 2, y: DESIGN_H / 2 };      }
       var el = makeCardEl(card, kind);
 
       var w = (kind === "base") ? BASE_W : CARD_W;
