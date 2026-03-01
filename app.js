@@ -2340,12 +2340,28 @@ var camera = { scale: 1, tx: 0, ty: 0, rotDeg: 0 };
 // Determine local seat from existing menu/invite flow.
 // Guest sets __gameConfig.youAre="p2" already. Host will be ensured in Patch D.
 function __vttGetLocalSeat(){
+  // 1) Most reliable: runtime local seat set after connection
+  try {
+    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) {
+      var s = String(window.VTT_LOCAL.seat).toLowerCase();
+      // normalize common forms
+      if (s === "p2" || s === "red") return "p2";
+      if (s === "p1" || s === "blue" || s === "yellow") return "p1";
+    }
+  } catch (e0) {}
+
+  // 2) Fallback: config from menu/invite flow
   try {
     if (window.__gameConfig && window.__gameConfig.youAre) {
-      return String(window.__gameConfig.youAre).toLowerCase();
+      var g = String(window.__gameConfig.youAre).toLowerCase();
+      if (g === "p2" || g === "red") return "p2";
+      if (g === "p1" || g === "blue" || g === "yellow") return "p1";
+      return g; // if already p1/p2
     }
-  } catch (e) {}
+  } catch (e1) {}
+
   return "p1";
+}
 }
 
 function __vttSeatRotDeg(){
