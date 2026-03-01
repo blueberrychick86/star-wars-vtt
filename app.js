@@ -2065,6 +2065,7 @@ function renderTray() {
     for (var i = 0; i < trayState.drawItems.length; i++) {
       (function(item){
         var tile = makeTrayTile(item.card);
+        tile.__trayOwner = item.owner;
 
         tile.addEventListener("click", function(){
           if (tile.__justDragged) { tile.__justDragged = false; return; }
@@ -2104,6 +2105,7 @@ function renderTray() {
     for (var t = 0; t < visible.length; t++) {
       (function(card){
         var tile2 = makeTrayTile(card);
+        tile2.__trayOwner = trayState.searchOwner;
 
         tile2.addEventListener("click", function(){
           if (tile2.__justDragged) { tile2.__justDragged = false; return; }
