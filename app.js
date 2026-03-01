@@ -2254,6 +2254,7 @@ function openTray() {
   trayShell.style.display = "block";
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
+  renderTray();
 
   // PATCH: ensure tray cards always have click handler AFTER render builds them
   setTimeout(function(){
@@ -2300,18 +2301,10 @@ function openTray() {
 })();
 
 function closeTray() {
-  if (!trayState.open) return;
-  try { traySearchInput.blur(); } catch (e) {}
-
-  if (trayState.mode === "draw") {
-    for (var i = trayState.drawItems.length - 1; i >= 0; i--) {
-      var it = trayState.drawItems[i];
-      if (!piles[it.pileKey]) piles[it.pileKey] = [];
-      piles[it.pileKey].unshift(it.card);
-    }
-    trayState.drawItems = [];
-    setDrawCount("p1", 0);
-    setDrawCount("p2", 0);
+    if (trayState.mode === "draw") {
+    // IMPORTANT: Closing the tray should NOT discard the hand.
+    // We keep trayState.drawItems intact so reopening shows the same cards.
+    // (No moving back to piles, no clearing drawItems, no zeroing counts.)
   } else if (trayState.mode === "search") {
     var pileKey = trayState.searchPileKey;
     if (pileKey && piles[pileKey]) {
@@ -2339,7 +2332,9 @@ function closeTray() {
 
   trayState.open = false;
   traySearchRow.classList.remove("show");
-  trayCarousel.innerHTML = "";
+  // Keep the seat carousel containers; only clear their contents.
+try { trayCarouselP1.innerHTML = ""; } catch (e) {}
+try { trayCarouselP2.innerHTML = ""; } catch (e) {}
   trayShell.classList.remove("dragging");
   trayShell.classList.remove("dragging");
 
