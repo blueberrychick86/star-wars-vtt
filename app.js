@@ -10,6 +10,24 @@
 
 
 console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
+// === PATCH: Force HUD/TRAY readable in P2 even if playfield is rotated =======
+(function vttForceP2HudUpright(){
+  if (document.getElementById("vttP2HudUprightStyle")) return;
+  var st = document.createElement("style");
+  st.id = "vttP2HudUprightStyle";
+  st.textContent = `
+    .vtt-seat-p2 #hud,
+    .vtt-seat-p2 #trayShell,
+    .vtt-seat-p2 #previewBackdrop,
+    .vtt-seat-p2 #startMenu,
+    .vtt-seat-p2 #inviteMenu {
+      transform: rotate(180deg) !important;
+      transform-origin: 50% 50% !important;
+    }
+  `;
+  document.head.appendChild(st);
+})();
+// === END PATCH ===============================================================
 // === PATCH: P2 HUD text unflip (safe global inject) =========================
 (function ensureP2HudTextFixStyle(){
   if (document.getElementById("vttP2HudTextFixStyle")) return;
@@ -145,7 +163,34 @@ function getLocalSeatColor() {
   } catch (e2) {}
   return "blue";
 }
+/* === PATCH: GLOBAL seat helpers + global client->design mapping (CRASH FIX) === */
+function ownerSeatFromLocalColor() {
+  // Map local seat color to canonical owner key ("p1" / "p2")
+  var c = "blue";
+  try { c = getLocalSeatColor(); } catch (e) {}
+  return (String(c).toLowerCase() === "red") ? "p2" : "p1";
+}
 
+function __vttIsP2View(){
+  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
+  catch (e) { return false; }
+}
+
+// Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
+// compensating for camera scale AND P2 180° playfield rotation.
+function __vttClientToDesignBoard(clientX, clientY){
+  if (!window.stage || !window.camera) return { x: 0, y: 0 };
+  var r = stage.getBoundingClientRect();
+  var x = (clientX - r.left) / camera.scale;
+  var y = (clientY - r.top)  / camera.scale;
+
+  if (__vttIsP2View()){
+    x = (DESIGN_W - x);
+    y = (DESIGN_H - y);
+  }
+  return { x:x, y:y };
+}
+/* === END PATCH ============================================================= */
 function __vttEnsureToastEl(){
   if (window.__vttToastEl && window.__vttToastEl.isConnected) return window.__vttToastEl;
   var el = document.createElement("div");
@@ -2483,7 +2528,7 @@ onCommitToBoard();
   tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
     try {
-      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
+      var me = ownerSeatFromLocalColor();
       var own = (tile.__owner || "p1");
       if (own !== me) return;
     } catch (err) {}
@@ -2495,8 +2540,7 @@ onCommitToBoard();
     if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
         // PRIVACY: only owner can drag/use this tray tile
     try {
-      var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-      var own = (tile.__owner || "p1");
+var me = ownerSeatFromLocalColor();      var own = (tile.__owner || "p1");
       if (own !== me) return;
     } catch (err) {}
 
@@ -2580,8 +2624,7 @@ function renderTray() {
         tile.addEventListener("click", function(){
                     // PRIVACY: only owner can preview this tile
           try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            var own = (tile.__owner || "p1");
+var me = ownerSeatFromLocalColor();            var own = (tile.__owner || "p1");
             if (own !== me) return;
           } catch (err) { return; }
 
@@ -2594,8 +2637,7 @@ function renderTray() {
           } catch (err) {}
 
           try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            if ((tile.__owner || "p1") !== me) return;
+var me = ownerSeatFromLocalColor();            if ((tile.__owner || "p1") !== me) return;
           } catch (e) {}
           showPreview(item.card);
         });
@@ -2640,15 +2682,13 @@ function renderTray() {
         tile2.addEventListener("click", function(){
                     // PRIVACY: only owner can preview this tile
           try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            var own = (trayState.searchOwner || "p1");
+var me = ownerSeatFromLocalColor();            var own = (trayState.searchOwner || "p1");
             if (own !== me) return;
           } catch (err) { return; }
 
           if (tile2.__justDragged) { tile2.__justDragged = false; return; }
           try {
-            var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-            if ((tile2.__owner || "p1") !== me) return;
+var me = ownerSeatFromLocalColor();            if ((tile2.__owner || "p1") !== me) return;
           } catch (e) {}
           showPreview(card);
         });
@@ -2734,8 +2774,7 @@ function bindPileZoneClicks() {
       clone.addEventListener("pointerdown", function(e){
                 // PRIVACY: only the owning player can open/peek this pile
         try {
-          var me = (window.__gameConfig && window.__gameConfig.youAre) ? window.__gameConfig.youAre : "p1";
-          if (m.owner !== me) return;
+var me = ownerSeatFromLocalColor();          if (m.owner !== me) return;
         } catch (err) { return; }
 
         if (previewOpen) return;
