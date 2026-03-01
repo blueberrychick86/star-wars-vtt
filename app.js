@@ -2362,7 +2362,6 @@ function __vttGetLocalSeat(){
 
   return "p1";
 }
-}
 
 function __vttSeatRotDeg(){
   return (__vttGetLocalSeat() === "p2") ? 180 : 0;
