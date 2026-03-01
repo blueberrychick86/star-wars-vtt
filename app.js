@@ -1936,6 +1936,14 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard) {
     if (!releasedOverTray) {
       var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
+      var p = viewportToDesign(clientX, clientY);
+
+      // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
+      if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
+        var owner = (meta && meta.owner) ? meta.owner : "p1";
+        if (owner !== "p1" && owner !== "p2") owner = "p1";
+        p = __vttHandSpawnForOwner(owner, kind);
+      }
       var el = makeCardEl(card, kind);
 
       var w = (kind === "base") ? BASE_W : CARD_W;
@@ -2067,7 +2075,7 @@ function renderTray() {
           trayState.drawItems = trayState.drawItems.filter(function(x){ return x.card.id !== item.card.id; });
           setDrawCount(item.owner, trayState.drawItems.filter(function(x){ return x.owner === item.owner; }).length);
           renderTray();
-        });
+        }, { owner: item.owner });
 
         trayCarousel.appendChild(tile);
       })(trayState.drawItems[i]);
@@ -2106,7 +2114,7 @@ function renderTray() {
           trayState.searchRemovedIds.add(card.id);
           piles[pileKey] = (piles[pileKey] || []).filter(function(c){ return c.id !== card.id; });
           renderTray();
-        });
+        }, { owner: trayState.searchOwner });
 
         trayCarousel.appendChild(tile2);
       })(visible[t]);
