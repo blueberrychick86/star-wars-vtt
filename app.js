@@ -2010,7 +2010,8 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
 
        } // END if (!releasedOverTray)
     onCommitToBoard();
-          
+    }
+  }        
 
  tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
