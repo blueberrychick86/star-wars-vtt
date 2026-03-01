@@ -6,8 +6,7 @@
    - Keeps tray, tokens, snapping, preview, rotate/flip, invite/join flow
    ======================================================================== */
 
-console.log("VTT BASELINE 2026-02-08 (CLEAN) — faction borders locked + 3px borders");
-/* =========================
+console.log("APP.JS BUILD: 2026-03-01 A");/* =========================
    MULTIPLAYER SOCKET LAYER (VTTNet)
    - Uses ?room=<id> for WebSocket room
    - Keeps ?join=1 for invite UI only
