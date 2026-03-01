@@ -182,6 +182,18 @@ function __vttIsP2View(){
 
 // Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
 // compensating for camera scale AND P2 180° playfield rotation.
+// iOS Safari fix: normalize pointer/touch coords to {x,y}
+function __vttGetClientXY(e){
+  try {
+    if (e && e.touches && e.touches[0]) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    if (e && e.changedTouches && e.changedTouches[0]) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+  } catch (err) {}
+  return { x: (e && e.clientX) || 0, y: (e && e.clientY) || 0 };
+}
 function __vttClientToDesignBoard(clientX, clientY){
   if (!window.stage || !window.camera) return { x: 0, y: 0 };
   var r = stage.getBoundingClientRect();
@@ -2981,8 +2993,9 @@ var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
   return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
-   
-  // === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
+}
+
+// === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
 function __vttIsP2View(){
   try { return document.documentElement.classList.contains("vtt-seat-p2"); }
   catch (e) { return false; }
@@ -3001,7 +3014,7 @@ function __vttClientToDesignBoard(clientX, clientY){
   }
   return { x:x, y:y };
 }
-// === END PATCH ============================================================== 
+// === END PATCH ==============================================================
 }
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
@@ -3033,7 +3046,8 @@ table.addEventListener("pointerdown", function(e){
   if (e.target.closest(".tokenCube")) return;
   if (e.target.closest(".tokenBin")) return;
   if (e.target.closest("#hud")) return;
-
+  // iOS Safari fix: don't capture pointer when tapping zones (draw piles need taps)
+  if (e.target.closest(".zone")) return;
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
   boardLast = { x: e.clientX, y: e.clientY };
@@ -3842,8 +3856,9 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     longPressFired = false;
     movedDuringPress = false;
-    downX = e.clientX;
-    downY = e.clientY;
+        var c0 = __vttGetClientXY(e);
+    downX = c0.x;
+    downY = c0.y;
 
     pressTimer = setTimeout(function(){
       longPressFired = true;
