@@ -921,6 +921,15 @@ style.textContent = `
     border-bottom: 1px solid rgba(255,255,255,0.10);
     gap: 6px;
   }
+    /* -------- TRAY (P2 LEFT DRAWER OVERRIDE) -------- */
+  html.vtt-seat-p2 #trayShell{
+    left: 0;
+    right: auto;
+  }
+  html.vtt-seat-p2 #tray{
+    /* flip shadow direction since the drawer is now on the left */
+    box-shadow: 10px 0 26px rgba(0,0,0,0.55);
+  }
   #trayTitle{
     color:#fff;
     font-weight: 900;
