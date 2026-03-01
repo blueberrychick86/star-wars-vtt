@@ -1,12 +1,5 @@
 /* ============================================================================
-   Star Wars VTT — CLEAN BASELINE 2026-02-16 (Token layering + sync stable)
-
-   - Keeps ALL existing features
-   - Token layering fixed (tokens stay above cards)
-   - Token z-index sync consistent for both players
-   - Keeps tray, snapping, preview, rotate/flip, invite/join flow
-
-   ============================================================================ */
+   Star Wars VTT — CLEAN BASELINE- EVERYTHING WORKS DO NOT DELETE
 
 
 console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
