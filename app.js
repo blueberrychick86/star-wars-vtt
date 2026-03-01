@@ -172,8 +172,18 @@ function ownerSeatFromLocalColor() {
 }
 
 function __vttIsP2View(){
+  try {
+    // Prefer authoritative local seat color (your config uses red/blue)
+    if (typeof getLocalSeatColor === "function") {
+      var c = String(getLocalSeatColor() || "").toLowerCase();
+      if (c === "red") return true;
+      if (c === "blue") return false;
+    }
+  } catch (e) {}
+
+  // Fallback: css class if present
   try { return document.documentElement.classList.contains("vtt-seat-p2"); }
-  catch (e) { return false; }
+  catch (e2) { return false; }
 }
 
 // Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
@@ -3773,8 +3783,7 @@ function makeCardEl(cardData, kind) {
   el.__cardData = cardData;
  el.dataset.face = "up";
   // assign a stable owner seat for this card element (default heuristic)
-  try { el.dataset.owner = cardData.owner || ((window.__gameConfig && window.__gameConfig.youAre === "p2") ? "p2" : "p1"); } catch (e) {}
-
+el.dataset.owner = cardData.owner || ownerSeatFromLocalColor();
   var face = document.createElement("div");
   face.className = "cardFace";
   face.style.backgroundImage = "url('" + (cardData.img || "") + "')";
@@ -3786,7 +3795,7 @@ function makeCardEl(cardData, kind) {
   el.appendChild(back);
 
   if (kind === "unit") {
-    el.dataset.rot = "0";
+   el.dataset.rot = (String(el.dataset.owner) === "p2") ? "180" : "0";
     applyRotationSize(el);
   } else {
     el.style.width = BASE_W + "px";
