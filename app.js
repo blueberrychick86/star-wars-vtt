@@ -1863,17 +1863,12 @@ function makeTrayTile(card) {
   return tile;
 }
 
-// === PATCH: tray drop coords must be viewport-based (clientX/clientY) =========
 function __vttClientToDesign(clientX, clientY){
-  try {
-    // viewportToDesign expects viewport coordinates (event.clientX / event.clientY)
-    return viewportToDesign(clientX, clientY);
-  } catch (e) {}
-  // fallback
+  // PATCH: __vttClientToDesign uses viewport coords
+  try { return viewportToDesign(clientX, clientY); } catch(e){}
   return viewportToDesign(clientX, clientY);
 }
-// === END PATCH ===============================================================
-// === PATCH START: safe spawn point when tray drop maps off-board =============
+
 function __vttHandSpawnForOwner(owner, kind){
   try {
     owner = (owner === "p2") ? "p2" : "p1";
@@ -1889,8 +1884,6 @@ function __vttHandSpawnForOwner(owner, kind){
       return { x: (typeof DESIGN_W === "number" ? DESIGN_W : 0) / 2,
                y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
     }
-// Ensure global access (prevents "__vttHandSpawnForOwner is not defined")
-window.__vttHandSpawnForOwner = window.__vttHandSpawnForOwner || __vttHandSpawnForOwner;
     // For bases: use the owner's base stack center
     // For units: use the owner's discard pile center (safe + always visible)
     var r = null;
@@ -1908,7 +1901,8 @@ window.__vttHandSpawnForOwner = window.__vttHandSpawnForOwner || __vttHandSpawnF
              y: (typeof DESIGN_H === "number" ? DESIGN_H : 0) / 2 };
   }
 }
-// === PATCH END: safe spawn point ============================================
+window.__vttHandSpawnForOwner = window.__vttHandSpawnForOwner || __vttHandSpawnForOwner;
+
 function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
   meta = meta || {};
   var holdTimer = null;
@@ -1967,16 +1961,19 @@ function makeTrayTileDraggable(tile, card, onCommitToBoard, meta) {
     if (!releasedOverTray) {
       var p = __vttClientToDesign(clientX, clientY);
       var kind = (card.kind === "base" || String(card.type || "").toLowerCase() === "base") ? "base" : "unit";
-     
+      // PATCH: do not overwrite mapped p
 
       // If tray drop maps off-board (common with tray open + camera transforms), override to safe hand-spawn.
       if (p.x < 0 || p.y < 0 || p.x > DESIGN_W || p.y > DESIGN_H) {
-var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");        if (owner !== "p1" && owner !== "p2") owner = "p1";
-var spawner = (typeof window.__vttHandSpawnForOwner === "function")
-  ? window.__vttHandSpawnForOwner
-  : (typeof __vttHandSpawnForOwner === "function" ? __vttHandSpawnForOwner : null);
-
-p = spawner ? spawner(owner, kind) : { x: DESIGN_W / 2, y: DESIGN_H / 2 };      }
+        var owner = (meta && meta.owner) ? meta.owner : (tile.__trayOwner ? tile.__trayOwner : "p1");
+        if (owner !== "p1" && owner !== "p2") owner = "p1";
+        // PATCH: safe spawner call (prevents ReferenceError)
+        var spawner = (typeof window.__vttHandSpawnForOwner === "function")
+          ? window.__vttHandSpawnForOwner
+          : (typeof __vttHandSpawnForOwner === "function" ? __vttHandSpawnForOwner : null);
+        p = spawner ? spawner(owner, kind) : { x: (DESIGN_W||0)/2, y: (DESIGN_H||0)/2 };
+        // END PATCH
+      }
       var el = makeCardEl(card, kind);
 
       var w = (kind === "base") ? BASE_W : CARD_W;
