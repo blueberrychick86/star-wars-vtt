@@ -1,5 +1,6 @@
 /* ============================================================================
    Star Wars VTT — CLEAN BASELINE- EVERYTHING WORKS DO NOT DELETE
+   ===========================================================================*/
 
 
 console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
