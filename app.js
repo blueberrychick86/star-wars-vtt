@@ -942,6 +942,16 @@ style.textContent = `
     /* flip shadow direction since the drawer is now on the left */
     box-shadow: 10px 0 26px rgba(0,0,0,0.55);
   }
+    /* -------- iOS SAFETY: stop long-press highlight/callout while dragging from tray -------- */
+  #trayShell, #trayShell *{
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+  }
+  /* prevent Safari from trying to scroll/zoom the tray area */
+  #trayShell{ touch-action: none; }
+  #tray{ touch-action: none; }
   #trayTitle{
     color:#fff;
     font-weight: 900;
@@ -2380,7 +2390,17 @@ try { trayCarouselP2.innerHTML = ""; } catch (e) {}
 trayCloseBtn.addEventListener("click", function(){
   if (!previewOpen) closeTray();
 });
-
+// iOS: click can be flaky depending on gesture state; add pointer/touch fallbacks
+trayCloseBtn.addEventListener("pointerdown", function(e){
+  try { e.preventDefault(); } catch (_e) {}
+  try { e.stopPropagation(); } catch (_e2) {}
+  closeTray();
+});
+trayCloseBtn.addEventListener("touchstart", function(e){
+  try { e.preventDefault(); } catch (_e) {}
+  try { e.stopPropagation(); } catch (_e2) {}
+  closeTray();
+}, { passive:false });
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
   var q = normalize(query);
@@ -2564,8 +2584,15 @@ var me = ownerSeatFromLocalColor();      var own = (tile.__owner || "p1");
       if (own !== me) return;
     } catch (err) {}
 
-    if (previewOpen) return;
-    e.stopPropagation();
+   if (previewOpen) return;
+
+// iOS: stop long-press text selection / callout when starting a tray drag
+if (e.pointerType === "touch") {
+  try { e.preventDefault(); } catch (_e) {}
+  try { tile.style.touchAction = "none"; } catch (_e2) {}
+}
+
+e.stopPropagation();
 
     pid = e.pointerId;
     start = { x: e.clientX, y: e.clientY };
@@ -3064,23 +3091,42 @@ table.addEventListener("pointermove", function(e){
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
-  if (boardPointers.size === 1) {
-    var dx = e.clientX - boardLast.x;
-    var dy = e.clientY - boardLast.y;
-    camera.tx += dx;
-    camera.ty += dy;
-    boardLast = { x: e.clientX, y: e.clientY };
-    applyCamera();
-    refreshSnapRects();
-    return;
-  }
+ if (boardPointers.size === 1) {
+  var dx = e.clientX - boardLast.x;
+  var dy = e.clientY - boardLast.y;
 
-  if (boardPointers.size === 2) {
-    var pts = Array.from(boardPointers.values());
-    var d = dist(pts[0], pts[1]);
-    var factor = d / pinchStartDist;
-    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
-  }
+  // P2-only: the view is rotated, so invert pan deltas for correct "grab-and-drag" feel
+  var __isP2 = false;
+  try { __isP2 = (ownerSeatFromLocalColor && ownerSeatFromLocalColor() === "p2"); } catch (e2) {}
+  if (__isP2) { dx = -dx; dy = -dy; }
+
+  camera.tx += dx;
+  camera.ty += dy;
+
+  boardLast = { x: e.clientX, y: e.clientY };
+  applyCamera();
+  refreshSnapRects();
+  return;
+}
+
+ if (boardPointers.size === 2) {
+  // iOS: prevent page gestures from fighting our pinch
+  try { e.preventDefault(); } catch (_e) {}
+
+  var pts = Array.from(boardPointers.values());
+  var d = dist(pts[0], pts[1]);
+
+  // Keep midpoint live so scaling doesn't "jump"
+  pinchMid = mid(pts[0], pts[1]);
+
+  var factor = d / pinchStartDist;
+
+  // Clamp factor to reduce "wild" spikes on iOS
+  if (factor < 0.25) factor = 0.25;
+  if (factor > 4.0)  factor = 4.0;
+
+  setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+}
 });
 
 function endBoardPointer(e){
