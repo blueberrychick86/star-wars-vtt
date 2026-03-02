@@ -158,128 +158,54 @@ function getLocalSeatColor() {
   return "blue";
 }
 /* === PATCH: GLOBAL seat helpers + global client->design mapping (CRASH FIX) === */
-// === PATCH: iOS-safe seat fallback for ownership checks ======================
 function ownerSeatFromLocalColor() {
   // Map local seat color to canonical owner key ("p1" / "p2")
   var c = "blue";
   try { c = getLocalSeatColor(); } catch (e) {}
-
-  // If we can't reliably read seat color (common iOS/Safari edge cases),
-  // fall back to the CSS seat class that we already set in applyLocalCamera().
-  try {
-    var isP2Class = document.documentElement.classList.contains("vtt-seat-p2");
-    if (isP2Class) return "p2";
-  } catch (e2) {}
-
   return (String(c).toLowerCase() === "red") ? "p2" : "p1";
 }
-// === END PATCH ===============================================================
 
 function __vttIsP2View(){
+  // Source of truth: the seat CSS class set when we rotate the playfield.
   try {
-    // Prefer authoritative local seat color (your config uses red/blue)
+    if (document && document.documentElement && document.documentElement.classList) {
+      if (document.documentElement.classList.contains("vtt-seat-p2")) return true;
+      // If class is explicitly present/absent, we can return false confidently.
+      // (We only fall back if DOM isn't ready or classList isn't available.)
+      if (document.documentElement.classList.contains("vtt-seat-p1")) return false;
+    }
+  } catch (e0) {}
+
+  // Fallbacks: local seat color / config
+  try {
     if (typeof getLocalSeatColor === "function") {
       var c = String(getLocalSeatColor() || "").toLowerCase();
       if (c === "red") return true;
       if (c === "blue") return false;
     }
-  } catch (e) {}
+  } catch (e1) {}
 
-  // Fallback: css class if present
-  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
-  catch (e2) { return false; }
+  try {
+    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) return (String(window.VTT_LOCAL.seat).toLowerCase() === "p2");
+  } catch (e2) {}
+
+  return false;
 }
 
 // Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
 // compensating for camera scale AND P2 180° playfield rotation.
-// iOS Safari fix: normalize pointer/touch coords to {x,y}
-function __vttGetClientXY(e){
-  try {
-    if (e && e.touches && e.touches[0]) {
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    if (e && e.changedTouches && e.changedTouches[0]) {
-      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-    }
-  } catch (err) {}
-  return { x: (e && e.clientX) || 0, y: (e && e.clientY) || 0 };
-}
-// === PATCH: detect iOS Safari/WebKit (not Chrome iOS) ========================
-function __vttIsIOSSafari(){
-  try {
-    var ua = navigator.userAgent || "";
-    var isiOS = /iP(hone|ad|od)/.test(ua);
-    var webkit = /WebKit/.test(ua);
-    var isCriOS = /CriOS/.test(ua);      // Chrome on iOS
-    var isFxiOS = /FxiOS/.test(ua);      // Firefox on iOS
-    return !!(isiOS && webkit && !isCriOS && !isFxiOS);
-  } catch (e) { return false; }
-}
-// === END PATCH ===============================================================
 function __vttClientToDesignBoard(clientX, clientY){
   if (!window.stage || !window.camera) return { x: 0, y: 0 };
   var r = stage.getBoundingClientRect();
   var x = (clientX - r.left) / camera.scale;
   var y = (clientY - r.top)  / camera.scale;
 
-  // iOS Safari + rotated playfield often already behaves "flipped" in practice.
-  // So we DO NOT apply the extra flip there (prevents double-invert drag).
-  if (__vttIsP2View() && !__vttIsIOSSafari()){
+  if (__vttIsP2View()){
     x = (DESIGN_W - x);
     y = (DESIGN_H - y);
   }
   return { x:x, y:y };
 }
-
-// === PATCH: iOS Safari tap reliability (HUD + clickable zones + tray) =========
-function __vttIsIOS(){
-  try { return /iPad|iPhone|iPod/.test(navigator.userAgent || "") && !window.MSStream; }
-  catch(e){ return false; }
-}
-
-// iOS Safari can sometimes swallow pointerdown/click when other layers call preventDefault.
-// This bridge makes "tap" act like a click for our UI and pile zones, without affecting drag.
-(function __vttIosTapBridgeOnce(){
-  if (window.__vttIosTapBridgeOnceInstalled) return;
-  window.__vttIosTapBridgeOnceInstalled = true;
-
-  var lastTapMs = 0;
-
-  function shouldBridgeTarget(t){
-    if (!t) return false;
-    // Buttons in HUD/tray/menus
-    if (t.tagName === "BUTTON" || (t.closest && t.closest("button"))) return true;
-    // Any explicitly clickable zone (piles use this)
-    if (t.classList && t.classList.contains("clickable")) return true;
-    if (t.closest && t.closest(".zone.clickable")) return true;
-    // Tray shell itself (close button etc.)
-    if (t.id === "trayShell" || t.closest && t.closest("#trayShell")) return true;
-    return false;
-  }
-
-  document.addEventListener("touchend", function(e){
-    try {
-      if (!__vttIsIOS()) return;
-      var now = Date.now();
-      if (now - lastTapMs < 250) return; // avoid double-fire (touchend + synthetic click)
-      var t = e.target;
-      if (!shouldBridgeTarget(t)) return;
-
-      // Prevent the board layer from treating this as a pan/zoom gesture
-      e.preventDefault();
-      e.stopPropagation();
-
-      lastTapMs = now;
-
-      // Prefer nearest button if present; else click the target itself.
-      var btn = (t.tagName === "BUTTON") ? t : (t.closest ? t.closest("button") : null);
-      var clickEl = btn || t;
-      if (clickEl && typeof clickEl.click === "function") clickEl.click();
-    } catch(err) {}
-  }, { passive:false, capture:true });
-})();
-// === END PATCH ================================================================
-
 /* === END PATCH ============================================================= */
 function __vttEnsureToastEl(){
   if (window.__vttToastEl && window.__vttToastEl.isConnected) return window.__vttToastEl;
@@ -1006,15 +932,6 @@ style.textContent = `
     padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,0.10);
     gap: 6px;
-  }
-    /* -------- TRAY (P2 LEFT DRAWER OVERRIDE) -------- */
-  html.vtt-seat-p2 #trayShell{
-    left: 0;
-    right: auto;
-  }
-  html.vtt-seat-p2 #tray{
-    /* flip shadow direction since the drawer is now on the left */
-    box-shadow: 10px 0 26px rgba(0,0,0,0.55);
   }
   #trayTitle{
     color:#fff;
@@ -2865,49 +2782,46 @@ function bindPileZoneClicks() {
       var clone = el.cloneNode(true);
       el.replaceWith(clone);
 
-      var __vttPileTap = function(e){
-        // iOS can emit both touch/pointer and click; de-dupe per element.
-        try {
-          var now = Date.now();
-          var last = (clone.__vttLastTapMs || 0);
-          if (now - last < 250) return;
-          clone.__vttLastTapMs = now;
-        } catch (eDed) {}
-        try { if (__vttIsIOS && __vttIsIOS() && e && e.preventDefault) e.preventDefault(); } catch (ePrev) {}
+            function __vttHandlePileActivate(e){
+              // iOS Safari sometimes fails to dispatch pointer events reliably on rotated elements.
+              // We listen to both pointerdown and touchstart, and we always prevent default to stop
+              // synthetic delayed clicks / scrolling from blocking the tray.
+              try { e.preventDefault(); } catch (x) {}
+              try { e.stopPropagation(); } catch (y) {}
 
-                // PRIVACY: only the owning player can open/peek this pile
-        try {
-var me = ownerSeatFromLocalColor();          if (m.owner !== me) return;
-        } catch (err) { return; }
+              // PRIVACY: only the owning player can open/peek this pile
+              try {
+                var meSeat = ownerSeatFromLocalColor();
+                if (m.owner !== meSeat) return;
+              } catch (err) { return; }
 
-        if (previewOpen) return;
-        e.stopPropagation();
-                // PRIVATE piles: only owning seat can open/peek
-        try {
-          var me = (window.__gameConfig && window.__gameConfig.youAre)
-            ? String(window.__gameConfig.youAre)
-            : "";
-          if (me && m.owner && me !== m.owner) return;
-        } catch (err) {}
+              if (previewOpen) return;
 
+              // PRIVATE piles: only owning seat can open/peek
+              try {
+                var me = (window.__gameConfig && window.__gameConfig.youAre)
+                  ? String(window.__gameConfig.youAre)
+                  : "";
+                if (me && m.owner && me !== m.owner) return;
+              } catch (err2) {}
 
-        if (m.id === "p1_draw" || m.id === "p2_draw") {
-          if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
+              if (m.id === "p1_draw" || m.id === "p2_draw") {
+                if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
 
-          openTrayDraw();
-          var card = piles[m.pileKey].shift();
-          trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card: card });
-          setDrawCount(m.owner, trayState.drawItems.filter(function(x){ return x.owner === m.owner; }).length);
-          renderTray();
-          return;
-        }
+                openTrayDraw();
+                var card = piles[m.pileKey].shift();
+                trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card: card });
+                setDrawCount(m.owner, trayState.drawItems.filter(function(x){ return x.owner === m.owner; }).length);
+                renderTray();
+                return;
+              }
 
-        openTraySearch(m.owner, m.pileKey, m.label);
-      };
+              openTraySearch(m.owner, m.pileKey, m.label);
+            }
 
-      clone.addEventListener("pointerdown", __vttPileTap);
-      clone.addEventListener("click", __vttPileTap);
-      clone.addEventListener("touchend", __vttPileTap, { passive:false });
+            clone.addEventListener("pointerdown", __vttHandlePileActivate, { passive:false });
+            clone.addEventListener("touchstart", __vttHandlePileActivate, { passive:false });
+
     })(clickMap[i]);
   }
 }
@@ -3079,16 +2993,9 @@ var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
-  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
+  // vx/vy are screen (client) coords; use the unified mapping helper.
+  return __vttClientToDesignBoard(vx, vy);
 }
-
-// === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
-// === PATCH: remove duplicate P2 mapping (keeps earlier iOS-safe version) ======
-// NOTE: This file previously re-declared __vttIsP2View/__vttClientToDesignBoard later,
-// which overwrote the iOS-safe implementation and caused inverted drag / bad drops on iPhone.
-// The canonical implementations are defined earlier in the file.
-// (This placeholder block is intentionally empty.)
-// === END PATCH ================================================================
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
   var world = viewportToDesign(vx, vy);
@@ -3119,8 +3026,7 @@ table.addEventListener("pointerdown", function(e){
   if (e.target.closest(".tokenCube")) return;
   if (e.target.closest(".tokenBin")) return;
   if (e.target.closest("#hud")) return;
-  // iOS Safari fix: don't capture pointer when tapping zones (draw piles need taps)
-  if (e.target.closest(".zone")) return;
+
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
   boardLast = { x: e.clientX, y: e.clientY };
@@ -3929,9 +3835,8 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     longPressFired = false;
     movedDuringPress = false;
-        var c0 = __vttGetClientXY(e);
-    downX = c0.x;
-    downY = c0.y;
+    downX = e.clientX;
+    downY = e.clientY;
 
     pressTimer = setTimeout(function(){
       longPressFired = true;
