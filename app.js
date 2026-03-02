@@ -2177,10 +2177,20 @@ trayShell.appendChild(tray);
 table.appendChild(trayShell);
 window.trayShell = trayShell;
 
-trayShell.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
-trayShell.addEventListener("pointermove", function(e){ e.stopPropagation(); });
-trayShell.addEventListener("pointerup",   function(e){ e.stopPropagation(); });
-trayShell.addEventListener("wheel",       function(e){ e.stopPropagation(); }, { passive: true });
+// iPhone Safari: ensure tray always captures touches (prevents board from stealing gestures)
+function __vttStop(e){
+  try { e.preventDefault(); } catch (_e) {}
+  try { e.stopPropagation(); } catch (_e2) {}
+  try { if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch (_e3) {}
+}
+
+trayShell.addEventListener("pointerdown", __vttStop, { capture:true });
+trayShell.addEventListener("pointermove", __vttStop, { capture:true });
+trayShell.addEventListener("pointerup",   __vttStop, { capture:true });
+trayShell.addEventListener("touchstart",  __vttStop, { capture:true, passive:false });
+trayShell.addEventListener("touchmove",   __vttStop, { capture:true, passive:false });
+trayShell.addEventListener("touchend",    __vttStop, { capture:true, passive:false });
+trayShell.addEventListener("wheel", function(e){ e.stopPropagation(); }, { passive:true });;
 
 /* =========================
    STATE
@@ -2307,7 +2317,37 @@ var trayState = {
   searchRemovedIds: new Set(),
   searchQuery: ""
 };
+// === PATCH: iPhone-safe tray sizing/position (portrait + P2 left drawer) =====
+function __vttUpdateTrayShellLayout(){
+  try {
+    var isP2 = document.documentElement.classList.contains("vtt-seat-p2");
+    var vw = Math.max(320, (window.innerWidth || 0));
+    var vh = Math.max(320, (window.innerHeight || 0));
+    var portrait = vh >= vw;
 
+    // Mobile-safe width (avoid Safari vw weirdness). Keep it usable but not huge.
+    // Portrait: a bit wider, Landscape: slimmer.
+    var w = portrait ? Math.round(vw * 0.42) : Math.round(vw * 0.28);
+    w = Math.max(130, Math.min(w, 210));
+
+    trayShell.style.width = w + "px";
+    trayShell.style.top = "0px";
+    trayShell.style.bottom = "0px";
+
+    // P2 drawer should be LEFT
+    if (isP2) {
+      trayShell.style.left = "0px";
+      trayShell.style.right = "auto";
+    } else {
+      trayShell.style.right = "0px";
+      trayShell.style.left = "auto";
+    }
+
+    // Make sure it sits above everything
+    trayShell.style.zIndex = "999999";
+  } catch (e) {}
+}
+// === END PATCH ==============================================================
 function setTrayPlayerColor(color) {
   PLAYER_COLOR = color;
   try { delete trayShell.dataset.player; } catch (e) {}
@@ -2318,7 +2358,12 @@ function openTray() {
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
   renderTray();
+  // iPhone: force correct size/side every time (portrait + P2 left)
+  __vttUpdateTrayShellLayout();
 
+  // With tray open, re-center board so field stays visible
+  try { fitToScreen(); } catch (e) {}
+  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 60);
   // PATCH: ensure tray cards always have click handler AFTER render builds them
   setTimeout(function(){
     var tray = document.getElementById("tray");
@@ -2331,7 +2376,16 @@ function openTray() {
     }
   }, 0);
 }
+// Keep tray usable when device rotates (iPhone Safari)
+window.addEventListener("resize", function(){
+  if (!trayState.open) return;
+  __vttUpdateTrayShellLayout();
+}, { passive:true });
 
+window.addEventListener("orientationchange", function(){
+  if (!trayState.open) return;
+  setTimeout(function(){ __vttUpdateTrayShellLayout(); }, 40);
+}, { passive:true });
 /* =========================
    PATCH: Tray click delegation (survives tray rebuild)
    ========================= */
