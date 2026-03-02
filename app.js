@@ -230,6 +230,56 @@ function __vttClientToDesignBoard(clientX, clientY){
   }
   return { x:x, y:y };
 }
+
+// === PATCH: iOS Safari tap reliability (HUD + clickable zones + tray) =========
+function __vttIsIOS(){
+  try { return /iPad|iPhone|iPod/.test(navigator.userAgent || "") && !window.MSStream; }
+  catch(e){ return false; }
+}
+
+// iOS Safari can sometimes swallow pointerdown/click when other layers call preventDefault.
+// This bridge makes "tap" act like a click for our UI and pile zones, without affecting drag.
+(function __vttIosTapBridgeOnce(){
+  if (window.__vttIosTapBridgeOnceInstalled) return;
+  window.__vttIosTapBridgeOnceInstalled = true;
+
+  var lastTapMs = 0;
+
+  function shouldBridgeTarget(t){
+    if (!t) return false;
+    // Buttons in HUD/tray/menus
+    if (t.tagName === "BUTTON" || (t.closest && t.closest("button"))) return true;
+    // Any explicitly clickable zone (piles use this)
+    if (t.classList && t.classList.contains("clickable")) return true;
+    if (t.closest && t.closest(".zone.clickable")) return true;
+    // Tray shell itself (close button etc.)
+    if (t.id === "trayShell" || t.closest && t.closest("#trayShell")) return true;
+    return false;
+  }
+
+  document.addEventListener("touchend", function(e){
+    try {
+      if (!__vttIsIOS()) return;
+      var now = Date.now();
+      if (now - lastTapMs < 250) return; // avoid double-fire (touchend + synthetic click)
+      var t = e.target;
+      if (!shouldBridgeTarget(t)) return;
+
+      // Prevent the board layer from treating this as a pan/zoom gesture
+      e.preventDefault();
+      e.stopPropagation();
+
+      lastTapMs = now;
+
+      // Prefer nearest button if present; else click the target itself.
+      var btn = (t.tagName === "BUTTON") ? t : (t.closest ? t.closest("button") : null);
+      var clickEl = btn || t;
+      if (clickEl && typeof clickEl.click === "function") clickEl.click();
+    } catch(err) {}
+  }, { passive:false, capture:true });
+})();
+// === END PATCH ================================================================
+
 /* === END PATCH ============================================================= */
 function __vttEnsureToastEl(){
   if (window.__vttToastEl && window.__vttToastEl.isConnected) return window.__vttToastEl;
@@ -2815,7 +2865,16 @@ function bindPileZoneClicks() {
       var clone = el.cloneNode(true);
       el.replaceWith(clone);
 
-      clone.addEventListener("pointerdown", function(e){
+      var __vttPileTap = function(e){
+        // iOS can emit both touch/pointer and click; de-dupe per element.
+        try {
+          var now = Date.now();
+          var last = (clone.__vttLastTapMs || 0);
+          if (now - last < 250) return;
+          clone.__vttLastTapMs = now;
+        } catch (eDed) {}
+        try { if (__vttIsIOS && __vttIsIOS() && e && e.preventDefault) e.preventDefault(); } catch (ePrev) {}
+
                 // PRIVACY: only the owning player can open/peek this pile
         try {
 var me = ownerSeatFromLocalColor();          if (m.owner !== me) return;
@@ -2844,7 +2903,11 @@ var me = ownerSeatFromLocalColor();          if (m.owner !== me) return;
         }
 
         openTraySearch(m.owner, m.pileKey, m.label);
-      });
+      };
+
+      clone.addEventListener("pointerdown", __vttPileTap);
+      clone.addEventListener("click", __vttPileTap);
+      clone.addEventListener("touchend", __vttPileTap, { passive:false });
     })(clickMap[i]);
   }
 }
@@ -3020,25 +3083,12 @@ function viewportToDesign(vx, vy){
 }
 
 // === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
-function __vttIsP2View(){
-  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
-  catch (e) { return false; }
-}
-
-// Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
-// compensating for camera scale AND P2 180° playfield rotation.
-function __vttClientToDesignBoard(clientX, clientY){
-  var r = stage.getBoundingClientRect();
-  var x = (clientX - r.left) / camera.scale;
-  var y = (clientY - r.top)  / camera.scale;
-
-  if (__vttIsP2View()){
-    x = (DESIGN_W - x);
-    y = (DESIGN_H - y);
-  }
-  return { x:x, y:y };
-}
-// === END PATCH ==============================================================
+// === PATCH: remove duplicate P2 mapping (keeps earlier iOS-safe version) ======
+// NOTE: This file previously re-declared __vttIsP2View/__vttClientToDesignBoard later,
+// which overwrote the iOS-safe implementation and caused inverted drag / bad drops on iPhone.
+// The canonical implementations are defined earlier in the file.
+// (This placeholder block is intentionally empty.)
+// === END PATCH ================================================================
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
   var world = viewportToDesign(vx, vy);
