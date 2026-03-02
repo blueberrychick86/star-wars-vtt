@@ -907,13 +907,39 @@ style.textContent = `
   #trayShell{
     position: fixed;
     top: 0; bottom: 0; right: 0;
-    width: min(150px, 24vw);
+    width: clamp(120px, 22vw, 180px);
+max-width: 42vw;
     padding: 4px;
     box-sizing: border-box;
     z-index: 150000;
     pointer-events: none;
     display: none;
   }
+  #trayShell{
+  position: fixed;
+  top: 0; bottom: 0; right: 0;
+  width: clamp(120px, 22vw, 180px);
+  max-width: 42vw;
+  padding: 4px;
+  box-sizing: border-box;
+  z-index: 150000;
+  pointer-events: none;
+  display: none;
+}
+
+/* Mobile portrait: predictable tray width */
+@media (max-width: 900px) and (orientation: portrait){
+  #trayShell{
+    width: clamp(120px, 34vw, 190px);
+    max-width: 52vw;
+  }
+}
+
+#tray{
+  width: 100%;
+  height: 100%;
+  ...
+}
   #tray{
     width: 100%;
     height: 100%;
@@ -938,6 +964,8 @@ style.textContent = `
     left: 0;
     right: auto;
   }
+  /* Final override: P2 drawer ALWAYS on the left (Safari-safe) */
+.vtt-seat-p2 #trayShell{ left: 0 !important; right: auto !important; }
   html.vtt-seat-p2 #tray{
     /* flip shadow direction since the drawer is now on the left */
     box-shadow: 10px 0 26px rgba(0,0,0,0.55);
