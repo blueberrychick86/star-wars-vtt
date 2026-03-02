@@ -907,39 +907,13 @@ style.textContent = `
   #trayShell{
     position: fixed;
     top: 0; bottom: 0; right: 0;
-    width: clamp(120px, 22vw, 180px);
-max-width: 42vw;
-    padding: 4px;
+    width: clamp(180px, 24vw, 260px);
+    padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
     box-sizing: border-box;
     z-index: 150000;
     pointer-events: none;
     display: none;
   }
-  #trayShell{
-  position: fixed;
-  top: 0; bottom: 0; right: 0;
-  width: clamp(120px, 22vw, 180px);
-  max-width: 42vw;
-  padding: 4px;
-  box-sizing: border-box;
-  z-index: 150000;
-  pointer-events: none;
-  display: none;
-}
-
-/* Mobile portrait: predictable tray width */
-@media (max-width: 900px) and (orientation: portrait){
-  #trayShell{
-    width: clamp(120px, 34vw, 190px);
-    max-width: 52vw;
-  }
-}
-
-#tray{
-  width: 100%;
-  height: 100%;
-  ...
-}
   #tray{
     width: 100%;
     height: 100%;
@@ -962,24 +936,29 @@ max-width: 42vw;
     /* -------- TRAY (P2 LEFT DRAWER OVERRIDE) -------- */
   html.vtt-seat-p2 #trayShell{
     left: 0;
-    right: auto;
+    right: aut
+
+  /* -------- TRAY (MOBILE SIZING + iOS SELECTION FIX) -------- */
+  @media (max-width: 700px){
+    #trayShell{ width: min(78vw, 340px); }
   }
-  /* Final override: P2 drawer ALWAYS on the left (Safari-safe) */
-.vtt-seat-p2 #trayShell{ left: 0 !important; right: auto !important; }
+  .trayTile, .trayTile *{
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .trayTile{
+    touch-action: none;
+    -webkit-user-drag: none;
+  }
+  /* allow vertical scrolling inside the tray list without iOS zoom weirdness */
+  #trayCarousel{ touch-action: pan-y; }
+o;
+  }
   html.vtt-seat-p2 #tray{
     /* flip shadow direction since the drawer is now on the left */
     box-shadow: 10px 0 26px rgba(0,0,0,0.55);
   }
-    /* -------- iOS SAFETY: stop long-press highlight/callout while dragging from tray -------- */
-  #trayShell, #trayShell *{
-    -webkit-user-select: none !important;
-    user-select: none !important;
-    -webkit-touch-callout: none !important;
-    -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
-  }
-  /* prevent Safari from trying to scroll/zoom the tray area */
-  #trayShell{ touch-action: none; }
-  #tray{ touch-action: none; }
   #trayTitle{
     color:#fff;
     font-weight: 900;
@@ -2177,20 +2156,10 @@ trayShell.appendChild(tray);
 table.appendChild(trayShell);
 window.trayShell = trayShell;
 
-// iPhone Safari: ensure tray always captures touches (prevents board from stealing gestures)
-function __vttStop(e){
-  try { e.preventDefault(); } catch (_e) {}
-  try { e.stopPropagation(); } catch (_e2) {}
-  try { if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch (_e3) {}
-}
-
-trayShell.addEventListener("pointerdown", __vttStop, { capture:true });
-trayShell.addEventListener("pointermove", __vttStop, { capture:true });
-trayShell.addEventListener("pointerup",   __vttStop, { capture:true });
-trayShell.addEventListener("touchstart",  __vttStop, { capture:true, passive:false });
-trayShell.addEventListener("touchmove",   __vttStop, { capture:true, passive:false });
-trayShell.addEventListener("touchend",    __vttStop, { capture:true, passive:false });
-trayShell.addEventListener("wheel", function(e){ e.stopPropagation(); }, { passive:true });;
+trayShell.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+trayShell.addEventListener("pointermove", function(e){ e.stopPropagation(); });
+trayShell.addEventListener("pointerup",   function(e){ e.stopPropagation(); });
+trayShell.addEventListener("wheel",       function(e){ e.stopPropagation(); }, { passive: true });
 
 /* =========================
    STATE
@@ -2317,37 +2286,7 @@ var trayState = {
   searchRemovedIds: new Set(),
   searchQuery: ""
 };
-// === PATCH: iPhone-safe tray sizing/position (portrait + P2 left drawer) =====
-function __vttUpdateTrayShellLayout(){
-  try {
-    var isP2 = document.documentElement.classList.contains("vtt-seat-p2");
-    var vw = Math.max(320, (window.innerWidth || 0));
-    var vh = Math.max(320, (window.innerHeight || 0));
-    var portrait = vh >= vw;
 
-    // Mobile-safe width (avoid Safari vw weirdness). Keep it usable but not huge.
-    // Portrait: a bit wider, Landscape: slimmer.
-    var w = portrait ? Math.round(vw * 0.42) : Math.round(vw * 0.28);
-    w = Math.max(130, Math.min(w, 210));
-
-    trayShell.style.width = w + "px";
-    trayShell.style.top = "0px";
-    trayShell.style.bottom = "0px";
-
-    // P2 drawer should be LEFT
-    if (isP2) {
-      trayShell.style.left = "0px";
-      trayShell.style.right = "auto";
-    } else {
-      trayShell.style.right = "0px";
-      trayShell.style.left = "auto";
-    }
-
-    // Make sure it sits above everything
-    trayShell.style.zIndex = "999999";
-  } catch (e) {}
-}
-// === END PATCH ==============================================================
 function setTrayPlayerColor(color) {
   PLAYER_COLOR = color;
   try { delete trayShell.dataset.player; } catch (e) {}
@@ -2358,12 +2297,7 @@ function openTray() {
   trayShell.style.pointerEvents = "auto";
   trayState.open = true;
   renderTray();
-  // iPhone: force correct size/side every time (portrait + P2 left)
-  __vttUpdateTrayShellLayout();
 
-  // With tray open, re-center board so field stays visible
-  try { fitToScreen(); } catch (e) {}
-  setTimeout(function(){ try { fitToScreen(); } catch (e) {} }, 60);
   // PATCH: ensure tray cards always have click handler AFTER render builds them
   setTimeout(function(){
     var tray = document.getElementById("tray");
@@ -2376,16 +2310,7 @@ function openTray() {
     }
   }, 0);
 }
-// Keep tray usable when device rotates (iPhone Safari)
-window.addEventListener("resize", function(){
-  if (!trayState.open) return;
-  __vttUpdateTrayShellLayout();
-}, { passive:true });
 
-window.addEventListener("orientationchange", function(){
-  if (!trayState.open) return;
-  setTimeout(function(){ __vttUpdateTrayShellLayout(); }, 40);
-}, { passive:true });
 /* =========================
    PATCH: Tray click delegation (survives tray rebuild)
    ========================= */
@@ -2472,17 +2397,7 @@ try { trayCarouselP2.innerHTML = ""; } catch (e) {}
 trayCloseBtn.addEventListener("click", function(){
   if (!previewOpen) closeTray();
 });
-// iOS: click can be flaky depending on gesture state; add pointer/touch fallbacks
-trayCloseBtn.addEventListener("pointerdown", function(e){
-  try { e.preventDefault(); } catch (_e) {}
-  try { e.stopPropagation(); } catch (_e2) {}
-  closeTray();
-});
-trayCloseBtn.addEventListener("touchstart", function(e){
-  try { e.preventDefault(); } catch (_e) {}
-  try { e.stopPropagation(); } catch (_e2) {}
-  closeTray();
-}, { passive:false });
+
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
   var q = normalize(query);
@@ -2531,6 +2446,19 @@ function makeTrayTile(card) {
   var tile = document.createElement("div");
   tile.className = "trayTile";
   applyFactionBorderClass(tile, card);
+
+
+// iOS Safari: stop long-press text selection / callout while dragging tiles.
+// IMPORTANT: only for touch pointers (do NOT affect mouse/trackpad on PC).
+try { tile.setAttribute("draggable", "false"); } catch (e) {}
+tile.addEventListener("pointerdown", function(e){
+  try {
+    if (e && e.pointerType === "touch") {
+      // iOS will try to select text or open the callout menu on long-press
+      e.preventDefault();
+    }
+  } catch (err) {}
+}, { passive: false });
 
   var img = document.createElement("div");
   img.className = "trayTileImg";
@@ -2666,15 +2594,8 @@ var me = ownerSeatFromLocalColor();      var own = (tile.__owner || "p1");
       if (own !== me) return;
     } catch (err) {}
 
-   if (previewOpen) return;
-
-// iOS: stop long-press text selection / callout when starting a tray drag
-if (e.pointerType === "touch") {
-  try { e.preventDefault(); } catch (_e) {}
-  try { tile.style.touchAction = "none"; } catch (_e2) {}
-}
-
-e.stopPropagation();
+    if (previewOpen) return;
+    e.stopPropagation();
 
     pid = e.pointerId;
     start = { x: e.clientX, y: e.clientY };
@@ -3173,42 +3094,23 @@ table.addEventListener("pointermove", function(e){
   if (!boardPointers.has(e.pointerId)) return;
   boardPointers.set(e.pointerId, e);
 
- if (boardPointers.size === 1) {
-  var dx = e.clientX - boardLast.x;
-  var dy = e.clientY - boardLast.y;
+  if (boardPointers.size === 1) {
+    var dx = e.clientX - boardLast.x;
+    var dy = e.clientY - boardLast.y;
+    camera.tx += dx;
+    camera.ty += dy;
+    boardLast = { x: e.clientX, y: e.clientY };
+    applyCamera();
+    refreshSnapRects();
+    return;
+  }
 
-  // P2-only: the view is rotated, so invert pan deltas for correct "grab-and-drag" feel
-  var __isP2 = false;
-  try { __isP2 = (ownerSeatFromLocalColor && ownerSeatFromLocalColor() === "p2"); } catch (e2) {}
-  if (__isP2) { dx = -dx; dy = -dy; }
-
-  camera.tx += dx;
-  camera.ty += dy;
-
-  boardLast = { x: e.clientX, y: e.clientY };
-  applyCamera();
-  refreshSnapRects();
-  return;
-}
-
- if (boardPointers.size === 2) {
-  // iOS: prevent page gestures from fighting our pinch
-  try { e.preventDefault(); } catch (_e) {}
-
-  var pts = Array.from(boardPointers.values());
-  var d = dist(pts[0], pts[1]);
-
-  // Keep midpoint live so scaling doesn't "jump"
-  pinchMid = mid(pts[0], pts[1]);
-
-  var factor = d / pinchStartDist;
-
-  // Clamp factor to reduce "wild" spikes on iOS
-  if (factor < 0.25) factor = 0.25;
-  if (factor > 4.0)  factor = 4.0;
-
-  setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
-}
+  if (boardPointers.size === 2) {
+    var pts = Array.from(boardPointers.values());
+    var d = dist(pts[0], pts[1]);
+    var factor = d / pinchStartDist;
+    setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
+  }
 });
 
 function endBoardPointer(e){
