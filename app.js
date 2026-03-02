@@ -915,6 +915,16 @@ style.textContent = `
     pointer-events: none;
     display: none;
   }
+  /* === PATCH: P2 tray ALWAYS on left + prevent iOS selection/callout === */
+  .vtt-seat-p2 #trayShell{ left:0 !important; right:auto !important; transform:none !important; }
+  .vtt-seat-p2 #tray{ transform:none !important; }
+  #tray, #tray *{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  #traySearchInput{ -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; }
+  /* prevent Safari long-press highlight while dragging */
+  .trayTile, .trayTile *{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  .trayTile{ touch-action:none; }
+  /* === END PATCH === */
+
   #tray{
     width: 100%;
     height: 100%;
@@ -2417,6 +2427,13 @@ trayCloseBtn.addEventListener("click", function(){
   if (!previewOpen) closeTray();
 });
 
+// === PATCH: iOS touchend close fallback ===
+trayCloseBtn.addEventListener(\"touchend\", function(e){
+  try { e.preventDefault(); e.stopPropagation(); } catch(err){}
+  if (!previewOpen) closeTray();
+}, { passive:false });
+// === END PATCH ===
+
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
   var q = normalize(query);
@@ -2583,6 +2600,7 @@ onCommitToBoard();
 
   tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
+    try{ e.preventDefault(); }catch(_e){}
     try {
       var me = ownerSeatFromLocalColor();
       var own = (tile.__owner || "p1");
@@ -2591,7 +2609,18 @@ onCommitToBoard();
     showPreview(card);
   });
 
-  tile.addEventListener("pointerdown", function(e){
+  
+  // === PATCH: iOS long-press highlight prevention on tray tiles ===
+  try {
+    tile.style.touchAction = "none";
+    tile.style.webkitUserSelect = "none";
+    tile.style.userSelect = "none";
+    tile.style.webkitTouchCallout = "none";
+  } catch(e){}
+  tile.addEventListener("touchstart", function(e){ try{ e.preventDefault(); }catch(err){} }, { passive:false });
+  // === END PATCH ===
+
+tile.addEventListener("pointerdown", function(e){
     if (e.button !== 0) return;
     if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
         // PRIVACY: only owner can drag/use this tray tile
@@ -3092,8 +3121,6 @@ table.addEventListener("pointermove", function(e){
   if (boardPointers.size === 1) {
     var dx = e.clientX - boardLast.x;
     var dy = e.clientY - boardLast.y;
-    if (__vttIsP2View()){ dx = -dx; dy = -dy; }
-
     camera.tx += dx;
     camera.ty += dy;
     boardLast = { x: e.clientX, y: e.clientY };
@@ -3106,6 +3133,7 @@ table.addEventListener("pointermove", function(e){
     var pts = Array.from(boardPointers.values());
     var d = dist(pts[0], pts[1]);
     var factor = d / pinchStartDist;
+    pinchMid = mid(pts[0], pts[1]);
     setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
   }
 });
