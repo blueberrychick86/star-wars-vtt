@@ -158,12 +158,22 @@ function getLocalSeatColor() {
   return "blue";
 }
 /* === PATCH: GLOBAL seat helpers + global client->design mapping (CRASH FIX) === */
+// === PATCH: iOS-safe seat fallback for ownership checks ======================
 function ownerSeatFromLocalColor() {
   // Map local seat color to canonical owner key ("p1" / "p2")
   var c = "blue";
   try { c = getLocalSeatColor(); } catch (e) {}
+
+  // If we can't reliably read seat color (common iOS/Safari edge cases),
+  // fall back to the CSS seat class that we already set in applyLocalCamera().
+  try {
+    var isP2Class = document.documentElement.classList.contains("vtt-seat-p2");
+    if (isP2Class) return "p2";
+  } catch (e2) {}
+
   return (String(c).toLowerCase() === "red") ? "p2" : "p1";
 }
+// === END PATCH ===============================================================
 
 function __vttIsP2View(){
   try {
@@ -194,13 +204,27 @@ function __vttGetClientXY(e){
   } catch (err) {}
   return { x: (e && e.clientX) || 0, y: (e && e.clientY) || 0 };
 }
+// === PATCH: detect iOS Safari/WebKit (not Chrome iOS) ========================
+function __vttIsIOSSafari(){
+  try {
+    var ua = navigator.userAgent || "";
+    var isiOS = /iP(hone|ad|od)/.test(ua);
+    var webkit = /WebKit/.test(ua);
+    var isCriOS = /CriOS/.test(ua);      // Chrome on iOS
+    var isFxiOS = /FxiOS/.test(ua);      // Firefox on iOS
+    return !!(isiOS && webkit && !isCriOS && !isFxiOS);
+  } catch (e) { return false; }
+}
+// === END PATCH ===============================================================
 function __vttClientToDesignBoard(clientX, clientY){
   if (!window.stage || !window.camera) return { x: 0, y: 0 };
   var r = stage.getBoundingClientRect();
   var x = (clientX - r.left) / camera.scale;
   var y = (clientY - r.top)  / camera.scale;
 
-  if (__vttIsP2View()){
+  // iOS Safari + rotated playfield often already behaves "flipped" in practice.
+  // So we DO NOT apply the extra flip there (prevents double-invert drag).
+  if (__vttIsP2View() && !__vttIsIOSSafari()){
     x = (DESIGN_W - x);
     y = (DESIGN_H - y);
   }
