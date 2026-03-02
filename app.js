@@ -22,6 +22,23 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
   document.head.appendChild(st);
 })();
 // === END PATCH ===============================================================
+// === PATCH: P2 HUD text unflip (safe global inject) =========================
+(function ensureP2HudTextFixStyle(){
+  if (document.getElementById("vttP2HudTextFixStyle")) return;
+
+  var st = document.createElement("style");
+  st.id = "vttP2HudTextFixStyle";
+  st.textContent = `
+    /* When P2 seat is active, unflip button text */
+    .vtt-seat-p2 button,
+    .vtt-seat-p2 .btn,
+    .vtt-seat-p2 .controls button {
+      transform: scaleY(-1);
+    }
+  `;
+  document.head.appendChild(st);
+})();
+// === END PATCH ==============================================================
 // === PATCH: P2 HUD/TRAY must NOT be flipped (override earlier scaleY) =======
 (function vttFixP2HudUpsideDown(){
   if (document.getElementById("vttP2HudNoFlipStyle")) return;
@@ -149,34 +166,34 @@ function ownerSeatFromLocalColor() {
 }
 
 function __vttIsP2View(){
-  // Source of truth: the seat CSS class set when we rotate the playfield.
   try {
-    if (document && document.documentElement && document.documentElement.classList) {
-      if (document.documentElement.classList.contains("vtt-seat-p2")) return true;
-      // If class is explicitly present/absent, we can return false confidently.
-      // (We only fall back if DOM isn't ready or classList isn't available.)
-      if (document.documentElement.classList.contains("vtt-seat-p1")) return false;
-    }
-  } catch (e0) {}
-
-  // Fallbacks: local seat color / config
-  try {
+    // Prefer authoritative local seat color (your config uses red/blue)
     if (typeof getLocalSeatColor === "function") {
       var c = String(getLocalSeatColor() || "").toLowerCase();
       if (c === "red") return true;
       if (c === "blue") return false;
     }
-  } catch (e1) {}
+  } catch (e) {}
 
-  try {
-    if (window.VTT_LOCAL && window.VTT_LOCAL.seat) return (String(window.VTT_LOCAL.seat).toLowerCase() === "p2");
-  } catch (e2) {}
-
-  return false;
+  // Fallback: css class if present
+  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
+  catch (e2) { return false; }
 }
 
 // Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
 // compensating for camera scale AND P2 180° playfield rotation.
+// iOS Safari fix: normalize pointer/touch coords to {x,y}
+function __vttGetClientXY(e){
+  try {
+    if (e && e.touches && e.touches[0]) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    if (e && e.changedTouches && e.changedTouches[0]) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+  } catch (err) {}
+  return { x: (e && e.clientX) || 0, y: (e && e.clientY) || 0 };
+}
 function __vttClientToDesignBoard(clientX, clientY){
   if (!window.stage || !window.camera) return { x: 0, y: 0 };
   var r = stage.getBoundingClientRect();
@@ -646,24 +663,6 @@ window.__ROOMS_WORKER_ORIGIN = "https://sw-vtt-rooms-worker.blueberrychick86.wor
       "#earlyCrashOverlay pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px;line-height:1.35;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;background:rgba(255,255,255,.06)}";
     document.head.appendChild(style);
 
-// === PATCH: P2 HUD text unflip (safe global inject) =========================
-(function ensureP2HudTextFixStyle(){
-  if (document.getElementById("vttP2HudTextFixStyle")) return;
-
-  var st = document.createElement("style");
-  st.id = "vttP2HudTextFixStyle";
-  st.textContent =
-    ".vtt-seat-p2 button," +
-    ".vtt-seat-p2 .btn," +
-    ".vtt-seat-p2 .controls button{" +
-    "transform: scaleY(-1);" +
-    "}";
-
-  document.head.appendChild(st);
-})();
-// === END PATCH ==============================================================
-
-
     var wrap = document.createElement("div");
     wrap.id = "earlyCrashOverlay";
     wrap.innerHTML =
@@ -788,7 +787,7 @@ style.textContent = `
     position: fixed;
     left: 10px;
     top: 10px;
-    z-index: 200000;
+    z-index: 100000;
     display:flex;
     gap:6px;
     flex-wrap:wrap;
@@ -908,23 +907,13 @@ style.textContent = `
   #trayShell{
     position: fixed;
     top: 0; bottom: 0; right: 0;
-    width: clamp(130px, 22vw, 200px);
+    width: min(150px, 24vw);
     padding: 4px;
     box-sizing: border-box;
     z-index: 150000;
     pointer-events: none;
     display: none;
   }
-  /* === PATCH: P2 tray ALWAYS on left + prevent iOS selection/callout === */
-  .vtt-seat-p2 #trayShell{ left:0 !important; right:auto !important; transform:none !important; }
-  .vtt-seat-p2 #tray{ transform:none !important; }
-  #tray, #tray *{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
-  #traySearchInput{ -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; }
-  /* prevent Safari long-press highlight while dragging */
-  .trayTile, .trayTile *{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
-  .trayTile{ touch-action:none; }
-  /* === END PATCH === */
-
   #tray{
     width: 100%;
     height: 100%;
@@ -944,6 +933,15 @@ style.textContent = `
     border-bottom: 1px solid rgba(255,255,255,0.10);
     gap: 6px;
   }
+    /* -------- TRAY (P2 LEFT DRAWER OVERRIDE) -------- */
+  html.vtt-seat-p2 #trayShell{
+    left: 0;
+    right: auto;
+  }
+  html.vtt-seat-p2 #tray{
+    /* flip shadow direction since the drawer is now on the left */
+    box-shadow: 10px 0 26px rgba(0,0,0,0.55);
+  }
   #trayTitle{
     color:#fff;
     font-weight: 900;
@@ -958,23 +956,6 @@ style.textContent = `
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* --- iOS SAFARI: prevent long-press text selection/callout when dragging tray cards --- */
-  #tray img{ -webkit-user-drag: none; user-drag: none; }
-  #tray .tray-card,
-  #tray .trayCard,
-  #tray [data-card-id]{
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: none; /* allow our pointer dragging instead of page gestures */
-  }
-  /* keep inputs selectable/usable (search box) */
-  #tray input, #tray textarea{
-    -webkit-user-select: text;
-    user-select: text;
-    touch-action: manipulation;
-  }
-
   #trayCloseBtn{
     border:1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
@@ -2342,33 +2323,6 @@ function openTray() {
       spawnFromTray(cardId);
     }
   }, true);
-
-/* =========================
-   PATCH: iOS Safari tray-drag UX (prevents long-press text highlight / callout)
-   - Only intercepts touches that start on tray card elements (not the search input)
-   ========================= */
-(function __vttIOSNoCalloutTray(){
-  if (window.__VTT_IOS_NO_CALLOUT_TRAY__) return;
-  window.__VTT_IOS_NO_CALLOUT_TRAY__ = true;
-
-  function isTrayCardTarget(t){
-    try{
-      if (!t || !t.closest) return false;
-      if (t.closest("#tray input, #tray textarea")) return false;
-      return !!t.closest("#tray .tray-card, #tray .trayCard, #tray [data-card-id]");
-    } catch(e){ return false; }
-  }
-
-  function killIfTrayCard(e){
-    if (!isTrayCardTarget(e.target)) return;
-    // iOS long-press selection/callout is prevented by calling preventDefault on touchstart/move
-    try { e.preventDefault(); } catch(err){}
-  }
-
-  // NOTE: must be passive:false or preventDefault is ignored on iOS
-  document.addEventListener("touchstart", killIfTrayCard, { capture:true, passive:false });
-  document.addEventListener("touchmove",  killIfTrayCard, { capture:true, passive:false });
-})();
 })();
 
 function closeTray() {
@@ -2426,13 +2380,6 @@ try { trayCarouselP2.innerHTML = ""; } catch (e) {}
 trayCloseBtn.addEventListener("click", function(){
   if (!previewOpen) closeTray();
 });
-
-// === PATCH: iOS touchend close fallback ===
-trayCloseBtn.addEventListener(\"touchend\", function(e){
-  try { e.preventDefault(); e.stopPropagation(); } catch(err){}
-  if (!previewOpen) closeTray();
-}, { passive:false });
-// === END PATCH ===
 
 function normalize(s) { return (s || "").toLowerCase().trim(); }
 function tokenMatch(query, target) {
@@ -2600,7 +2547,6 @@ onCommitToBoard();
 
   tile.addEventListener("contextmenu", function(e){
     e.preventDefault(); e.stopPropagation();
-    try{ e.preventDefault(); }catch(_e){}
     try {
       var me = ownerSeatFromLocalColor();
       var own = (tile.__owner || "p1");
@@ -2609,18 +2555,7 @@ onCommitToBoard();
     showPreview(card);
   });
 
-  
-  // === PATCH: iOS long-press highlight prevention on tray tiles ===
-  try {
-    tile.style.touchAction = "none";
-    tile.style.webkitUserSelect = "none";
-    tile.style.userSelect = "none";
-    tile.style.webkitTouchCallout = "none";
-  } catch(e){}
-  tile.addEventListener("touchstart", function(e){ try{ e.preventDefault(); }catch(err){} }, { passive:false });
-  // === END PATCH ===
-
-tile.addEventListener("pointerdown", function(e){
+  tile.addEventListener("pointerdown", function(e){
     if (e.button !== 0) return;
     if (!Permissions.canPerform("play_from_tray", { source: "tray" })) { showToast("Not your turn", 1200); return; }
         // PRIVACY: only owner can drag/use this tray tile
@@ -2856,46 +2791,36 @@ function bindPileZoneClicks() {
       var clone = el.cloneNode(true);
       el.replaceWith(clone);
 
-            function __vttHandlePileActivate(e){
-              // iOS Safari sometimes fails to dispatch pointer events reliably on rotated elements.
-              // We listen to both pointerdown and touchstart, and we always prevent default to stop
-              // synthetic delayed clicks / scrolling from blocking the tray.
-              try { e.preventDefault(); } catch (x) {}
-              try { e.stopPropagation(); } catch (y) {}
+      clone.addEventListener("pointerdown", function(e){
+                // PRIVACY: only the owning player can open/peek this pile
+        try {
+var me = ownerSeatFromLocalColor();          if (m.owner !== me) return;
+        } catch (err) { return; }
 
-              // PRIVACY: only the owning player can open/peek this pile
-              try {
-                var meSeat = ownerSeatFromLocalColor();
-                if (m.owner !== meSeat) return;
-              } catch (err) { return; }
+        if (previewOpen) return;
+        e.stopPropagation();
+                // PRIVATE piles: only owning seat can open/peek
+        try {
+          var me = (window.__gameConfig && window.__gameConfig.youAre)
+            ? String(window.__gameConfig.youAre)
+            : "";
+          if (me && m.owner && me !== m.owner) return;
+        } catch (err) {}
 
-              if (previewOpen) return;
 
-              // PRIVATE piles: only owning seat can open/peek
-              try {
-                var me = (window.__gameConfig && window.__gameConfig.youAre)
-                  ? String(window.__gameConfig.youAre)
-                  : "";
-                if (me && m.owner && me !== m.owner) return;
-              } catch (err2) {}
+        if (m.id === "p1_draw" || m.id === "p2_draw") {
+          if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
 
-              if (m.id === "p1_draw" || m.id === "p2_draw") {
-                if (!piles[m.pileKey] || piles[m.pileKey].length === 0) return;
+          openTrayDraw();
+          var card = piles[m.pileKey].shift();
+          trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card: card });
+          setDrawCount(m.owner, trayState.drawItems.filter(function(x){ return x.owner === m.owner; }).length);
+          renderTray();
+          return;
+        }
 
-                openTrayDraw();
-                var card = piles[m.pileKey].shift();
-                trayState.drawItems.push({ owner: m.owner, pileKey: m.pileKey, card: card });
-                setDrawCount(m.owner, trayState.drawItems.filter(function(x){ return x.owner === m.owner; }).length);
-                renderTray();
-                return;
-              }
-
-              openTraySearch(m.owner, m.pileKey, m.label);
-            }
-
-            clone.addEventListener("pointerdown", __vttHandlePileActivate, { passive:false });
-            clone.addEventListener("touchstart", __vttHandlePileActivate, { passive:false });
-
+        openTraySearch(m.owner, m.pileKey, m.label);
+      });
     })(clickMap[i]);
   }
 }
@@ -3067,9 +2992,29 @@ var BOARD_MIN_SCALE = 0.25;
 var BOARD_MAX_SCALE = 4.0;
 
 function viewportToDesign(vx, vy){
-  // vx/vy are screen (client) coords; use the unified mapping helper.
-  return __vttClientToDesignBoard(vx, vy);
+  return { x: (vx - camera.tx) / camera.scale, y: (vy - camera.ty) / camera.scale };
 }
+
+// === PATCH: P2-aware pointer mapping (playfield is rotated 180 in P2 view) ===
+function __vttIsP2View(){
+  try { return document.documentElement.classList.contains("vtt-seat-p2"); }
+  catch (e) { return false; }
+}
+
+// Converts a screen (clientX/clientY) to DESIGN-space (stage-space),
+// compensating for camera scale AND P2 180° playfield rotation.
+function __vttClientToDesignBoard(clientX, clientY){
+  var r = stage.getBoundingClientRect();
+  var x = (clientX - r.left) / camera.scale;
+  var y = (clientY - r.top)  / camera.scale;
+
+  if (__vttIsP2View()){
+    x = (DESIGN_W - x);
+    y = (DESIGN_H - y);
+  }
+  return { x:x, y:y };
+}
+// === END PATCH ==============================================================
 function setScaleAround(newScale, vx, vy){
   var clamped = Math.max(BOARD_MIN_SCALE, Math.min(BOARD_MAX_SCALE, newScale));
   var world = viewportToDesign(vx, vy);
@@ -3100,7 +3045,8 @@ table.addEventListener("pointerdown", function(e){
   if (e.target.closest(".tokenCube")) return;
   if (e.target.closest(".tokenBin")) return;
   if (e.target.closest("#hud")) return;
-
+  // iOS Safari fix: don't capture pointer when tapping zones (draw piles need taps)
+  if (e.target.closest(".zone")) return;
   table.setPointerCapture(e.pointerId);
   boardPointers.set(e.pointerId, e);
   boardLast = { x: e.clientX, y: e.clientY };
@@ -3133,7 +3079,6 @@ table.addEventListener("pointermove", function(e){
     var pts = Array.from(boardPointers.values());
     var d = dist(pts[0], pts[1]);
     var factor = d / pinchStartDist;
-    pinchMid = mid(pts[0], pts[1]);
     setScaleAround(pinchStartScale * factor, pinchMid.x, pinchMid.y);
   }
 });
@@ -3910,8 +3855,9 @@ function attachDragHandlers(el, cardData, kind) {
     clearPressTimer();
     longPressFired = false;
     movedDuringPress = false;
-    downX = e.clientX;
-    downY = e.clientY;
+        var c0 = __vttGetClientXY(e);
+    downX = c0.x;
+    downY = c0.y;
 
     pressTimer = setTimeout(function(){
       longPressFired = true;
