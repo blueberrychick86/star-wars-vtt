@@ -22,23 +22,6 @@ console.log("VTT BASELINE 2026-02-16 (CLEAN) — token layering + sync stable");
   document.head.appendChild(st);
 })();
 // === END PATCH ===============================================================
-// === PATCH: P2 HUD text unflip (safe global inject) =========================
-(function ensureP2HudTextFixStyle(){
-  if (document.getElementById("vttP2HudTextFixStyle")) return;
-
-  var st = document.createElement("style");
-  st.id = "vttP2HudTextFixStyle";
-  st.textContent = `
-    /* When P2 seat is active, unflip button text */
-    .vtt-seat-p2 button,
-    .vtt-seat-p2 .btn,
-    .vtt-seat-p2 .controls button {
-      transform: scaleY(-1);
-    }
-  `;
-  document.head.appendChild(st);
-})();
-// === END PATCH ==============================================================
 // === PATCH: P2 HUD/TRAY must NOT be flipped (override earlier scaleY) =======
 (function vttFixP2HudUpsideDown(){
   if (document.getElementById("vttP2HudNoFlipStyle")) return;
@@ -663,6 +646,24 @@ window.__ROOMS_WORKER_ORIGIN = "https://sw-vtt-rooms-worker.blueberrychick86.wor
       "#earlyCrashOverlay pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px;line-height:1.35;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;background:rgba(255,255,255,.06)}";
     document.head.appendChild(style);
 
+// === PATCH: P2 HUD text unflip (safe global inject) =========================
+(function ensureP2HudTextFixStyle(){
+  if (document.getElementById("vttP2HudTextFixStyle")) return;
+
+  var st = document.createElement("style");
+  st.id = "vttP2HudTextFixStyle";
+  st.textContent =
+    ".vtt-seat-p2 button," +
+    ".vtt-seat-p2 .btn," +
+    ".vtt-seat-p2 .controls button{" +
+    "transform: scaleY(-1);" +
+    "}";
+
+  document.head.appendChild(st);
+})();
+// === END PATCH ==============================================================
+
+
     var wrap = document.createElement("div");
     wrap.id = "earlyCrashOverlay";
     wrap.innerHTML =
@@ -787,7 +788,7 @@ style.textContent = `
     position: fixed;
     left: 10px;
     top: 10px;
-    z-index: 100000;
+    z-index: 200000;
     display:flex;
     gap:6px;
     flex-wrap:wrap;
@@ -907,7 +908,7 @@ style.textContent = `
   #trayShell{
     position: fixed;
     top: 0; bottom: 0; right: 0;
-    width: min(150px, 24vw);
+    width: clamp(130px, 22vw, 200px);
     padding: 4px;
     box-sizing: border-box;
     z-index: 150000;
@@ -947,6 +948,23 @@ style.textContent = `
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* --- iOS SAFARI: prevent long-press text selection/callout when dragging tray cards --- */
+  #tray img{ -webkit-user-drag: none; user-drag: none; }
+  #tray .tray-card,
+  #tray .trayCard,
+  #tray [data-card-id]{
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none; /* allow our pointer dragging instead of page gestures */
+  }
+  /* keep inputs selectable/usable (search box) */
+  #tray input, #tray textarea{
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+  }
+
   #trayCloseBtn{
     border:1px solid rgba(255,255,255,0.18);
     background: rgba(255,255,255,0.08);
@@ -2314,6 +2332,33 @@ function openTray() {
       spawnFromTray(cardId);
     }
   }, true);
+
+/* =========================
+   PATCH: iOS Safari tray-drag UX (prevents long-press text highlight / callout)
+   - Only intercepts touches that start on tray card elements (not the search input)
+   ========================= */
+(function __vttIOSNoCalloutTray(){
+  if (window.__VTT_IOS_NO_CALLOUT_TRAY__) return;
+  window.__VTT_IOS_NO_CALLOUT_TRAY__ = true;
+
+  function isTrayCardTarget(t){
+    try{
+      if (!t || !t.closest) return false;
+      if (t.closest("#tray input, #tray textarea")) return false;
+      return !!t.closest("#tray .tray-card, #tray .trayCard, #tray [data-card-id]");
+    } catch(e){ return false; }
+  }
+
+  function killIfTrayCard(e){
+    if (!isTrayCardTarget(e.target)) return;
+    // iOS long-press selection/callout is prevented by calling preventDefault on touchstart/move
+    try { e.preventDefault(); } catch(err){}
+  }
+
+  // NOTE: must be passive:false or preventDefault is ignored on iOS
+  document.addEventListener("touchstart", killIfTrayCard, { capture:true, passive:false });
+  document.addEventListener("touchmove",  killIfTrayCard, { capture:true, passive:false });
+})();
 })();
 
 function closeTray() {
@@ -3047,6 +3092,8 @@ table.addEventListener("pointermove", function(e){
   if (boardPointers.size === 1) {
     var dx = e.clientX - boardLast.x;
     var dy = e.clientY - boardLast.y;
+    if (__vttIsP2View()){ dx = -dx; dy = -dy; }
+
     camera.tx += dx;
     camera.ty += dy;
     boardLast = { x: e.clientX, y: e.clientY };
